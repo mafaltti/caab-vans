@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { UserForm } from "@/components/admin/user-form";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,20 @@ import Link from "next/link";
 
 export default function AdminUserCreatePage() {
   const router = useRouter();
+  const [allowed, setAllowed] = useState(false);
+
+  const didCheck = useRef(false);
+  useEffect(() => {
+    if (didCheck.current) return;
+    didCheck.current = true;
+    fetch("/api/admin/users").then((res) => {
+      if (res.status === 403) {
+        router.push("/admin");
+      } else {
+        setAllowed(true);
+      }
+    });
+  }, [router]);
 
   async function handleSubmit(data: {
     email?: string;
@@ -26,6 +41,10 @@ export default function AdminUserCreatePage() {
     }
 
     router.push("/admin/users");
+  }
+
+  if (!allowed) {
+    return <div className="text-sm text-zinc-500">Carregando...</div>;
   }
 
   return (
