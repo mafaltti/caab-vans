@@ -76,6 +76,16 @@ export type RouteDetail = RouteWithStatus & {
   }[];
 };
 
+export type AnnouncementResponse = {
+  id: string;
+  title: string;
+  body: string;
+  isPinned: boolean;
+  isUrgent: boolean;
+  expiresAt: string | null;
+  createdAt: string;
+};
+
 // API error shape
 
 export type ApiError = {
