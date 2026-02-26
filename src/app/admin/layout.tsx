@@ -13,7 +13,15 @@ async function getUser() {
         getAll() {
           return cookieStore.getAll();
         },
-        setAll() {},
+        setAll(cookiesToSet) {
+          try {
+            for (const { name, value, options } of cookiesToSet) {
+              cookieStore.set(name, value, options);
+            }
+          } catch {
+            // Server Components cannot set cookies — safe to ignore
+          }
+        },
       },
     },
   );
