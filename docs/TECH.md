@@ -2,7 +2,7 @@
 
 ## 1) Product Context (MVP)
 
-This project implements the MVP described in `docs/prd-mvp.md`:
+This project implements the MVP described in `docs/PRD-MVP.md`:
 - Mobile-first dashboard for CAAB transport status
 - Fixed routes/stops + countdowns
 - Lightweight filtering
@@ -118,8 +118,8 @@ Timezone:
 
 Suggested layout:
 - `docs/`
-  - `INITIAL-PRD-MVP.md`
-  - `STACK.md` (this file)
+  - `PRD-MVP.md`
+  - `TECH.md` (this file)
 - `infra/`
   - `supabase/` (official self-host stack, env files)
   - `caab-vans/` (app compose, caddy config if app owns proxy)

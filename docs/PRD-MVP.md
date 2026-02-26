@@ -1,8 +1,6 @@
 <!-- project-documentation/product-manager-output.md -->
 
-# Vans CAAB — MVP PRD
-
-**Date:** 2026-02-25
+# Vans CAAB — MVP PRD (2026-02-25)
 
 ## 1. Executive Summary
 - **Elevator Pitch (≤20 words):** Mobile web app to see running CAAB van routes, next scheduled stop/time, announcements, and a live location link.
@@ -20,12 +18,12 @@
   - **Given** a route detail page, **when** I view the schedule, **then** I see an ordered list of stops with times (HH:mm).
   - **Given** a route schedule and current time `T` (America/Bahia), **when** there exists a schedule entry with time **≥ T**, **then** “Next scheduled stop” is the **first** entry whose time is **≥ T**.
   - **Given** `T` is after the last schedule entry, **when** I view the route, **then** the UI shows “Schedule ended for now”.
-  - **Given** this is a schedule-based estimate, **when** the UI displays the next stop/time, **then** it is labeled **“Next scheduled stop/time”** and includes a note: **“Check the location link for the actual position.”**
-- **Priority:** **P0** — Core decision-making flow.
+  - **Given** this is schedule-based, **when** next stop/time is displayed, **then** it is labeled **“Next scheduled stop/time”** and includes: **“Check the location link for the actual position.”**
+- **Priority:** **P0**
 - **Dependencies / Risks (max 3):**
   - Schedules may not match reality during delays; UX must avoid overclaiming.
   - Correct timezone handling (America/Bahia).
-  - Schedule data must be accurate and maintained (trust risk).
+  - Schedule data must be accurate and maintained.
 
 ### Feature 2: Live Location Link (Last Shared Today) + Timestamp
 - **User Story:** As a CAAB member, I want to open the van’s live location link, so I can see where it actually is right now.
@@ -35,33 +33,31 @@
     - a primary CTA “Open location link” that opens the stored URL.
   - **Given** the stored link timestamp date is not **today** (America/Bahia), **when** I view the route, **then** I see “Location not updated today”.
   - **Given** multiple updates arrive in a day, **when** I view the route, **then** the stored link is the **latest** (overwrite).
-- **Priority:** **P0** — Enables real-world confirmation via the live link.
+- **Priority:** **P0**
 - **Dependencies / Risks (max 3):**
   - If link not shared today, route will be Not running (strict rule).
   - Ingestion reliability (Pabbly → API).
-  - Users may still interpret the app as “real-time tracking”; UI must stay precise.
+  - Users may interpret as “tracking”; wording must stay precise.
 
 ### Feature 3: Operational Announcements (Pinned/Urgent + Expiry)
 - **User Story:** As a CAAB member, I want to see operational announcements, so I can adapt to changes or interruptions.
 - **Acceptance Criteria:**
   - **Given** announcements exist, **when** I open announcements, **then** I see newest-first.
   - **Given** some announcements are **pinned**, **when** I view the list, **then** pinned items appear **above** non-pinned items.
-  - **Given** an announcement is marked **urgent**, **when** it is displayed, **then** it has distinct styling (but ordering is controlled by pinned + recency).
+  - **Given** an announcement is **urgent**, **when** displayed, **then** it has distinct styling (ordering still by pinned + recency).
   - **Given** an announcement has an **expiry datetime**, **when** current time is after expiry (America/Bahia), **then** it does not appear in the public app.
   - **Given** there are no active announcements, **when** I open announcements, **then** I see “No announcements right now”.
-- **Priority:** **P1** — Useful, but secondary to route decision flow.
+- **Priority:** **P1**
 - **Dependencies / Risks (max 3):**
-  - Needs lightweight operational discipline to keep posts relevant.
-  - Expiry behavior must be clear to admins.
+  - Needs lightweight discipline to keep posts relevant.
+  - Expiry behavior must be clear to editors.
   - Too many announcements can create noise.
 
-### Feature 4: Admin Panel (Multi-admin Email/Password) — CRUD Routes/Schedules/Stops, Announcements, Admin Users
-- **User Story:** As a transport manager/admin, I want to maintain routes, schedules, announcements, and admin accounts, so the public app stays correct.
+### Feature 4: Admin Panel (Role-based) — CRUD Routes/Schedules/Stops & Announcements
+- **User Story:** As an operations admin, I want to maintain routes, schedules, and announcements, so the public app stays correct.
 - **Acceptance Criteria:**
   - **Auth**
-    - **Given** the admin panel, **when** I log in with email/password, **then** I can access admin features.
-  - **Admin Users**
-    - **Given** I am an authenticated admin, **when** I create another admin user (email + password), **then** that user can log in.
+    - **Given** the admin panel, **when** I log in with email/password, **then** I can access admin features based on my role.
   - **Routes**
     - **Given** the routes area, **when** I create/edit a route, **then** I can set route name and its single associated `van_id`.
   - **Schedules**
@@ -70,11 +66,26 @@
     - **Given** schedule entries are saved, **when** the schedule is displayed, **then** it is ordered by time (system sorts automatically to support easy insertion).
   - **Announcements**
     - **Given** announcements CRUD, **when** I create/edit an announcement, **then** I can set: title, body, pinned (bool), urgent (bool), expiry datetime.
-- **Priority:** **P0** — Required to operate the system.
+- **Priority:** **P0**
 - **Dependencies / Risks (max 3):**
-  - Account creation adds risk surface; keep minimal (no roles beyond admin).
+  - Role enforcement must be correct (no privilege leaks).
   - Admin UX must be fast and mistake-resistant (time validation).
   - Security basics must be solid (password storage, brute force protection).
+
+### Feature 5: Superuser-only Admin Account Management (All Privileges)
+- **User Story:** As a superuser, I want to manage admin accounts, so that access is controlled and auditable.
+- **Acceptance Criteria:**
+  - **Given** I am logged in as **superuser**, **when** I open “User Management”, **then** I can:
+    - create a new user with role **admin** or **superuser** (email + password),
+    - reset a user’s password,
+    - deactivate/reactivate a user.
+  - **Given** I am logged in as **admin (non-superuser)**, **when** I try to access “User Management”, **then** access is denied (no UI entry point; API also blocks).
+  - **Given** a new user is created, **when** they log in, **then** their role permissions are enforced immediately.
+- **Priority:** **P0** — Required by your governance constraint.
+- **Dependencies / Risks (max 3):**
+  - Requires an initial superuser bootstrap (seed).
+  - Adds a small RBAC surface area (keep roles to only admin/superuser).
+  - Deactivation needs to be safe (prevent locking out all superusers).
 
 ## 3. Requirements Overview
 
@@ -83,12 +94,12 @@
   - Home: list routes with status Running/Not running.
   - Route detail: schedule list, computed next scheduled stop/time, open live location link, last updated timestamp, stale warning.
   - Announcements: list active announcements with pinned/urgent/expiry rules.
-- **Admin App**
+- **Admin App (authenticated)**
   - Email/password login.
-  - Admin user creation (email/password).
   - CRUD routes (name, `van_id`).
   - CRUD schedule entries (HH:mm + stop; no duplicates; auto-sorted).
   - CRUD announcements (title/body/pinned/urgent/expiry).
+  - **Superuser only:** manage users (create/reset/deactivate).
 - **Location Ingestion API**
   - Receives full Telegram message text (from Pabbly), extracts URL, overwrites latest location link for the van/route.
 
@@ -100,6 +111,7 @@
 - **Performance:** main pages load in **<2s on mobile (4G)**.
 - **Security basics:**
   - Admin auth with secure password hashing.
+  - RBAC with only two roles: **admin** and **superuser**.
   - API ingestion secured with shared secret/token.
   - Basic rate limiting for login + ingestion endpoints.
 - **Accessibility minimums:** mobile tap targets, semantic structure, acceptable contrast.
@@ -112,7 +124,7 @@
 
 ## 4. Validation Plan
 - **Core Hypothesis:** If members can see running routes, the next scheduled stop/time, and a live location link in one place, they can make better catch decisions.
-- **Key Assumption:** “Running” inferred by (today link + schedule window) matches how operations behave and is acceptable even if a driver forgets to share.
+- **Key Assumption:** “Running” inferred by (today link + schedule window) matches operations and is acceptable under strict “no link = not running”.
 - **Next Step:** Controlled release (QR at stops + internal comms) with event tracking:
   - `route_selected`
   - `next_scheduled_stop_viewed`
@@ -134,7 +146,7 @@
    Admins keep schedules accurate and drivers share a link daily when a route is operating.
 
 5. **What are the main risks that could invalidate the MVP?**  
-   Missing link updates cause “Not running” even when running; schedule delays reduce trust; ingestion failures.
+   Missing link updates cause “Not running” even when running; schedule delays reduce trust; ingestion failures; RBAC misconfiguration.
 
 ## MVP Decision Rules (Explicit)
 
@@ -145,14 +157,14 @@
 - For current time `T`, “Next scheduled stop” = the **first** schedule entry with time **≥ T**.
 - If `T` is after the last schedule entry time, show “Schedule ended for now”.
 
-### Running / Not running rule (Q1 = C)
+### Running / Not running rule
 A route is **Running** only if **all** are true:
 1) Current time `T` is **within the schedule window** (between first and last schedule times, inclusive), AND  
 2) The route’s associated van has a stored location link with `last_updated_date == today`.
 
-Otherwise it is **Not running** (including before first time, after last time, or link not updated today).
+Otherwise it is **Not running**.
 
-### Location ingestion rule (Telegram text, Q4 = reject)
+### Location ingestion rule (Telegram text, reject on multiple URLs)
 - API receives full Telegram message text.
 - If the text contains **exactly one** URL, store it as the latest location link (overwrite) and set `last_updated_at = now`.
 - If the text contains **zero** URLs or **multiple** URLs, reject with an error (no changes persisted).
@@ -161,3 +173,8 @@ Otherwise it is **Not running** (including before first time, after last time, o
 - Show only announcements where `now <= expiry_datetime`.
 - Sort: pinned announcements first; within pinned and non-pinned groups, newest-first.
 - Urgent affects styling only (does not override pin/recency ordering).
+
+### Roles & permissions
+- **Admin:** manage routes, schedules, announcements.
+- **Superuser:** all admin permissions **plus** manage users (create/reset/deactivate; role assignment).
+- User management endpoints and UI are accessible **only** to superusers.
