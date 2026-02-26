@@ -506,13 +506,13 @@
 
 **Covers**: FR-018, FR-019, FR-020, FR-022
 
-- [ ] T062 [P] [US6] Create URL extraction utility in `src/lib/url-extractor.ts`
+- [x] T062 [P] [US6] Create URL extraction utility in `src/lib/url-extractor.ts`
   - **Goal**: Pure function that extracts URLs from a text string. Returns array of found URLs.
   - **Files**: `src/lib/url-extractor.ts`
   - **Run**: export `extractUrls(text: string): string[]` using a standard URL regex. Must handle common formats: https://, http://, maps.app.goo.gl links.
   - **Verify**: `npm run typecheck` passes
 
-- [ ] T063 [US6] Implement POST /api/ingest/:vanId endpoint in `src/app/api/ingest/[vanId]/route.ts`
+- [x] T063 [US6] Implement POST /api/ingest/:vanId endpoint in `src/app/api/ingest/[vanId]/route.ts`
   - **Goal**: Receive Pabbly webhook, validate token, extract exactly one URL, update van's location per ingestion-api.md
   - **Files**: `src/app/api/ingest/[vanId]/route.ts`
   - **Run**: read `X-Ingestion-Token` header. Look up van by `vanId`, verify token matches `ingestion_token` (401 if not). Parse body with ingestion schema (T014). Extract URLs with utility (T062). If count != 1, return 400 `INVALID_MESSAGE`. If count == 1, update van's `location_url` and `location_updated_at` to now (America/Bahia). Apply rate limiter (T021) keyed by vanId. Return `{ locationUrl, updatedAt }`.
