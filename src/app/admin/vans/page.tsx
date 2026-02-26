@@ -19,7 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Trash2, Copy, Check } from "lucide-react";
+import { Plus, Pencil, Trash2, Copy, Check } from "lucide-react";
 
 type VanItem = {
   id: string;
@@ -103,7 +103,8 @@ export default function AdminVansPage() {
               <TableHead>Nome</TableHead>
               <TableHead>Token</TableHead>
               <TableHead>Webhook URL</TableHead>
-              <TableHead className="w-20">Ações</TableHead>
+              <TableHead>Última atualização</TableHead>
+              <TableHead className="w-24">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -131,15 +132,30 @@ export default function AdminVansPage() {
                     /api/ingest/{van.id}
                   </code>
                 </TableCell>
+                <TableCell className="text-sm text-zinc-500">
+                  {van.locationUpdatedAt
+                    ? new Date(van.locationUpdatedAt).toLocaleString("pt-BR", {
+                        dateStyle: "short",
+                        timeStyle: "short",
+                      })
+                    : "—"}
+                </TableCell>
                 <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setDeleteId(van.id)}
-                    className="text-red-600 hover:text-red-700"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <div className="flex gap-1">
+                    <Button asChild variant="ghost" size="sm">
+                      <Link href={`/admin/vans/${van.id}`}>
+                        <Pencil className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setDeleteId(van.id)}
+                      className="text-red-600 hover:text-red-700"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
