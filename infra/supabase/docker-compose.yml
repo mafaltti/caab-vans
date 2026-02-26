@@ -5,7 +5,7 @@
 
 services:
   db:
-    image: supabase/postgres:15.8.1.060
+    image: supabase/postgres:15.8.1.085
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     environment:
@@ -23,7 +23,7 @@ services:
     restart: unless-stopped
 
   auth:
-    image: supabase/gotrue:v2.170.0
+    image: supabase/gotrue:v2.186.0
     ports:
       - "${GOTRUE_PORT:-9999}:9999"
     environment:
@@ -48,7 +48,7 @@ services:
     restart: unless-stopped
 
   rest:
-    image: postgrest/postgrest:v12.2.8
+    image: postgrest/postgrest:v14.5
     ports:
       - "${PGRST_PORT:-3001}:3000"
     environment:
@@ -79,9 +79,9 @@ services:
     restart: unless-stopped
 
   studio:
-    image: supabase/studio:20250113-b4e0e03
+    image: supabase/studio:2026.02.16-sha-26c615c
     ports:
-      - "${STUDIO_PORT:-54323}:3000"
+      - "${STUDIO_PORT:-54324}:3000"
     environment:
       STUDIO_PG_META_URL: http://meta:8080
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -97,7 +97,7 @@ services:
     restart: unless-stopped
 
   meta:
-    image: supabase/postgres-meta:v0.84.2
+    image: supabase/postgres-meta:v0.95.2
     environment:
       PG_META_PORT: 8080
       PG_META_DB_HOST: db

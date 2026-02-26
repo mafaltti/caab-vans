@@ -32,7 +32,7 @@ async function migrate() {
 
     // Read migration files
     const migrationsDir = path.resolve(
-      import.meta.dirname,
+      path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Z]:)/, "$1")),
       "..",
       "supabase",
       "migrations",
