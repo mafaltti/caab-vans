@@ -268,7 +268,7 @@
 
 ### API Layer
 
-- [ ] T036 [US3] Implement GET /api/announcements endpoint in `src/app/api/announcements/route.ts`
+- [x] T036 [US3] Implement GET /api/announcements endpoint in `src/app/api/announcements/route.ts`
   - **Goal**: Return active (non-expired) announcements sorted by isPinned DESC, createdAt DESC per public-api.md
   - **Files**: `src/app/api/announcements/route.ts`
   - **Run**: query announcements using service client. Filter where `expires_at IS NULL OR expires_at > now()`. Sort by `is_pinned DESC, created_at DESC`. Map snake_case to camelCase in response.
@@ -276,7 +276,7 @@
 
 ### Query Hook
 
-- [ ] T037 [P] [US3] Create TanStack Query hook in `src/lib/queries/use-announcements.ts`
+- [x] T037 [P] [US3] Create TanStack Query hook in `src/lib/queries/use-announcements.ts`
   - **Goal**: React hook for fetching announcements with 60s polling
   - **Files**: `src/lib/queries/use-announcements.ts`
   - **Run**: `useAnnouncements()` fetches GET /api/announcements with `refetchInterval: 60_000`. Returns typed announcement array.
@@ -284,13 +284,13 @@
 
 ### UI + Page
 
-- [ ] T038 [P] [US3] Create announcement-card component in `src/components/public/announcement-card.tsx`
+- [x] T038 [P] [US3] Create announcement-card component in `src/components/public/announcement-card.tsx`
   - **Goal**: Card displaying announcement title, body, pinned indicator, and distinct urgent styling (FR-008)
   - **Files**: `src/components/public/announcement-card.tsx`
   - **Run**: use shadcn Card. Show pin icon if pinned. Apply red/warning border or background if urgent. Display relative time "Publicado em <date>". All text pt-BR.
   - **Verify**: `npm run build` passes
 
-- [ ] T039 [US3] Create announcements page in `src/app/(public)/announcements/page.tsx`
+- [x] T039 [US3] Create announcements page in `src/app/(public)/announcements/page.tsx`
   - **Goal**: List all active announcements with empty state "Nenhum aviso no momento" (FR-006, FR-007)
   - **Files**: `src/app/(public)/announcements/page.tsx`
   - **Run**: `"use client"` page using `useAnnouncements()` hook (T037). Map to `AnnouncementCard` components (T038). Handle loading and error states. Show empty message when no announcements.
@@ -310,13 +310,13 @@
 
 ### Auth
 
-- [ ] T040 [US4] Implement POST /api/admin/auth/login in `src/app/api/admin/auth/login/route.ts`
+- [x] T040 [US4] Implement POST /api/admin/auth/login in `src/app/api/admin/auth/login/route.ts`
   - **Goal**: Admin login endpoint using Supabase Auth. Validate credentials, check `is_active` in app_metadata, set session cookies. Apply rate limiting (FR-022).
   - **Files**: `src/app/api/admin/auth/login/route.ts`
   - **Run**: parse body with Zod (email + password). Call `supabase.auth.signInWithPassword()` via session client. Check `app_metadata.is_active !== false`. Return user object with role. Use rate limiter (T021) keyed by email.
   - **Verify**: `npm run typecheck` passes; manual — `curl -X POST /api/admin/auth/login` with credentials
 
-- [ ] T041 [US4] Create admin login page in `src/app/admin/login/page.tsx`
+- [x] T041 [US4] Create admin login page in `src/app/admin/login/page.tsx`
   - **Goal**: Email/password login form that posts to the login API and redirects to `/admin` on success
   - **Files**: `src/app/admin/login/page.tsx`
   - **Run**: `"use client"` page with controlled form. On submit, POST to `/api/admin/auth/login`. On success, `router.push('/admin')`. Show error message on failure. All labels in pt-BR.
@@ -324,19 +324,19 @@
 
 ### Layout
 
-- [ ] T042 [P] [US4] Create admin sidebar-nav component in `src/components/admin/sidebar-nav.tsx`
+- [x] T042 [P] [US4] Create admin sidebar-nav component in `src/components/admin/sidebar-nav.tsx`
   - **Goal**: Sidebar navigation with links: Rotas, Avisos, Usuários (superuser only). Active link highlighted.
   - **Files**: `src/components/admin/sidebar-nav.tsx`
   - **Run**: accept `role` prop. Show "Usuários" link only if role is `superuser`. Use `usePathname()` for active state. Links: `/admin/vans`, `/admin/routes`, `/admin/announcements`, `/admin/users`.
   - **Verify**: `npm run build` passes
 
-- [ ] T043 [US4] Create admin layout in `src/app/admin/layout.tsx`
+- [x] T043 [US4] Create admin layout in `src/app/admin/layout.tsx`
   - **Goal**: Admin shell with sidebar navigation and user info. Reads session server-side to get role for sidebar rendering.
   - **Files**: `src/app/admin/layout.tsx`
   - **Run**: server component that reads session via `createSessionClient`. Pass role to `SidebarNav` (T042). Include logout button. Render children in main content area. For `/admin/login` path, render children without sidebar (handled by middleware redirects).
   - **Verify**: `npm run build` passes
 
-- [ ] T044 [US4] Create admin dashboard redirect in `src/app/admin/page.tsx`
+- [x] T044 [US4] Create admin dashboard redirect in `src/app/admin/page.tsx`
   - **Goal**: Redirect `/admin` to `/admin/routes` (default admin landing page)
   - **Files**: `src/app/admin/page.tsx`
   - **Run**: server component using `redirect('/admin/routes')` from `next/navigation`
@@ -344,25 +344,25 @@
 
 ### Vans CRUD (prerequisite for routes — vans must exist before routes can reference them)
 
-- [ ] T044a [US4] Implement admin vans API in `src/app/api/admin/vans/route.ts` and `src/app/api/admin/vans/[vanId]/route.ts`
+- [x] T044a [US4] Implement admin vans API in `src/app/api/admin/vans/route.ts` and `src/app/api/admin/vans/[vanId]/route.ts`
   - **Goal**: GET list all vans, POST create van (auto-generate ingestion_token), PUT update van name / regenerate token, DELETE van (409 if assigned to a route). Per admin-api.md vans contract.
   - **Files**: `src/app/api/admin/vans/route.ts` (GET, POST), `src/app/api/admin/vans/[vanId]/route.ts` (PUT, DELETE)
   - **Run**: use `requireAuth` (T020). Validate name inline (non-empty, max 100 chars) with Zod. POST: insert with `crypto.randomUUID()` for `ingestion_token`. PUT: update name and/or regenerate token. DELETE: check no route references this van_id (409 if assigned), then hard delete. Use service client.
   - **Verify**: `npm run typecheck` passes; manual — curl GET/POST/PUT/DELETE requests
 
-- [ ] T044b [P] [US4] Create van-form component in `src/components/admin/van-form.tsx`
+- [x] T044b [P] [US4] Create van-form component in `src/components/admin/van-form.tsx`
   - **Goal**: Simple form for creating/editing a van with name input
   - **Files**: `src/components/admin/van-form.tsx`
   - **Run**: accept optional `defaultValues` and `onSubmit`. Use shadcn Input for name. Client-side Zod validation (non-empty, max 100 chars). pt-BR labels.
   - **Verify**: `npm run build` passes
 
-- [ ] T044c [US4] Create admin vans list page in `src/app/admin/vans/page.tsx`
+- [x] T044c [US4] Create admin vans list page in `src/app/admin/vans/page.tsx`
   - **Goal**: Table listing all vans with name, ingestion token (masked), location status, and edit/delete actions. Empty state "Nenhuma van cadastrada. Crie uma." (FR-027). Shows ingestion webhook URL for Pabbly config.
   - **Files**: `src/app/admin/vans/page.tsx`
   - **Run**: `"use client"` page. Fetch GET /api/admin/vans. Display in shadcn Table: Name, Token (masked with copy button), Last Location Update, Actions. Delete with confirmation Dialog (warn if assigned to route).
   - **Verify**: `npm run build` passes
 
-- [ ] T044d [US4] Create admin van create page in `src/app/admin/vans/new/page.tsx`
+- [x] T044d [US4] Create admin van create page in `src/app/admin/vans/new/page.tsx`
   - **Goal**: Page with van form that POSTs to admin vans API. Shows generated ingestion token and webhook URL on success.
   - **Files**: `src/app/admin/vans/new/page.tsx`
   - **Run**: `"use client"` page using `VanForm` (T044b). On submit, POST to `/api/admin/vans`. On success, display the generated `ingestionToken` and full webhook URL (`/api/ingest/:vanId`) for Pabbly configuration, then allow redirect to `/admin/vans`.
@@ -370,31 +370,31 @@
 
 ### Routes CRUD
 
-- [ ] T045 [US4] Implement admin routes API in `src/app/api/admin/routes/route.ts` and `src/app/api/admin/routes/[routeId]/route.ts`
+- [x] T045 [US4] Implement admin routes API in `src/app/api/admin/routes/route.ts` and `src/app/api/admin/routes/[routeId]/route.ts`
   - **Goal**: POST create route, PUT update route, DELETE hard delete route per admin-api.md. Validate with Zod. Check auth + admin role.
   - **Files**: `src/app/api/admin/routes/route.ts` (POST), `src/app/api/admin/routes/[routeId]/route.ts` (PUT, DELETE)
   - **Run**: use `requireAuth` (T020) for all handlers. Validate body with route schema (T013). POST: insert route + check van uniqueness (409 on conflict). PUT: update by id (404 if missing). DELETE: hard delete (204). Use service client.
   - **Verify**: `npm run typecheck` passes; manual — curl POST/PUT/DELETE requests
 
-- [ ] T046 [P] [US4] Create route-form component in `src/components/admin/route-form.tsx`
+- [x] T046 [P] [US4] Create route-form component in `src/components/admin/route-form.tsx`
   - **Goal**: Reusable form for creating/editing routes with name input and van selector
   - **Files**: `src/components/admin/route-form.tsx`
   - **Run**: accept optional `defaultValues` for edit mode and `onSubmit` callback. Use shadcn Input for name, Select for van dropdown. Client-side Zod validation before submit. Show validation errors. pt-BR labels.
   - **Verify**: `npm run build` passes
 
-- [ ] T047 [US4] Create admin routes list page in `src/app/admin/routes/page.tsx`
+- [x] T047 [US4] Create admin routes list page in `src/app/admin/routes/page.tsx`
   - **Goal**: Table listing all routes with edit/delete actions. Empty state "Nenhuma rota cadastrada. Crie uma." (FR-027)
   - **Files**: `src/app/admin/routes/page.tsx`
   - **Run**: `"use client"` page. Fetch GET /api/admin/routes (or reuse public endpoint). Display in shadcn Table with columns: Name, Van, Actions (Edit link, Delete button). Delete with confirmation Dialog. Show empty state when no routes.
   - **Verify**: `npm run build` passes
 
-- [ ] T048 [US4] Create admin route create page in `src/app/admin/routes/new/page.tsx`
+- [x] T048 [US4] Create admin route create page in `src/app/admin/routes/new/page.tsx`
   - **Goal**: Page with route form that POSTs to admin routes API and redirects to routes list on success
   - **Files**: `src/app/admin/routes/new/page.tsx`
   - **Run**: `"use client"` page using `RouteForm` (T046). On submit, POST to `/api/admin/routes`. On success, redirect to `/admin/routes`. Show error on failure.
   - **Verify**: `npm run build` passes
 
-- [ ] T049 [US4] Create admin route edit page in `src/app/admin/routes/[routeId]/page.tsx`
+- [x] T049 [US4] Create admin route edit page in `src/app/admin/routes/[routeId]/page.tsx`
   - **Goal**: Page with pre-filled route form that PUTs to admin routes API. Also hosts the schedule editor (integrated in T052).
   - **Files**: `src/app/admin/routes/[routeId]/page.tsx`
   - **Run**: `"use client"` page. Fetch route data, pass to `RouteForm` (T046) as default values. On submit, PUT to `/api/admin/routes/:routeId`. Show schedule editor section below the form (placeholder until T052).
@@ -402,19 +402,19 @@
 
 ### Schedule CRUD
 
-- [ ] T050 [US4] Implement admin schedule API in `src/app/api/admin/routes/[routeId]/schedule/route.ts` and `src/app/api/admin/routes/[routeId]/schedule/[entryId]/route.ts`
+- [x] T050 [US4] Implement admin schedule API in `src/app/api/admin/routes/[routeId]/schedule/route.ts` and `src/app/api/admin/routes/[routeId]/schedule/[entryId]/route.ts`
   - **Goal**: GET list entries, POST create entry, PUT update entry, DELETE entry per admin-api.md. Enforce unique (route_id, time) constraint (FR-013).
   - **Files**: `src/app/api/admin/routes/[routeId]/schedule/route.ts` (GET, POST), `src/app/api/admin/routes/[routeId]/schedule/[entryId]/route.ts` (PUT, DELETE)
   - **Run**: use `requireAuth` (T020). Validate with schedule-entry schema (T013). GET: return entries sorted by time. POST: insert, return 409 on duplicate time. PUT: update by id. DELETE: hard delete (204). Use service client.
   - **Verify**: `npm run typecheck` passes; manual — curl requests
 
-- [ ] T051 [US4] Create schedule-editor component in `src/components/admin/schedule-editor.tsx`
+- [x] T051 [US4] Create schedule-editor component in `src/components/admin/schedule-editor.tsx`
   - **Goal**: Inline editor for a route's schedule entries: add/edit/remove entries with stop name + HH:mm time. Entries auto-sorted by time (FR-014).
   - **Files**: `src/components/admin/schedule-editor.tsx`
   - **Run**: accept `routeId` prop. Fetch entries via GET /api/admin/routes/:routeId/schedule. Display as editable list. Add button appends a new entry form row. Each row has: stop name Input, time Input (HH:mm), Save button, Delete button. Show validation error on duplicate time (FR-013). pt-BR labels.
   - **Verify**: `npm run build` passes
 
-- [ ] T052 [US4] Integrate schedule editor into route edit page
+- [x] T052 [US4] Integrate schedule editor into route edit page
   - **Goal**: Add the schedule editor component below the route form on the edit page
   - **Files**: `src/app/admin/routes/[routeId]/page.tsx` (update from T049)
   - **Run**: import `ScheduleEditor` (T051) and render below the route form, passing `routeId`. Add section heading "Horários".
@@ -422,31 +422,31 @@
 
 ### Announcements CRUD
 
-- [ ] T053 [US4] Implement admin announcements API in `src/app/api/admin/announcements/route.ts` and `src/app/api/admin/announcements/[announcementId]/route.ts`
+- [x] T053 [US4] Implement admin announcements API in `src/app/api/admin/announcements/route.ts` and `src/app/api/admin/announcements/[announcementId]/route.ts`
   - **Goal**: POST create, PUT update, DELETE hard delete announcement per admin-api.md. Validate with Zod.
   - **Files**: `src/app/api/admin/announcements/route.ts` (POST), `src/app/api/admin/announcements/[announcementId]/route.ts` (PUT, DELETE)
   - **Run**: use `requireAuth` (T020). Validate body with announcement schema (T014). POST: insert. PUT: update by id (404 if missing). DELETE: hard delete (204). Validate `expires_at` is in the future if set.
   - **Verify**: `npm run typecheck` passes
 
-- [ ] T054 [P] [US4] Create announcement-form component in `src/components/admin/announcement-form.tsx`
+- [x] T054 [P] [US4] Create announcement-form component in `src/components/admin/announcement-form.tsx`
   - **Goal**: Reusable form for creating/editing announcements: title, body (textarea), pinned switch, urgent switch, optional expiry datetime
   - **Files**: `src/components/admin/announcement-form.tsx`
   - **Run**: accept optional `defaultValues` and `onSubmit`. Use shadcn Input (title), Textarea (body), Switch (pinned, urgent), Input type datetime-local (expiresAt). Client-side Zod validation. pt-BR labels.
   - **Verify**: `npm run build` passes
 
-- [ ] T055 [US4] Create admin announcements list page in `src/app/admin/announcements/page.tsx`
+- [x] T055 [US4] Create admin announcements list page in `src/app/admin/announcements/page.tsx`
   - **Goal**: Table listing all announcements with edit/delete actions. Empty state "Nenhum aviso cadastrado. Crie um." (FR-027)
   - **Files**: `src/app/admin/announcements/page.tsx`
   - **Run**: `"use client"` page. Fetch announcements (including expired, for admin view). Display in shadcn Table: Title, Pinned, Urgent, Expires, Actions. Delete with confirmation Dialog. Empty state.
   - **Verify**: `npm run build` passes
 
-- [ ] T056 [US4] Create admin announcement create page in `src/app/admin/announcements/new/page.tsx`
+- [x] T056 [US4] Create admin announcement create page in `src/app/admin/announcements/new/page.tsx`
   - **Goal**: Page with announcement form that POSTs to admin API and redirects on success
   - **Files**: `src/app/admin/announcements/new/page.tsx`
   - **Run**: `"use client"` page using `AnnouncementForm` (T054). On submit, POST to `/api/admin/announcements`. Redirect to `/admin/announcements` on success.
   - **Verify**: `npm run build` passes
 
-- [ ] T057 [US4] Create admin announcement edit page in `src/app/admin/announcements/[announcementId]/page.tsx`
+- [x] T057 [US4] Create admin announcement edit page in `src/app/admin/announcements/[announcementId]/page.tsx`
   - **Goal**: Page with pre-filled announcement form that PUTs to admin API
   - **Files**: `src/app/admin/announcements/[announcementId]/page.tsx`
   - **Run**: `"use client"` page. Fetch announcement data, pass to `AnnouncementForm` (T054). On submit, PUT to `/api/admin/announcements/:announcementId`. Redirect on success.
