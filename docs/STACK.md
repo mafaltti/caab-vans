@@ -28,7 +28,7 @@ Non-goal:
 
 ### 3.1 Web (Frontend + BFF)
 - **Next.js (App Router) + TypeScript**
-- **Tailwind CSS + shadcn/ui**
+- **Tailwind CSS + shadcn/ui**: We use shadcn/ui initialized with this preset (Radix + Nova style, Zinc base, Blue theme, Lucide icons, Inter font).
 - **TanStack Query** (polling, caching, request dedupe)
 - **Zod** (validation for API inputs and internal ops)
 - **Luxon** (timezone correctness; force `America/Bahia`)
