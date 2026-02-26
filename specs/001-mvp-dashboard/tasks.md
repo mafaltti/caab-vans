@@ -72,91 +72,91 @@
 
 **CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T009 [P] Define shared TypeScript types in `src/types/index.ts`
+- [x] T009 [P] Define shared TypeScript types in `src/types/index.ts`
   - **Goal**: Create types matching data-model.md entities and API response shapes from contracts/
   - **Files**: `src/types/index.ts`
   - **Run**: define types: `Route`, `Van`, `ScheduleEntry`, `Announcement`, `AdminUser`, `RouteWithStatus` (computed fields), `ApiError`, `ScheduleStatus`
   - **Verify**: `npm run typecheck` passes (`tsc --noEmit` — add script to package.json if missing)
 
-- [ ] T010 [P] Create Supabase server client in `src/lib/supabase/server.ts`
+- [x] T010 [P] Create Supabase server client in `src/lib/supabase/server.ts`
   - **Goal**: Export `createServiceClient()` using service role key (bypasses RLS) and `createSessionClient(cookieStore)` using anon key + cookies for auth session reads
   - **Files**: `src/lib/supabase/server.ts`
   - **Run**: use `@supabase/ssr` `createServerClient` for session client, plain `@supabase/supabase-js` `createClient` for service client. Read keys from `process.env`.
   - **Verify**: `npm run typecheck` passes
 
-- [ ] T011 [P] Create Supabase browser client in `src/lib/supabase/client.ts`
+- [x] T011 [P] Create Supabase browser client in `src/lib/supabase/client.ts`
   - **Goal**: Export `createBrowserClient()` using anon key for browser-side auth (login form)
   - **Files**: `src/lib/supabase/client.ts`
   - **Run**: use `@supabase/ssr` `createBrowserClient` with `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`
   - **Verify**: `npm run typecheck` passes
 
-- [ ] T012 [P] Create Luxon time helpers in `src/lib/time.ts`
+- [x] T012 [P] Create Luxon time helpers in `src/lib/time.ts`
   - **Goal**: Centralize all timezone logic. Export helpers: `nowBahia()`, `isSameDay(dt)`, `formatTime(dt)`, `parseTime(hhMm)`, `isWithinScheduleWindow(entries, now)`, `getNextStop(entries, now)`
   - **Files**: `src/lib/time.ts`
   - **Run**: all functions use `DateTime.now().setZone('America/Bahia')` as canonical time source
   - **Verify**: `npm run typecheck` passes
 
-- [ ] T013 [P] Create Zod validators for route and schedule-entry in `src/lib/validators/`
+- [x] T013 [P] Create Zod validators for route and schedule-entry in `src/lib/validators/`
   - **Goal**: Validation schemas matching data-model.md rules: route name (non-empty, max 100), vanId (uuid), stop name (non-empty, max 200), time (HH:mm format)
   - **Files**: `src/lib/validators/route.ts`, `src/lib/validators/schedule-entry.ts`
   - **Run**: export `createRouteSchema`, `updateRouteSchema`, `createScheduleEntrySchema`, `updateScheduleEntrySchema`
   - **Verify**: `npm run typecheck` passes
 
-- [ ] T014 [P] Create Zod validators for announcement, user, and ingestion in `src/lib/validators/`
+- [x] T014 [P] Create Zod validators for announcement, user, and ingestion in `src/lib/validators/`
   - **Goal**: Validation schemas: announcement (title max 200, body max 2000, optional future expiresAt), user (valid email, password min 8, role enum), ingestion (message string)
   - **Files**: `src/lib/validators/announcement.ts`, `src/lib/validators/user.ts`, `src/lib/validators/ingestion.ts`
   - **Run**: export `createAnnouncementSchema`, `updateAnnouncementSchema`, `createUserSchema`, `updateUserSchema`, `ingestionSchema`
   - **Verify**: `npm run typecheck` passes
 
-- [ ] T015 Create Supabase Docker Compose config in `infra/supabase/`
+- [x] T015 Create Supabase Docker Compose config in `infra/supabase/`
   - **Goal**: Set up self-hosted Supabase for local development with Postgres, Auth, Studio, and REST API
   - **Files**: `infra/supabase/docker-compose.yml`, `infra/supabase/.env.example`
   - **Run**: base on official Supabase self-host Docker config. Enable: Postgres, Auth (GoTrue), REST (PostgREST), Studio. Disable: Edge Functions. Expose Studio on port 54323, API on 54321.
   - **Verify**: manual — `docker compose config` in `infra/supabase/` validates without errors
 
-- [ ] T016 Create database migration SQL in `supabase/migrations/00001_initial_schema.sql`
+- [x] T016 Create database migration SQL in `supabase/migrations/00001_initial_schema.sql`
   - **Goal**: Full initial schema from data-model.md: tables (routes, vans, schedule_entries, announcements), constraints, indexes, RLS policies, updated_at trigger
   - **Files**: `supabase/migrations/00001_initial_schema.sql`
   - **Run**: write SQL for: `vans` table (with `ingestion_token` unique), `routes` table (with `van_id` unique FK), `schedule_entries` (with `(route_id, time)` unique, cascade delete), `announcements` (with `(is_pinned DESC, created_at DESC)` index), `updated_at` trigger function, RLS policies per data-model.md
   - **Verify**: manual — review SQL syntax; will be tested when migration runs against Supabase
 
-- [ ] T017 Create migration runner script in `scripts/migrate.ts`
+- [x] T017 Create migration runner script in `scripts/migrate.ts`
   - **Goal**: Node script that reads SQL files from `supabase/migrations/` and executes them against the local Supabase Postgres
   - **Files**: `scripts/migrate.ts`, `package.json` (add `"db:migrate": "tsx scripts/migrate.ts"`)
   - **Run**: use `DATABASE_URL` env var to connect. Read `.sql` files sorted by name, execute sequentially. Track applied migrations in a `_migrations` table.
   - **Verify**: `npm run db:migrate` — runs without error when Supabase is up (or exits with clear connection error message)
 
-- [ ] T018 Create seed script in `scripts/seed.ts`
+- [x] T018 Create seed script in `scripts/seed.ts`
   - **Goal**: Seed the initial superuser via Supabase Auth admin API, creating user with `app_metadata: { role: "superuser", is_active: true }`
   - **Files**: `scripts/seed.ts`, `package.json` (add `"db:seed": "tsx scripts/seed.ts"`)
   - **Run**: use `@supabase/supabase-js` service role client. Call `auth.admin.createUser()` with a default email/password. Log credentials to console.
   - **Verify**: `npm run db:seed` — runs without error when Supabase is up
 
-- [ ] T019 [P] Create API error response helper in `src/lib/api/errors.ts`
+- [x] T019 [P] Create API error response helper in `src/lib/api/errors.ts`
   - **Goal**: Standardized error responses matching the common error shape from admin-api.md: `{ error: { code, message } }`. Export helper `apiError(code, message, status)` returning `NextResponse`.
   - **Files**: `src/lib/api/errors.ts`
   - **Run**: define error codes enum: `VALIDATION_ERROR`, `NOT_FOUND`, `CONFLICT`, `UNAUTHORIZED`, `FORBIDDEN`, `RATE_LIMITED`, `INVALID_MESSAGE`. Export `apiError()` and `validationError(zodError)` helpers.
   - **Verify**: `npm run typecheck` passes
 
-- [ ] T020 Create API auth helper in `src/lib/api/auth.ts`
+- [x] T020 Create API auth helper in `src/lib/api/auth.ts`
   - **Goal**: Middleware function for admin Route Handlers that reads the Supabase session from cookies, verifies authentication, and extracts user role from `app_metadata`
   - **Files**: `src/lib/api/auth.ts`
   - **Run**: export `requireAuth(request)` → returns `{ user, role }` or throws. Export `requireRole(request, role)` → calls `requireAuth` then checks role. Use `createSessionClient` from T010.
   - **Verify**: `npm run typecheck` passes
 
-- [ ] T021 [P] Create rate limiter utility in `src/lib/api/rate-limit.ts`
+- [x] T021 [P] Create rate limiter utility in `src/lib/api/rate-limit.ts`
   - **Goal**: Simple in-memory rate limiter for login and ingestion endpoints. Per-key sliding window.
   - **Files**: `src/lib/api/rate-limit.ts`
   - **Run**: export `createRateLimiter({ windowMs, maxRequests })` returning a function `check(key) → { allowed: boolean, retryAfter?: number }`. Use a `Map<string, number[]>` with cleanup.
   - **Verify**: `npm run typecheck` passes
 
-- [ ] T022 Create Next.js middleware for admin route protection in `src/middleware.ts`
+- [x] T022 Create Next.js middleware for admin route protection in `src/middleware.ts`
   - **Goal**: Protect `/admin/*` pages (except `/admin/login`) — redirect unauthenticated users to `/admin/login`
   - **Files**: `src/middleware.ts`
   - **Run**: use `@supabase/ssr` to read session from request cookies. If no session and path starts with `/admin` (but not `/admin/login`), redirect to `/admin/login`. Export `config.matcher` for `/admin/:path*`.
   - **Verify**: `npm run build` passes
 
-- [ ] T023 Set up TanStack Query provider in `src/app/providers.tsx`
+- [x] T023 Set up TanStack Query provider in `src/app/providers.tsx`
   - **Goal**: Create a client-side providers wrapper with `QueryClientProvider` for use in the root layout
   - **Files**: `src/app/providers.tsx`, `src/app/layout.tsx` (wrap children with `<Providers>`)
   - **Run**: create `Providers` component with `"use client"`, configure `QueryClient` with default `staleTime` and `refetchInterval` (will be overridden per-query)
