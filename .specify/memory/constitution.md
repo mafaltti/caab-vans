@@ -1,50 +1,148 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!--
+  Sync Impact Report
+  ==================
+  Version change: (new) → 1.0.0
+  Modified principles: N/A (initial fill from template)
+  Added sections:
+    - I. Simplicity (KISS / DRY / YAGNI)
+    - II. Explicit Trade-offs in PRs
+    - III. Branch & Merge Discipline
+    - IV. Quality Gates (Non-Negotiable)
+    - V. Stack Constraints (Non-Negotiable)
+    - Security Constraints
+    - Timezone & Data Consistency
+    - Governance
+  Removed sections: N/A
+  Templates requiring updates:
+    - .specify/templates/plan-template.md — ✅ no update needed
+      (Constitution Check section is dynamically filled by /speckit.plan)
+    - .specify/templates/spec-template.md — ✅ no update needed
+      (spec template is requirement-focused, no principle references)
+    - .specify/templates/tasks-template.md — ✅ no update needed
+      (task phases are generic; constitution gates enforced at plan time)
+    - .specify/templates/commands/*.md — no files found, nothing to update
+  Follow-up TODOs: none
+-->
+
+# CAAB Vans Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Simplicity (KISS / DRY / YAGNI)
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+Every change MUST follow these three rules:
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+- **KISS**: Prefer straightforward solutions. Do not introduce speculative
+  complexity.
+- **DRY**: Extract duplication only after **three or more** real repetitions
+  with identical logic. Prefer the right abstraction over a premature one.
+- **YAGNI**: Build only what is necessary now. Do not add options, indirection,
+  or configurability "just in case."
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+**When to abstract:**
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+- A pattern repeats >= 3 times with identical logic.
+- The abstraction has a clear single responsibility.
+- The short-term roadmap will reuse it.
+- Benefits outweigh the added indirection.
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+**When NOT to abstract:**
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+- Only 1-2 occurrences exist.
+- Logic differs slightly between occurrences.
+- The only justification is "we might need it later."
+- It hurts code clarity.
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+### II. Explicit Trade-offs in PRs
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+Every PR description MUST include:
+
+- Which principle(s) from this constitution the change applies.
+- Before/after snippets for any refactor.
+- An explicit statement of trade-offs (e.g., duplication kept vs. abstraction
+  introduced, and why).
+- Justification for any new abstraction with concrete duplication or near-term
+  reuse evidence.
+
+PRs MUST be minimal diffs. Small, focused PRs are safer and easier to review.
+
+### III. Branch & Merge Discipline
+
+- All work MUST happen on short-lived feature branches. Direct pushes to `dev`
+  or `main` are forbidden.
+- **Feature PRs MUST target `dev`** — never `main`.
+- **Only promotion PRs from `dev` to `main` may target `main`.**
+- **Production merges are human-only**: only a human maintainer may merge a
+  `dev -> main` promotion PR.
+- AI agents MUST NOT merge any PR into `main`, approve or force production
+  deployments, or bypass CI/branch protections.
+- Use conventional branch names: `feat/`, `fix/`, `chore/`, `docs/`.
+- Use Conventional Commits format: `type(scope): description`.
+
+### IV. Quality Gates (Non-Negotiable)
+
+Before any PR may be merged, **all** of the following MUST pass:
+
+1. **Lint** — `eslint` reports zero errors.
+2. **Type-check** — `tsc --noEmit` reports zero errors.
+3. **Build** — `next build` completes successfully.
+4. **Tests** — `vitest` passes (when test suites exist for affected code).
+
+The PR description MUST include how to test the change, or an explicit
+justification for why testing instructions are not applicable.
+
+### V. Stack Constraints (Non-Negotiable)
+
+The following technology decisions are locked for this project:
+
+- **Web frontend + BFF**: Next.js (App Router) with TypeScript. The BFF layer
+  uses Next.js Route Handlers (`/app/api/*`).
+- **UI**: Tailwind CSS + shadcn/ui (Radix + Nova style, Zinc base, Blue theme,
+  Lucide icons, Inter font).
+- **Data fetching**: TanStack Query (polling, caching, request dedupe).
+- **Validation**: Zod for API inputs and internal operations.
+- **Date/time**: Luxon, forced to `America/Bahia`.
+- **Backend**: Supabase official Docker self-host setup (Postgres, Auth,
+  Realtime, Storage, Studio).
+- **Supabase Edge Functions MUST NOT be used.** Skip or disable if present.
+- **Reverse proxy**: Caddy as the single public entrypoint (TLS + routing).
+- **Tooling**: ESLint + Prettier.
+
+Computed fields (next stop, isOutdated, status labels) MUST be calculated in
+the BFF for consistency across clients. The UI may run local countdown timers
+for smooth visual updates.
+
+## Security Constraints
+
+- The Supabase **anon key** is treated as public. All public access MUST be
+  controlled by RLS policies and Auth roles/claims.
+- The Supabase **service role key** is server-only. It MUST only be used in
+  Next.js server runtime (Route Handlers) and secure ops scripts. It MUST
+  NEVER be shipped to browsers or mobile clients.
+- Supabase **Studio** MUST be restricted via Basic auth at the Caddy reverse
+  proxy layer.
+- The Postgres port MUST NOT be exposed publicly.
+
+## Timezone & Data Consistency
+
+- Canonical timezone: **America/Bahia**.
+- All displayed times MUST use `HH:mm` format in the `America/Bahia` timezone.
+- All date/time operations MUST use Luxon configured with this timezone.
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+- This constitution is the highest-authority document for the project. It
+  supersedes all other practices and conventions when conflicts arise.
+- All PRs and code reviews MUST verify compliance with these principles.
+- Amendments to this constitution require:
+  1. A PR with the proposed change and explicit rationale.
+  2. Review and approval by a human maintainer.
+  3. Version bump following semantic versioning:
+     - **MAJOR**: Principle removed or redefined incompatibly.
+     - **MINOR**: New principle/section added or materially expanded.
+     - **PATCH**: Clarifications, wording, or typo fixes.
+- Refer to `docs/PRINCIPLES.md`, `docs/GIT-WORKFLOW.md`,
+  `docs/DELIVERY-WORKFLOW.md`, and `docs/TECH.md` as authoritative source
+  documents that inform this constitution.
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Version**: 1.0.0 | **Ratified**: 2026-02-26 | **Last Amended**: 2026-02-26
