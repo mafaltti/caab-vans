@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { fetchWithAuth } from "@/lib/api/fetch-with-auth";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -33,7 +34,7 @@ export default function AdminUsersPage() {
   useEffect(() => {
     if (didFetch.current) return;
     didFetch.current = true;
-    fetch("/api/admin/users")
+    fetchWithAuth("/api/admin/users")
       .then((res) => {
         if (res.status === 403) {
           setForbidden(true);
@@ -81,8 +82,8 @@ export default function AdminUsersPage() {
           <TableHeader>
             <TableRow>
               <TableHead>E-mail</TableHead>
-              <TableHead>Papel</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead className="hidden md:table-cell">Papel</TableHead>
+              <TableHead className="hidden sm:table-cell">Status</TableHead>
               <TableHead className="w-20">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -90,12 +91,12 @@ export default function AdminUsersPage() {
             {users.map((user) => (
               <TableRow key={user.id}>
                 <TableCell className="font-medium">{user.email}</TableCell>
-                <TableCell>
+                <TableCell className="hidden md:table-cell">
                   <Badge variant={user.role === "superuser" ? "default" : "secondary"}>
                     {user.role === "superuser" ? "Superusuário" : "Admin"}
                   </Badge>
                 </TableCell>
-                <TableCell>
+                <TableCell className="hidden sm:table-cell">
                   <Badge variant={user.isActive ? "default" : "destructive"}>
                     {user.isActive ? "Ativo" : "Inativo"}
                   </Badge>

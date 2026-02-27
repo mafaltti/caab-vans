@@ -102,4 +102,5 @@ export type ErrorCode =
   | "UNAUTHORIZED"
   | "FORBIDDEN"
   | "RATE_LIMITED"
-  | "INVALID_MESSAGE";
+  | "INVALID_MESSAGE"
+  | "INTERNAL_ERROR";

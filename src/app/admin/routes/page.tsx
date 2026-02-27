@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { fetchWithAuth } from "@/lib/api/fetch-with-auth";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,7 +39,7 @@ export default function AdminRoutesPage() {
   useEffect(() => {
     if (didFetch.current) return;
     didFetch.current = true;
-    fetch("/api/admin/routes")
+    fetchWithAuth("/api/admin/routes")
       .then((res) => res.json())
       .then((data) => setRoutes(data.routes ?? []))
       .finally(() => setLoading(false));
@@ -86,7 +87,7 @@ export default function AdminRoutesPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Nome</TableHead>
-              <TableHead>Van</TableHead>
+              <TableHead className="hidden sm:table-cell">Van</TableHead>
               <TableHead className="w-24">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -94,7 +95,7 @@ export default function AdminRoutesPage() {
             {routes.map((route) => (
               <TableRow key={route.id}>
                 <TableCell className="font-medium">{route.name}</TableCell>
-                <TableCell>{route.van?.name ?? "—"}</TableCell>
+                <TableCell className="hidden sm:table-cell">{route.van?.name ?? "—"}</TableCell>
                 <TableCell>
                   <div className="flex gap-1">
                     <Button asChild variant="ghost" size="sm">
