@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { fetchWithAuth } from "@/lib/api/fetch-with-auth";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,7 +42,7 @@ export default function AdminVansPage() {
   useEffect(() => {
     if (didFetch.current) return;
     didFetch.current = true;
-    fetchWithAuth("/api/admin/vans")
+    fetch("/api/admin/vans")
       .then((res) => res.json())
       .then((data) => setVans(data.vans ?? []))
       .finally(() => setLoading(false));
@@ -102,9 +101,9 @@ export default function AdminVansPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Nome</TableHead>
-              <TableHead className="hidden sm:table-cell">Token</TableHead>
-              <TableHead className="hidden md:table-cell">Webhook URL</TableHead>
-              <TableHead className="hidden sm:table-cell">Última atualização</TableHead>
+              <TableHead>Token</TableHead>
+              <TableHead>Webhook URL</TableHead>
+              <TableHead>Última atualização</TableHead>
               <TableHead className="w-24">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -112,7 +111,7 @@ export default function AdminVansPage() {
             {vans.map((van) => (
               <TableRow key={van.id}>
                 <TableCell className="font-medium">{van.name}</TableCell>
-                <TableCell className="hidden sm:table-cell">
+                <TableCell>
                   <span className="inline-flex items-center gap-1 font-mono text-xs">
                     {maskToken(van.ingestionToken)}
                     <button
@@ -128,12 +127,12 @@ export default function AdminVansPage() {
                     </button>
                   </span>
                 </TableCell>
-                <TableCell className="hidden md:table-cell">
+                <TableCell>
                   <code className="text-xs text-zinc-500">
                     /api/ingest/{van.id}
                   </code>
                 </TableCell>
-                <TableCell className="hidden sm:table-cell text-sm text-zinc-500">
+                <TableCell className="text-sm text-zinc-500">
                   {van.locationUpdatedAt
                     ? new Date(van.locationUpdatedAt).toLocaleString("pt-BR", {
                         dateStyle: "short",
