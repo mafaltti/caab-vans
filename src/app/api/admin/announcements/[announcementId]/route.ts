@@ -79,12 +79,13 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
   const { announcementId } = await params;
   const supabase = createServiceClient();
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("announcements")
     .delete()
-    .eq("id", announcementId);
+    .eq("id", announcementId)
+    .select("id");
 
-  if (error) {
+  if (error || !data || data.length === 0) {
     return apiError("NOT_FOUND", "Announcement not found", 404);
   }
 

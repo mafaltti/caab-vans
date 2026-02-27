@@ -29,7 +29,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   const entries = (data ?? []).map((e) => ({
     id: e.id,
     stopName: e.stop_name,
-    time: e.time,
+    time: e.time?.slice(0, 5),
   }));
 
   return NextResponse.json({ entries });
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       entry: {
         id: data.id,
         stopName: data.stop_name,
-        time: data.time,
+        time: data.time?.slice(0, 5),
       },
     },
     { status: 201 },

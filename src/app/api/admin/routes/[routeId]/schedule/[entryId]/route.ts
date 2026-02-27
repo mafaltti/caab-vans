@@ -61,7 +61,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     entry: {
       id: data.id,
       stopName: data.stop_name,
-      time: data.time,
+      time: data.time?.slice(0, 5),
     },
   });
 }
@@ -76,13 +76,14 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
   const { routeId, entryId } = await params;
   const supabase = createServiceClient();
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("schedule_entries")
     .delete()
     .eq("id", entryId)
-    .eq("route_id", routeId);
+    .eq("route_id", routeId)
+    .select("id");
 
-  if (error) {
+  if (error || !data || data.length === 0) {
     return apiError("NOT_FOUND", "Schedule entry not found", 404);
   }
 

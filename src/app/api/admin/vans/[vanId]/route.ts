@@ -86,9 +86,13 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
     return apiError("CONFLICT", "Van is assigned to a route. Remove the route first.", 409);
   }
 
-  const { error } = await supabase.from("vans").delete().eq("id", vanId);
+  const { data, error } = await supabase
+    .from("vans")
+    .delete()
+    .eq("id", vanId)
+    .select("id");
 
-  if (error) {
+  if (error || !data || data.length === 0) {
     return apiError("NOT_FOUND", "Van not found", 404);
   }
 

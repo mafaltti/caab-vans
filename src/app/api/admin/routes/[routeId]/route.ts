@@ -77,9 +77,13 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
   // Delete schedule entries first (cascade)
   await supabase.from("schedule_entries").delete().eq("route_id", routeId);
 
-  const { error } = await supabase.from("routes").delete().eq("id", routeId);
+  const { data, error } = await supabase
+    .from("routes")
+    .delete()
+    .eq("id", routeId)
+    .select("id");
 
-  if (error) {
+  if (error || !data || data.length === 0) {
     return apiError("NOT_FOUND", "Route not found", 404);
   }
 
