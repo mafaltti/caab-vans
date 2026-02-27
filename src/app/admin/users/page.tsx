@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { fetchWithAuth } from "@/lib/api/fetch-with-auth";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -33,7 +34,7 @@ export default function AdminUsersPage() {
   useEffect(() => {
     if (didFetch.current) return;
     didFetch.current = true;
-    fetch("/api/admin/users")
+    fetchWithAuth("/api/admin/users")
       .then((res) => {
         if (res.status === 403) {
           setForbidden(true);

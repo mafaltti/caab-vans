@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { fetchWithAuth } from "@/lib/api/fetch-with-auth";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -42,7 +43,7 @@ export default function AdminAnnouncementsPage() {
   useEffect(() => {
     if (didFetch.current) return;
     didFetch.current = true;
-    fetch("/api/admin/announcements")
+    fetchWithAuth("/api/admin/announcements")
       .then((res) => res.json())
       .then((data) => setAnnouncements(data.announcements ?? []))
       .finally(() => setLoading(false));

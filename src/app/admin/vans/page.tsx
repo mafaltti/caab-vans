@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { fetchWithAuth } from "@/lib/api/fetch-with-auth";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,7 +43,7 @@ export default function AdminVansPage() {
   useEffect(() => {
     if (didFetch.current) return;
     didFetch.current = true;
-    fetch("/api/admin/vans")
+    fetchWithAuth("/api/admin/vans")
       .then((res) => res.json())
       .then((data) => setVans(data.vans ?? []))
       .finally(() => setLoading(false));

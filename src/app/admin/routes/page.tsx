@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { fetchWithAuth } from "@/lib/api/fetch-with-auth";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,7 +39,7 @@ export default function AdminRoutesPage() {
   useEffect(() => {
     if (didFetch.current) return;
     didFetch.current = true;
-    fetch("/api/admin/routes")
+    fetchWithAuth("/api/admin/routes")
       .then((res) => res.json())
       .then((data) => setRoutes(data.routes ?? []))
       .finally(() => setLoading(false));
