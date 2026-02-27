@@ -77,13 +77,13 @@ Column visibility plan (from research.md R4):
 - **Announcements**: Always show Título + Ações. Show Expira at `sm:`. Show Status at `md:`.
 - **Users**: Always show E-mail + Ações. Show Status at `sm:`. Show Papel at `md:`.
 
-- [ ] T009 [P] [US2] Add responsive column hiding to the vans list table in `src/app/admin/vans/page.tsx`. For the Token column: add `className="hidden sm:table-cell"` to its `<TableHead>` and corresponding `<TableCell>`. For the Webhook URL column: add `className="hidden md:table-cell"` to its `<TableHead>` and `<TableCell>`. For the Última atualização column: add `className="hidden sm:table-cell"` to its `<TableHead>` and `<TableCell>`. The Nome and Ações columns remain unchanged (always visible).
+- [x] T009 [P] [US2] Add responsive column hiding to the vans list table in `src/app/admin/vans/page.tsx`. For the Token column: add `className="hidden sm:table-cell"` to its `<TableHead>` and corresponding `<TableCell>`. For the Webhook URL column: add `className="hidden md:table-cell"` to its `<TableHead>` and `<TableCell>`. For the Última atualização column: add `className="hidden sm:table-cell"` to its `<TableHead>` and `<TableCell>`. The Nome and Ações columns remain unchanged (always visible).
 
-- [ ] T010 [P] [US2] Add responsive column hiding to the routes list table in `src/app/admin/routes/page.tsx`. For the Van column: add `className="hidden sm:table-cell"` to its `<TableHead>` and corresponding `<TableCell>`. Nome and Ações remain unchanged.
+- [x] T010 [P] [US2] Add responsive column hiding to the routes list table in `src/app/admin/routes/page.tsx`. For the Van column: add `className="hidden sm:table-cell"` to its `<TableHead>` and corresponding `<TableCell>`. Nome and Ações remain unchanged.
 
-- [ ] T011 [P] [US2] Add responsive column hiding to the announcements list table in `src/app/admin/announcements/page.tsx`. For the Status column: add `className="hidden md:table-cell"` to its `<TableHead>` and corresponding `<TableCell>`. For the Expira column: add `className="hidden sm:table-cell"` to its `<TableHead>` and `<TableCell>`. Título and Ações remain unchanged.
+- [x] T011 [P] [US2] Add responsive column hiding to the announcements list table in `src/app/admin/announcements/page.tsx`. For the Status column: add `className="hidden md:table-cell"` to its `<TableHead>` and corresponding `<TableCell>`. For the Expira column: add `className="hidden sm:table-cell"` to its `<TableHead>` and `<TableCell>`. Título and Ações remain unchanged.
 
-- [ ] T012 [P] [US2] Add responsive column hiding to the users list table in `src/app/admin/users/page.tsx`. For the Papel column: add `className="hidden md:table-cell"` to its `<TableHead>` and corresponding `<TableCell>`. For the Status column: add `className="hidden sm:table-cell"` to its `<TableHead>` and `<TableCell>`. E-mail and Ações remain unchanged.
+- [x] T012 [P] [US2] Add responsive column hiding to the users list table in `src/app/admin/users/page.tsx`. For the Papel column: add `className="hidden md:table-cell"` to its `<TableHead>` and corresponding `<TableCell>`. For the Status column: add `className="hidden sm:table-cell"` to its `<TableHead>` and `<TableCell>`. E-mail and Ações remain unchanged.
 
 **Checkpoint**: US2 complete. All four admin list pages show only essential columns on mobile (375px) with no horizontal scroll. Additional columns appear as screen width increases.
 
@@ -97,7 +97,7 @@ Column visibility plan (from research.md R4):
 
 ### Implementation for User Story 3
 
-- [ ] T013 [US3] Make the schedule editor responsive in `src/components/admin/schedule-editor.tsx`. Apply two changes: (1) Change all time input `className="w-20"` to `className="w-16 sm:w-20"` (appears in both the existing-entry display and the add-new-entry form sections). (2) Add `flex-wrap` to the flex containers that hold each schedule entry row — change `className="flex items-center gap-2 ..."` to `className="flex flex-wrap items-center gap-2 ..."` so action buttons can wrap to a second line on very narrow screens. Ref: plan.md D5, research.md R5. Satisfies FR-011, FR-012.
+- [x] T013 [US3] Make the schedule editor responsive in `src/components/admin/schedule-editor.tsx`. Apply two changes: (1) Change all time input `className="w-20"` to `className="w-16 sm:w-20"` (appears in both the existing-entry display and the add-new-entry form sections). (2) Add `flex-wrap` to the flex containers that hold each schedule entry row — change `className="flex items-center gap-2 ..."` to `className="flex flex-wrap items-center gap-2 ..."` so action buttons can wrap to a second line on very narrow screens. Ref: plan.md D5, research.md R5. Satisfies FR-011, FR-012.
 
 **Checkpoint**: US3 complete. Schedule editor inputs and buttons fit within 320px without overflow.
 
@@ -107,9 +107,9 @@ Column visibility plan (from research.md R4):
 
 **Purpose**: Quality validation across all user stories.
 
-- [ ] T014 Run quality gates: `npx eslint . --ext .ts,.tsx`, `npx tsc --noEmit`, `npm run build`. Fix any lint or type errors introduced by the changes.
+- [x] T014 Run quality gates: `npx eslint . --ext .ts,.tsx`, `npx tsc --noEmit`, `npm run build`. Fix any lint or type errors introduced by the changes.
 
-- [ ] T015 Manual browser testing per `specs/002-responsive-logout-fix/quickstart.md`: (1) Logout flow — login, navigate, click Sair, verify redirect, verify back button shows login page. (2) Error handling — disconnect network, click Sair, verify error message. (3) Responsive tables — 375px viewport on all 4 admin pages, verify no horizontal scroll. (4) Schedule editor — 320px viewport, verify no overflow. (5) Progressive columns — widen from 375px to 640px to 768px, verify columns appear. (6) Touch targets — on 375px viewport, verify all admin table action buttons (edit, delete, copy) and schedule editor inputs meet 44x44px minimum (use DevTools element inspector).
+- [x] T015 Manual browser testing per `specs/002-responsive-logout-fix/quickstart.md`: (1) Logout flow — login, navigate, click Sair, verify redirect, verify back button shows login page. (2) Error handling — disconnect network, click Sair, verify error message. (3) Responsive tables — 375px viewport on all 4 admin pages, verify no horizontal scroll. (4) Schedule editor — 320px viewport, verify no overflow. (5) Progressive columns — widen from 375px to 640px to 768px, verify columns appear. (6) Touch targets — on 375px viewport, verify all admin table action buttons (edit, delete, copy) and schedule editor inputs meet 44x44px minimum (use DevTools element inspector).
 
 ---
 

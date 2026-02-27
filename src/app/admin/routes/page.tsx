@@ -87,7 +87,7 @@ export default function AdminRoutesPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Nome</TableHead>
-              <TableHead>Van</TableHead>
+              <TableHead className="hidden sm:table-cell">Van</TableHead>
               <TableHead className="w-24">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -95,7 +95,7 @@ export default function AdminRoutesPage() {
             {routes.map((route) => (
               <TableRow key={route.id}>
                 <TableCell className="font-medium">{route.name}</TableCell>
-                <TableCell>{route.van?.name ?? "—"}</TableCell>
+                <TableCell className="hidden sm:table-cell">{route.van?.name ?? "—"}</TableCell>
                 <TableCell>
                   <div className="flex gap-1">
                     <Button asChild variant="ghost" size="sm">

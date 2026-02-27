@@ -82,8 +82,8 @@ export default function AdminUsersPage() {
           <TableHeader>
             <TableRow>
               <TableHead>E-mail</TableHead>
-              <TableHead>Papel</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead className="hidden md:table-cell">Papel</TableHead>
+              <TableHead className="hidden sm:table-cell">Status</TableHead>
               <TableHead className="w-20">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -91,12 +91,12 @@ export default function AdminUsersPage() {
             {users.map((user) => (
               <TableRow key={user.id}>
                 <TableCell className="font-medium">{user.email}</TableCell>
-                <TableCell>
+                <TableCell className="hidden md:table-cell">
                   <Badge variant={user.role === "superuser" ? "default" : "secondary"}>
                     {user.role === "superuser" ? "Superusuário" : "Admin"}
                   </Badge>
                 </TableCell>
-                <TableCell>
+                <TableCell className="hidden sm:table-cell">
                   <Badge variant={user.isActive ? "default" : "destructive"}>
                     {user.isActive ? "Ativo" : "Inativo"}
                   </Badge>

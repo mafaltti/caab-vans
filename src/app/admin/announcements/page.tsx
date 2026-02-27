@@ -96,8 +96,8 @@ export default function AdminAnnouncementsPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Título</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Expira</TableHead>
+              <TableHead className="hidden md:table-cell">Status</TableHead>
+              <TableHead className="hidden sm:table-cell">Expira</TableHead>
               <TableHead className="w-24">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -105,7 +105,7 @@ export default function AdminAnnouncementsPage() {
             {announcements.map((a) => (
               <TableRow key={a.id}>
                 <TableCell className="font-medium">{a.title}</TableCell>
-                <TableCell>
+                <TableCell className="hidden md:table-cell">
                   <div className="flex gap-1">
                     {a.isPinned && <Badge variant="secondary">Fixado</Badge>}
                     {a.isUrgent && <Badge variant="destructive">Urgente</Badge>}
@@ -114,7 +114,7 @@ export default function AdminAnnouncementsPage() {
                     )}
                   </div>
                 </TableCell>
-                <TableCell className="text-sm text-zinc-500">
+                <TableCell className="hidden sm:table-cell text-sm text-zinc-500">
                   {a.expiresAt
                     ? new Date(a.expiresAt).toLocaleDateString("pt-BR")
                     : "—"}
