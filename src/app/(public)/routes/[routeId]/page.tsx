@@ -7,8 +7,9 @@ import { NextStopDisplay } from "@/components/public/next-stop-display";
 import { LocationLinkCta } from "@/components/public/location-link-cta";
 import { ScheduleList } from "@/components/public/schedule-list";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, AlertCircle } from "lucide-react";
 
 export default function RouteDetailPage() {
   const params = useParams<{ routeId: string }>();
@@ -38,17 +39,18 @@ export default function RouteDetailPage() {
           <ArrowLeft className="size-4" />
           Voltar
         </Button>
-        <div className="rounded-lg bg-red-50 p-4 text-center">
-          <p className="text-sm text-red-700">
+        <Alert variant="destructive">
+          <AlertCircle className="size-4" />
+          <AlertDescription>
             Não foi possível carregar os detalhes da rota.
-          </p>
-          <button
-            onClick={() => refetch()}
-            className="mt-2 min-h-[44px] text-sm font-medium text-red-600 underline"
-          >
-            Tentar novamente
-          </button>
-        </div>
+            <button
+              onClick={() => refetch()}
+              className="mt-1 min-h-[44px] text-sm font-medium underline"
+            >
+              Tentar novamente
+            </button>
+          </AlertDescription>
+        </Alert>
       </div>
     );
   }

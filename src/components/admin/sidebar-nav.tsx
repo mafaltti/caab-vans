@@ -33,7 +33,7 @@ export function SidebarNav({ role }: SidebarNavProps) {
             key={item.href}
             href={item.href}
             className={cn(
-              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+              "flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
               isActive
                 ? "bg-zinc-100 text-zinc-900"
                 : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900",

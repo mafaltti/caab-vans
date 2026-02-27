@@ -526,37 +526,37 @@
 
 **Purpose**: UX polish, accessibility compliance, and final quality validation.
 
-- [ ] T064 Add skeleton loading states to all public pages (FR-025)
+- [x] T064 Add skeleton loading states to all public pages (FR-025)
   - **Goal**: Replace any blank loading states with skeleton placeholders on home page and route detail page
   - **Files**: `src/app/(public)/page.tsx`, `src/app/(public)/routes/[routeId]/page.tsx`, `src/app/(public)/announcements/page.tsx`
   - **Run**: use shadcn Skeleton component. Home page: render 3-4 skeleton cards. Route detail: skeleton for header, schedule list, and CTA button. Announcements: skeleton cards.
   - **Verify**: `npm run build` passes; manual — throttle network in DevTools, confirm skeletons appear (no blank screens)
 
-- [ ] T065 Add error + retry states to all public pages (FR-026)
+- [x] T065 Add error + retry states to all public pages (FR-026)
   - **Goal**: Show inline error message with retry button when data fetching fails
   - **Files**: `src/app/(public)/page.tsx`, `src/app/(public)/routes/[routeId]/page.tsx`, `src/app/(public)/announcements/page.tsx`
   - **Run**: check `isError` from TanStack Query hooks. Display "Não foi possível carregar. Toque para tentar novamente." with a retry button that calls `refetch()`. Use shadcn Alert component.
   - **Verify**: `npm run build` passes; manual — disconnect API/network, confirm error state appears with retry
 
-- [ ] T066 Add empty states to all admin list pages (FR-027)
+- [x] T066 Add empty states to all admin list pages (FR-027)
   - **Goal**: Verify all admin list pages show a helpful empty state with a create prompt
   - **Files**: `src/app/admin/routes/page.tsx`, `src/app/admin/announcements/page.tsx`, `src/app/admin/users/page.tsx`
   - **Run**: review each list page. Ensure empty state shows: icon or illustration, message in pt-BR, and a link/button to the create page. (Most should already be done in Phase 5/6 tasks — this task verifies and fills gaps.)
   - **Verify**: `npm run build` passes; manual — confirm empty states appear when no records exist
 
-- [ ] T067 Accessibility audit: touch targets and contrast (FR-030, FR-031)
+- [x] T067 Accessibility audit: touch targets and contrast (FR-030, FR-031)
   - **Goal**: Verify all interactive elements meet 44x44 CSS px touch targets and WCAG 2.1 AA contrast ratios
   - **Files**: all component files in `src/components/public/` and `src/components/admin/`
   - **Run**: use browser DevTools (Lighthouse accessibility audit) or manual inspection. Check all buttons, links, and tappable elements for min 44px size. Check text contrast with a contrast checker tool. Fix any violations.
   - **Verify**: Lighthouse accessibility score >= 90; manual spot-check on mobile viewport
 
-- [ ] T067a Add location link click event tracking (SC-004)
+- [x] T067a Add location link click event tracking (SC-004)
   - **Goal**: Track `open_location_link_clicked` events when users tap the location link CTA, enabling SC-004 click-through rate measurement
   - **Files**: `src/components/public/location-link-cta.tsx` (update from T029), `src/app/api/track/route.ts` (new)
   - **Run**: add an `onClick` handler to the CTA button that fires a lightweight tracking event before opening the URL. Create a minimal `POST /api/track` endpoint that logs the event (for MVP, `console.log` with event name + timestamp is sufficient; can be upgraded to DB insert later). Use `navigator.sendBeacon` for non-blocking delivery.
   - **Verify**: `npm run build` passes; manual — click location link, confirm event logged in server console
 
-- [ ] T068 Run full quality gate checks
+- [x] T068 Run full quality gate checks
   - **Goal**: Ensure all four quality gates pass (Constitution §IV)
   - **Files**: none (validation only)
   - **Run**: `npm run lint && npm run typecheck && npm run build && npm run test`

@@ -1,3 +1,5 @@
+"use client";
+
 import { Button } from "@/components/ui/button";
 import { MapPin, AlertTriangle } from "lucide-react";
 
@@ -40,7 +42,24 @@ export function LocationLinkCta({
         size="lg"
         className="min-h-[44px] w-full text-base"
       >
-        <a href={locationUrl} target="_blank" rel="noopener noreferrer">
+        <a
+          href={locationUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => {
+            try {
+              const payload = JSON.stringify({
+                event: "open_location_link_clicked",
+                timestamp: new Date().toISOString(),
+              });
+              if (navigator.sendBeacon) {
+                navigator.sendBeacon("/api/track", new Blob([payload], { type: "application/json" }));
+              }
+            } catch {
+              // tracking is best-effort
+            }
+          }}
+        >
           <MapPin className="size-5" />
           Abrir localização
         </a>
