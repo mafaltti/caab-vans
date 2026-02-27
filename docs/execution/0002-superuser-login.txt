@@ -1,0 +1,4 @@
+Superuser created successfully:
+  Email:    admin@caab.org.br
+  Password: caab2026!
+  ID:       dd20ea73-283b-43f8-9b38-1df832115e5d
