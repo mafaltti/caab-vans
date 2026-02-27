@@ -121,7 +121,7 @@ export function ScheduleEditor({ routeId }: ScheduleEditorProps) {
       {entries.map((entry) => (
         <div
           key={entry.id}
-          className="flex items-center gap-2 rounded-md border border-zinc-200 p-2"
+          className="flex flex-wrap items-center gap-2 rounded-md border border-zinc-200 p-2"
         >
           {editingId === entry.id ? (
             <>
@@ -129,7 +129,7 @@ export function ScheduleEditor({ routeId }: ScheduleEditorProps) {
                 value={editTime}
                 onChange={(e) => setEditTime(e.target.value)}
                 placeholder="HH:mm"
-                className="w-20"
+                className="w-16 sm:w-20"
               />
               <Input
                 value={editStopName}
@@ -174,12 +174,12 @@ export function ScheduleEditor({ routeId }: ScheduleEditorProps) {
         </div>
       ))}
 
-      <div className="flex items-center gap-2 rounded-md border border-dashed border-zinc-300 p-2">
+      <div className="flex flex-wrap items-center gap-2 rounded-md border border-dashed border-zinc-300 p-2">
         <Input
           value={newTime}
           onChange={(e) => setNewTime(e.target.value)}
           placeholder="HH:mm"
-          className="w-20"
+          className="w-16 sm:w-20"
         />
         <Input
           value={newStopName}

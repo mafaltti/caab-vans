@@ -30,9 +30,12 @@ export async function middleware(request: NextRequest) {
 
   if (!user && request.nextUrl.pathname.startsWith("/admin/login") === false) {
     const loginUrl = new URL("/admin/login", request.url);
-    return NextResponse.redirect(loginUrl);
+    const redirect = NextResponse.redirect(loginUrl);
+    redirect.headers.set("Cache-Control", "no-store");
+    return redirect;
   }
 
+  response.headers.set("Cache-Control", "no-store");
   return response;
 }
 

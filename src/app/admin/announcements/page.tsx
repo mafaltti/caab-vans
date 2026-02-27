@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { fetchWithAuth } from "@/lib/api/fetch-with-auth";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -42,7 +43,7 @@ export default function AdminAnnouncementsPage() {
   useEffect(() => {
     if (didFetch.current) return;
     didFetch.current = true;
-    fetch("/api/admin/announcements")
+    fetchWithAuth("/api/admin/announcements")
       .then((res) => res.json())
       .then((data) => setAnnouncements(data.announcements ?? []))
       .finally(() => setLoading(false));
@@ -95,8 +96,8 @@ export default function AdminAnnouncementsPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Título</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Expira</TableHead>
+              <TableHead className="hidden md:table-cell">Status</TableHead>
+              <TableHead className="hidden sm:table-cell">Expira</TableHead>
               <TableHead className="w-24">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -104,7 +105,7 @@ export default function AdminAnnouncementsPage() {
             {announcements.map((a) => (
               <TableRow key={a.id}>
                 <TableCell className="font-medium">{a.title}</TableCell>
-                <TableCell>
+                <TableCell className="hidden md:table-cell">
                   <div className="flex gap-1">
                     {a.isPinned && <Badge variant="secondary">Fixado</Badge>}
                     {a.isUrgent && <Badge variant="destructive">Urgente</Badge>}
@@ -113,7 +114,7 @@ export default function AdminAnnouncementsPage() {
                     )}
                   </div>
                 </TableCell>
-                <TableCell className="text-sm text-zinc-500">
+                <TableCell className="hidden sm:table-cell text-sm text-zinc-500">
                   {a.expiresAt
                     ? new Date(a.expiresAt).toLocaleDateString("pt-BR")
                     : "—"}
