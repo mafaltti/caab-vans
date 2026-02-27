@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Pencil } from "lucide-react";
+import { Plus, Pencil, Users } from "lucide-react";
 
 type UserItem = {
   id: string;
@@ -70,7 +70,8 @@ export default function AdminUsersPage() {
 
       {users.length === 0 ? (
         <div className="rounded-md border border-dashed border-zinc-300 p-8 text-center">
-          <p className="text-sm text-zinc-500">Nenhum usuário cadastrado.</p>
+          <Users className="mx-auto h-8 w-8 text-zinc-400" />
+          <p className="mt-2 text-sm text-zinc-500">Nenhum usuário cadastrado.</p>
           <Button asChild variant="link" size="sm" className="mt-2">
             <Link href="/admin/users/new">Crie um</Link>
           </Button>

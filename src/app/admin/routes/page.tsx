@@ -19,7 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, MapPin } from "lucide-react";
 
 type RouteItem = {
   id: string;
@@ -75,7 +75,8 @@ export default function AdminRoutesPage() {
 
       {routes.length === 0 ? (
         <div className="rounded-md border border-dashed border-zinc-300 p-8 text-center">
-          <p className="text-sm text-zinc-500">Nenhuma rota cadastrada.</p>
+          <MapPin className="mx-auto h-8 w-8 text-zinc-400" />
+          <p className="mt-2 text-sm text-zinc-500">Nenhuma rota cadastrada.</p>
           <Button asChild variant="link" size="sm" className="mt-2">
             <Link href="/admin/routes/new">Crie uma</Link>
           </Button>
