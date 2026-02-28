@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { CheckCircle2, ChevronDown } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import type { TimelineStop, TimelineStopStatus } from "@/types";
 
 type ScheduleTimelineProps = {
@@ -42,21 +43,21 @@ function deriveTimelineStops(
 function TimelineNode({ status }: { status: TimelineStopStatus }) {
   if (status === "past") {
     return (
-      <div className="flex size-6 items-center justify-center rounded-full bg-zinc-200">
+      <div className="flex size-6 items-center justify-center rounded-full bg-zinc-100 border-2 border-white">
         <CheckCircle2 className="size-4 text-zinc-400" />
       </div>
     );
   }
   if (status === "current") {
     return (
-      <div className="flex size-6 items-center justify-center rounded-full bg-blue-100">
-        <div className="size-3 animate-pulse rounded-full bg-blue-600" />
+      <div className="flex size-6 items-center justify-center rounded-full bg-blue-100 border-2 border-blue-600 shadow-sm shadow-blue-200">
+        <div className="size-2 animate-pulse rounded-full bg-blue-600" />
       </div>
     );
   }
   return (
-    <div className="flex size-6 items-center justify-center">
-      <div className="size-3 rounded-full border-2 border-zinc-300" />
+    <div className="flex size-6 items-center justify-center rounded-full bg-white border-2 border-zinc-200 group-hover:border-blue-300 transition-colors">
+      <div className="size-2 rounded-full bg-zinc-300" />
     </div>
   );
 }
@@ -83,28 +84,37 @@ export function ScheduleTimeline({
 
   return (
     <div className="rounded-3xl bg-white p-5 shadow-sm">
-      <h3 className="mb-4 text-sm font-medium text-zinc-500">Horários</h3>
+      <h3 className="mb-4 text-lg font-bold text-zinc-900">Horários</h3>
 
       {!showPast && pastStops.length > 0 && (
-        <button
+        <Button
+          variant="secondary"
+          size="sm"
+          className="mb-3 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg"
           onClick={() => setShowPast(true)}
-          className="mb-3 flex min-h-[44px] items-center gap-2 text-sm font-medium text-blue-600"
         >
           <ChevronDown className="size-4" />
           Ver {pastStops.length} parada{pastStops.length > 1 ? "s" : ""}{" "}
           anterior{pastStops.length > 1 ? "es" : ""}
-        </button>
+        </Button>
       )}
 
       <div className="relative">
         {/* Vertical connecting line */}
         {visibleStops.length > 1 && (
-          <div className="absolute left-[11px] top-3 bottom-3 w-0.5 bg-zinc-200" />
+          <div className="absolute left-[11px] top-3 bottom-3 w-0.5 bg-zinc-100" />
         )}
 
         <ul className="relative space-y-0">
-          {visibleStops.map((stop) => (
-            <li key={stop.id} className="flex items-start gap-3 py-2.5">
+          {visibleStops.map((stop, index) => (
+            <li
+              key={stop.id}
+              className={`group flex items-start gap-3 py-2.5${
+                index < visibleStops.length - 1
+                  ? " border-b border-zinc-50"
+                  : ""
+              }`}
+            >
               <div className="relative z-10 shrink-0">
                 <TimelineNode status={stop.status} />
               </div>
@@ -115,7 +125,7 @@ export function ScheduleTimeline({
                       ? "font-semibold text-blue-700"
                       : stop.status === "past"
                         ? "text-zinc-400"
-                        : "text-zinc-700"
+                        : "text-zinc-700 group-hover:text-zinc-900 transition-colors"
                   }`}
                 >
                   {stop.stopName}

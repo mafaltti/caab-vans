@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bus, Megaphone } from "lucide-react";
+import { Bus, Bell } from "lucide-react";
 import { useAnnouncements } from "@/lib/queries/use-announcements";
 
 const navItems = [
   { href: "/", label: "Rotas", icon: Bus },
-  { href: "/avisos", label: "Avisos", icon: Megaphone },
+  { href: "/avisos", label: "Avisos", icon: Bell },
 ];
 
 export function BottomNav() {
@@ -17,8 +17,8 @@ export function BottomNav() {
   const hasUrgent = data?.announcements?.some((a) => a.isUrgent) ?? false;
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-50 border-t bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
-      <div className="mx-auto flex max-w-lg">
+    <nav className="fixed inset-x-0 bottom-0 z-50 border-t bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.05)] pb-[env(safe-area-inset-bottom)]">
+      <div className="mx-auto flex max-w-lg justify-around">
         {navItems.map((item) => {
           const isActive =
             item.href === "/"
@@ -31,18 +31,18 @@ export function BottomNav() {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex min-h-[44px] flex-1 flex-col items-center justify-center gap-1 py-2 transition-colors ${
+              className={`flex min-h-[44px] w-20 flex-col items-center justify-center gap-1 py-2 transition-colors ${
                 isActive ? "text-blue-600" : "text-zinc-400 hover:text-zinc-600"
               }`}
             >
               <div className="relative">
                 <div
-                  className={`rounded-lg p-1.5 ${
+                  className={`rounded-xl p-1.5 ${
                     isActive ? "bg-blue-50" : ""
                   }`}
                 >
                   <Icon
-                    className={`size-5 transition-transform ${
+                    className={`size-6 transition-transform ${
                       isActive ? "scale-110" : ""
                     }`}
                     strokeWidth={isActive ? 2.5 : 2}

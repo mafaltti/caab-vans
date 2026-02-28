@@ -28,7 +28,7 @@ export default function HomePage() {
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <h1 className="text-xl font-bold text-zinc-900">Rotas</h1>
+        <h1 className="text-2xl font-bold text-zinc-900">Rotas</h1>
         {Array.from({ length: 3 }).map((_, i) => (
           <RouteCardSkeleton key={i} />
         ))}
@@ -39,7 +39,7 @@ export default function HomePage() {
   if (error) {
     return (
       <div className="space-y-4">
-        <h1 className="text-xl font-bold text-zinc-900">Rotas</h1>
+        <h1 className="text-2xl font-bold text-zinc-900">Rotas</h1>
         <Alert variant="destructive">
           <AlertCircle className="size-4" />
           <AlertDescription>
@@ -60,7 +60,7 @@ export default function HomePage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold text-zinc-900">Rotas</h1>
+      <h1 className="text-2xl font-bold text-zinc-900">Rotas</h1>
       {routes.length === 0 ? (
         <div className="rounded-lg bg-zinc-100 p-6 text-center">
           <p className="text-sm text-zinc-500">Nenhuma rota configurada</p>

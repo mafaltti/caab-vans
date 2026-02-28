@@ -1,6 +1,8 @@
 "use client";
 
 import { Navigation, Clock, MapPin, AlertTriangle } from "lucide-react";
+import { useReducedMotion } from "motion/react";
+import { Button } from "@/components/ui/button";
 import type { NextStop, ScheduleStatus } from "@/types";
 
 type HeroCardProps = {
@@ -31,6 +33,8 @@ export function HeroCard({
   isLocationOutdated,
   isRunning,
 }: HeroCardProps) {
+  const prefersReducedMotion = useReducedMotion();
+
   if (scheduleStatus === "ended") {
     return (
       <div className="rounded-3xl bg-zinc-200 p-6 text-center">
@@ -58,7 +62,11 @@ export function HeroCard({
 
       <div className="relative space-y-4">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-blue-200">
-          <Navigation className="size-4" />
+          <Navigation
+            className={
+              prefersReducedMotion ? "size-4" : "size-4 animate-bounce"
+            }
+          />
           <span>Próxima parada</span>
         </div>
 
@@ -71,46 +79,51 @@ export function HeroCard({
         </div>
 
         {isRunning && locationUrl && (
-          <a
-            href={locationUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => {
-              try {
-                const payload = JSON.stringify({
-                  event: "open_location_link_clicked",
-                  timestamp: new Date().toISOString(),
-                });
-                if (navigator.sendBeacon) {
-                  navigator.sendBeacon(
-                    "/api/track",
-                    new Blob([payload], { type: "application/json" }),
-                  );
-                }
-              } catch {
-                // tracking is best-effort
-              }
-            }}
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-white/20 px-4 py-2.5 text-sm font-medium text-white backdrop-blur-sm transition-colors hover:bg-white/30"
+          <Button
+            asChild
+            className="w-full bg-white text-blue-700 hover:bg-blue-50 font-semibold py-6 rounded-xl shadow-sm"
           >
-            <MapPin className="size-4" />
-            Abrir localização ao vivo
-          </a>
+            <a
+              href={locationUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => {
+                try {
+                  const payload = JSON.stringify({
+                    event: "open_location_link_clicked",
+                    timestamp: new Date().toISOString(),
+                  });
+                  if (navigator.sendBeacon) {
+                    navigator.sendBeacon(
+                      "/api/track",
+                      new Blob([payload], { type: "application/json" }),
+                    );
+                  }
+                } catch {
+                  // tracking is best-effort
+                }
+              }}
+            >
+              <MapPin className="size-4" />
+              Abrir localização ao vivo
+            </a>
+          </Button>
         )}
 
-        <div className="flex items-center gap-2">
-          {locationUpdatedAt && (
-            <p className="text-xs text-blue-200">
-              Atualizado: {formatTimestamp(locationUpdatedAt)}
-            </p>
-          )}
-          {isLocationOutdated && (
-            <span className="inline-flex items-center gap-1 text-xs text-amber-300">
-              <AlertTriangle className="size-3" />
-              Desatualizado
-            </span>
-          )}
-        </div>
+        {(locationUpdatedAt || isLocationOutdated) && (
+          <p className="mt-3 text-center text-xs text-blue-200 opacity-80">
+            {locationUpdatedAt && (
+              <>Atualizado: {formatTimestamp(locationUpdatedAt)}</>
+            )}
+            {locationUpdatedAt && isLocationOutdated && " "}
+            {isLocationOutdated && (
+              <span className="inline-flex items-center gap-1 text-amber-300">
+                <AlertTriangle className="size-3" />
+                Desatualizado
+              </span>
+            )}
+          </p>
+        )}
       </div>
     </div>
   );

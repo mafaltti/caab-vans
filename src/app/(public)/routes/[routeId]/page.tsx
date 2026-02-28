@@ -7,6 +7,7 @@ import { HeroCard } from "@/components/public/hero-card";
 import { ScheduleTimeline } from "@/components/public/schedule-timeline";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { ArrowLeft, AlertCircle } from "lucide-react";
 
 export default function RouteDetailPage() {
@@ -48,13 +49,15 @@ export default function RouteDetailPage() {
   if (error) {
     return (
       <div className="space-y-4">
-        <button
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={() => router.back()}
           aria-label="Voltar"
-          className="-ml-2 min-h-[44px] min-w-[44px] rounded-full p-2 hover:bg-zinc-200/50"
+          className="rounded-full hover:bg-zinc-200/50 text-zinc-700 -ml-2 mr-2"
         >
           <ArrowLeft size={24} />
-        </button>
+        </Button>
         <Alert variant="destructive">
           <AlertCircle className="size-4" />
           <AlertDescription>
@@ -87,13 +90,15 @@ export default function RouteDetailPage() {
       <div className="sticky top-0 z-20 border-b border-zinc-200/50 bg-zinc-50/90 py-4 backdrop-blur-md">
         <div className="flex items-center justify-between">
           <div className="flex min-w-0 items-center">
-            <button
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={() => router.back()}
               aria-label="Voltar"
-              className="mr-2 -ml-2 min-h-[44px] min-w-[44px] rounded-full p-2 hover:bg-zinc-200/50"
+              className="rounded-full hover:bg-zinc-200/50 text-zinc-700 -ml-2 mr-2"
             >
               <ArrowLeft size={24} />
-            </button>
+            </Button>
             <h1 className="min-w-0 truncate text-2xl font-bold text-zinc-900">
               {route.name}
             </h1>
