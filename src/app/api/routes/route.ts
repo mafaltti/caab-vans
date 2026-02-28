@@ -86,7 +86,9 @@ export async function GET() {
     );
     const totalStops = sortedEntries.length;
     const currentStopIndex = nextStop
-      ? sortedEntries.findIndex((e) => e.time === nextStop.time)
+      ? sortedEntries.findIndex(
+          (e) => formatTimeString(e.time) === nextStop.time,
+        )
       : null;
 
     return {

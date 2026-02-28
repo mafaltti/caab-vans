@@ -86,7 +86,9 @@ export async function GET(
   const sortedEntries = entries.sort((a, b) => a.time.localeCompare(b.time));
   const totalStops = sortedEntries.length;
   const currentStopIndex = nextStop
-    ? sortedEntries.findIndex((e) => e.time === nextStop.time)
+    ? sortedEntries.findIndex(
+        (e) => formatTimeString(e.time) === nextStop.time,
+      )
     : null;
 
   const schedule = sortedEntries.map((e) => ({
