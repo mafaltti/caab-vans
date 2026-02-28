@@ -1,18 +1,13 @@
 <!--
   Sync Impact Report
   ==================
-  Version change: (new) → 1.0.0
-  Modified principles: N/A (initial fill from template)
-  Added sections:
-    - I. Simplicity (KISS / DRY / YAGNI)
-    - II. Explicit Trade-offs in PRs
-    - III. Branch & Merge Discipline
-    - IV. Quality Gates (Non-Negotiable)
-    - V. Stack Constraints (Non-Negotiable)
-    - Security Constraints
-    - Timezone & Data Consistency
-    - Governance
-  Removed sections: N/A
+  Version change: 1.0.0 → 1.0.1
+  Modified principles:
+    - V. Stack Constraints — corrected shadcn/ui preset from
+      "Radix + Nova style" to "New York style", font from "Inter"
+      to "Geist", and added Motion library.
+  Added sections: none
+  Removed sections: none
   Templates requiring updates:
     - .specify/templates/plan-template.md — ✅ no update needed
       (Constitution Check section is dynamically filled by /speckit.plan)
@@ -97,8 +92,9 @@ The following technology decisions are locked for this project:
 
 - **Web frontend + BFF**: Next.js (App Router) with TypeScript. The BFF layer
   uses Next.js Route Handlers (`/app/api/*`).
-- **UI**: Tailwind CSS + shadcn/ui (Radix + Nova style, Zinc base, Blue theme,
-  Lucide icons, Inter font).
+- **UI**: Tailwind CSS + shadcn/ui (New York style, Zinc base, Lucide icons,
+  Geist font). Design direction: clean utility / modern mobile app.
+- **Motion**: Motion library for transitions and tap feedback.
 - **Data fetching**: TanStack Query (polling, caching, request dedupe).
 - **Validation**: Zod for API inputs and internal operations.
 - **Date/time**: Luxon, forced to `America/Bahia`.
@@ -145,4 +141,4 @@ for smooth visual updates.
   `docs/DELIVERY-WORKFLOW.md`, and `docs/TECH.md` as authoritative source
   documents that inform this constitution.
 
-**Version**: 1.0.0 | **Ratified**: 2026-02-26 | **Last Amended**: 2026-02-26
+**Version**: 1.0.1 | **Ratified**: 2026-02-26 | **Last Amended**: 2026-02-28
