@@ -15,6 +15,10 @@ export function formatTime(dt: DateTime): string {
   return dt.setZone(TIMEZONE).toFormat("HH:mm");
 }
 
+export function formatTimeString(time: string): string {
+  return time.slice(0, 5);
+}
+
 export function parseTime(hhMm: string): DateTime {
   const now = nowBahia();
   const [hours, minutes] = hhMm.split(":").map(Number);

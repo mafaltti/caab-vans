@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/api/auth";
 import { apiError, validationError } from "@/lib/api/errors";
 import { createServiceClient } from "@/lib/supabase/server";
 import { createScheduleEntrySchema } from "@/lib/validators/schedule-entry";
+import { formatTimeString } from "@/lib/time";
 
 type RouteParams = { params: Promise<{ routeId: string }> };
 
@@ -29,7 +30,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   const entries = (data ?? []).map((e) => ({
     id: e.id,
     stopName: e.stop_name,
-    time: e.time?.slice(0, 5),
+    time: e.time ? formatTimeString(e.time) : undefined,
   }));
 
   return NextResponse.json({ entries });
@@ -89,7 +90,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       entry: {
         id: data.id,
         stopName: data.stop_name,
-        time: data.time?.slice(0, 5),
+        time: data.time ? formatTimeString(data.time) : undefined,
       },
     },
     { status: 201 },
