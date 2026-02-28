@@ -17,8 +17,13 @@ export default function RouteDetailPage() {
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <Skeleton className="h-8 w-24" />
-        <Skeleton className="h-6 w-48" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center">
+            <Skeleton className="mr-2 size-6 rounded-full" />
+            <Skeleton className="h-7 w-48" />
+          </div>
+          <Skeleton className="h-5 w-24 rounded-full" />
+        </div>
         {/* Hero card skeleton */}
         <Skeleton className="h-48 w-full rounded-3xl" />
         {/* Timeline skeleton */}
@@ -40,10 +45,10 @@ export default function RouteDetailPage() {
       <div className="space-y-4">
         <button
           onClick={() => router.back()}
-          className="flex min-h-[44px] items-center gap-1 text-sm font-medium text-zinc-600"
+          aria-label="Voltar"
+          className="-ml-2 min-h-[44px] min-w-[44px] rounded-full p-2 hover:bg-zinc-200/50"
         >
-          <ArrowLeft className="size-4" />
-          Voltar
+          <ArrowLeft size={24} />
         </button>
         <Alert variant="destructive">
           <AlertCircle className="size-4" />
@@ -74,21 +79,20 @@ export default function RouteDetailPage() {
 
   return (
     <div className="space-y-6">
-      {/* Sticky header */}
-      <div className="sticky top-0 z-20 -mx-4 bg-zinc-50/80 px-4 py-3 backdrop-blur-md">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between">
+        <div className="flex min-w-0 items-center">
           <button
             onClick={() => router.back()}
-            className="flex min-h-[44px] items-center gap-1 text-sm font-medium text-zinc-600"
+            aria-label="Voltar"
+            className="mr-2 -ml-2 min-h-[44px] min-w-[44px] rounded-full p-2 hover:bg-zinc-200/50"
           >
-            <ArrowLeft className="size-4" />
-            Voltar
+            <ArrowLeft size={24} />
           </button>
-          <h1 className="truncate text-lg font-bold text-zinc-900">
+          <h1 className="min-w-0 truncate text-2xl font-bold text-zinc-900">
             {route.name}
           </h1>
-          <RouteStatusBadge isRunning={route.isRunning} />
         </div>
+        <RouteStatusBadge isRunning={route.isRunning} />
       </div>
 
       <HeroCard
