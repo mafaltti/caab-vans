@@ -16,27 +16,32 @@ export default function RouteDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            <Skeleton className="mr-2 size-6 rounded-full" />
-            <Skeleton className="h-7 w-48" />
-          </div>
-          <Skeleton className="h-5 w-24 rounded-full" />
-        </div>
-        {/* Hero card skeleton */}
-        <Skeleton className="h-48 w-full rounded-3xl" />
-        {/* Timeline skeleton */}
-        <div className="space-y-3 rounded-3xl bg-white p-5">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-3">
-              <Skeleton className="size-6 rounded-full" />
-              <Skeleton className="h-4 flex-1" />
-              <Skeleton className="h-4 w-12" />
+      <>
+        <div className="sticky top-0 z-20 border-b border-zinc-200/50 bg-zinc-50/90 py-4 backdrop-blur-md">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <Skeleton className="mr-2 size-6 rounded-full" />
+              <Skeleton className="h-7 w-48" />
             </div>
-          ))}
+            <Skeleton className="h-5 w-24 rounded-full" />
+          </div>
         </div>
-      </div>
+
+        <div className="space-y-4 pt-6">
+          {/* Hero card skeleton */}
+          <Skeleton className="h-48 w-full rounded-3xl" />
+          {/* Timeline skeleton */}
+          <div className="space-y-3 rounded-3xl bg-white p-5">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <Skeleton className="size-6 rounded-full" />
+                <Skeleton className="h-4 flex-1" />
+                <Skeleton className="h-4 w-12" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </>
     );
   }
 
@@ -78,33 +83,37 @@ export default function RouteDetailPage() {
       : null;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex min-w-0 items-center">
-          <button
-            onClick={() => router.back()}
-            aria-label="Voltar"
-            className="mr-2 -ml-2 min-h-[44px] min-w-[44px] rounded-full p-2 hover:bg-zinc-200/50"
-          >
-            <ArrowLeft size={24} />
-          </button>
-          <h1 className="min-w-0 truncate text-2xl font-bold text-zinc-900">
-            {route.name}
-          </h1>
+    <>
+      <div className="sticky top-0 z-20 border-b border-zinc-200/50 bg-zinc-50/90 py-4 backdrop-blur-md">
+        <div className="flex items-center justify-between">
+          <div className="flex min-w-0 items-center">
+            <button
+              onClick={() => router.back()}
+              aria-label="Voltar"
+              className="mr-2 -ml-2 min-h-[44px] min-w-[44px] rounded-full p-2 hover:bg-zinc-200/50"
+            >
+              <ArrowLeft size={24} />
+            </button>
+            <h1 className="min-w-0 truncate text-2xl font-bold text-zinc-900">
+              {route.name}
+            </h1>
+          </div>
+          <RouteStatusBadge isRunning={route.isRunning} />
         </div>
-        <RouteStatusBadge isRunning={route.isRunning} />
       </div>
 
-      <HeroCard
-        nextStop={route.nextStop}
-        scheduleStatus={route.scheduleStatus}
-        locationUrl={route.van.locationUrl}
-        locationUpdatedAt={route.van.locationUpdatedAt}
-        isLocationOutdated={route.van.isLocationOutdated}
-        isRunning={route.isRunning}
-      />
+      <div className="space-y-6 pt-6">
+        <HeroCard
+          nextStop={route.nextStop}
+          scheduleStatus={route.scheduleStatus}
+          locationUrl={route.van.locationUrl}
+          locationUpdatedAt={route.van.locationUpdatedAt}
+          isLocationOutdated={route.van.isLocationOutdated}
+          isRunning={route.isRunning}
+        />
 
-      <ScheduleTimeline schedule={route.schedule} nextStopId={nextStopId} />
-    </div>
+        <ScheduleTimeline schedule={route.schedule} nextStopId={nextStopId} />
+      </div>
+    </>
   );
 }
