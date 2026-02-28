@@ -45,6 +45,16 @@ export function HeroCard({
     );
   }
 
+  if (!isRunning) {
+    return (
+      <div className="rounded-3xl bg-zinc-200 p-6 text-center">
+        <p className="text-sm font-medium text-zinc-500">
+          Fora de operação
+        </p>
+      </div>
+    );
+  }
+
   if (!nextStop) {
     return (
       <div className="rounded-3xl bg-zinc-200 p-6 text-center">
