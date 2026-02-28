@@ -68,7 +68,7 @@ export async function GET() {
     const withinWindow = isWithinScheduleWindow(times, now);
     const isRunning = withinWindow && isLocationUpdatedToday;
 
-    const nextStop = getNextStop(entryMapped, now);
+    const nextStop = isRunning ? getNextStop(entryMapped, now) : null;
 
     let scheduleStatus: ScheduleStatus = "not_started";
     if (times.length > 0) {
