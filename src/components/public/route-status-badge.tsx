@@ -1,19 +1,20 @@
-import { Badge } from "@/components/ui/badge";
-
 type RouteStatusBadgeProps = {
   isRunning: boolean;
 };
 
 export function RouteStatusBadge({ isRunning }: RouteStatusBadgeProps) {
   return (
-    <Badge
-      className={
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
         isRunning
-          ? "min-h-[44px] bg-green-600 px-3 text-sm text-white hover:bg-green-600"
-          : "min-h-[44px] bg-zinc-600 px-3 text-sm text-white hover:bg-zinc-600"
-      }
+          ? "bg-emerald-100 text-emerald-700"
+          : "bg-zinc-100 text-zinc-600"
+      }`}
     >
+      {isRunning && (
+        <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
+      )}
       {isRunning ? "Em operação" : "Fora de operação"}
-    </Badge>
+    </span>
   );
 }
