@@ -46,7 +46,7 @@ export default function RouteDetailPage() {
         <button
           onClick={() => router.back()}
           aria-label="Voltar"
-          className="-ml-2 min-h-[44px] rounded-full p-2 hover:bg-zinc-200/50"
+          className="-ml-2 min-h-[44px] min-w-[44px] rounded-full p-2 hover:bg-zinc-200/50"
         >
           <ArrowLeft size={24} />
         </button>
@@ -84,7 +84,7 @@ export default function RouteDetailPage() {
           <button
             onClick={() => router.back()}
             aria-label="Voltar"
-            className="mr-2 -ml-2 min-h-[44px] rounded-full p-2 hover:bg-zinc-200/50"
+            className="mr-2 -ml-2 min-h-[44px] min-w-[44px] rounded-full p-2 hover:bg-zinc-200/50"
           >
             <ArrowLeft size={24} />
           </button>
