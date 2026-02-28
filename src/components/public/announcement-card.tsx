@@ -1,4 +1,6 @@
 import { AlertCircle, Info, Pin } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import type { AnnouncementResponse } from "@/types";
 
 type AnnouncementCardProps = {
@@ -17,25 +19,32 @@ function formatRelativeDate(isoDate: string): string {
 
 export function AnnouncementCard({ announcement }: AnnouncementCardProps) {
   return (
-    <div className="relative overflow-hidden rounded-2xl bg-white p-5 shadow-sm">
-      {/* Urgent accent bar */}
-      {announcement.isUrgent && (
-        <div className="absolute bottom-0 left-0 top-0 w-1.5 bg-rose-500" />
-      )}
-
-      <div className="space-y-3">
+    <Card
+      className={`relative overflow-hidden rounded-2xl p-0 gap-0 shadow-sm ${
+        announcement.isUrgent
+          ? "border-rose-200 shadow-rose-100/50"
+          : "border-zinc-100"
+      }`}
+    >
+      <CardContent className="p-5">
         {/* Type badge + pin */}
         <div className="flex items-center gap-2">
           {announcement.isUrgent ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-rose-700">
+            <Badge
+              variant="destructive"
+              className="bg-rose-100 text-rose-700 hover:bg-rose-100 border-none shadow-none rounded text-[10px] font-bold uppercase tracking-wider"
+            >
               <AlertCircle className="size-3" />
               Urgente
-            </span>
+            </Badge>
           ) : (
-            <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-zinc-600">
+            <Badge
+              variant="secondary"
+              className="bg-zinc-100 text-zinc-600 hover:bg-zinc-100 border-none shadow-none rounded text-[10px] font-bold uppercase tracking-wider"
+            >
               <Info className="size-3" />
               Informativo
-            </span>
+            </Badge>
           )}
           {announcement.isPinned && (
             <Pin className="size-4 text-blue-500" style={{ fill: "rgb(239 246 255)" }} />
@@ -44,7 +53,7 @@ export function AnnouncementCard({ announcement }: AnnouncementCardProps) {
 
         {/* Title */}
         <h2
-          className={`text-base font-semibold ${
+          className={`mt-3 text-lg font-bold ${
             announcement.isUrgent ? "text-rose-900" : "text-zinc-900"
           }`}
         >
@@ -53,7 +62,7 @@ export function AnnouncementCard({ announcement }: AnnouncementCardProps) {
 
         {/* Body */}
         <p
-          className={`text-sm ${
+          className={`mt-3 text-sm leading-relaxed ${
             announcement.isUrgent ? "text-rose-800" : "text-zinc-600"
           }`}
         >
@@ -61,10 +70,10 @@ export function AnnouncementCard({ announcement }: AnnouncementCardProps) {
         </p>
 
         {/* Date */}
-        <p className="text-xs text-zinc-400">
+        <p className="mt-3 text-xs font-medium text-zinc-400">
           Publicado em {formatRelativeDate(announcement.createdAt)}
         </p>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }

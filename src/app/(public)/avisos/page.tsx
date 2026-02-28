@@ -13,7 +13,7 @@ export default function AvisosPage() {
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <h1 className="text-xl font-bold text-zinc-900">Avisos</h1>
+        <h1 className="text-2xl font-bold text-zinc-900">Avisos</h1>
         {Array.from({ length: 3 }).map((_, i) => (
           <div key={i} className="rounded-2xl bg-white p-5 shadow-sm">
             <div className="space-y-3">
@@ -31,7 +31,7 @@ export default function AvisosPage() {
   if (error) {
     return (
       <div className="space-y-4">
-        <h1 className="text-xl font-bold text-zinc-900">Avisos</h1>
+        <h1 className="text-2xl font-bold text-zinc-900">Avisos</h1>
         <Alert variant="destructive">
           <AlertCircle className="size-4" />
           <AlertDescription>
@@ -52,7 +52,7 @@ export default function AvisosPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold text-zinc-900">Avisos</h1>
+      <h1 className="text-2xl font-bold text-zinc-900">Avisos</h1>
       {announcements.length === 0 ? (
         <div className="rounded-lg bg-zinc-100 p-6 text-center">
           <p className="text-sm text-zinc-500">Nenhum aviso no momento</p>
