@@ -28,10 +28,30 @@ Non-goal:
 
 ### 3.1 Web (Frontend + BFF)
 - **Next.js (App Router) + TypeScript**
-- **Tailwind CSS + shadcn/ui**: We use shadcn/ui initialized with this preset (Radix + Nova style, Zinc base, Blue theme, Lucide icons, Inter font).
+- **Tailwind CSS + shadcn/ui**: shadcn/ui (New York style, Zinc base, Lucide icons, Geist font). See **Design Direction** below.
+- **Motion** (smooth transitions and tap feedback)
 - **TanStack Query** (polling, caching, request dedupe)
 - **Zod** (validation for API inputs and internal ops)
 - **Luxon** (timezone correctness; force `America/Bahia`)
+
+#### Design Direction — Clean Utility / Modern Mobile App
+Built on shadcn/ui tokens and components; extended with Tailwind utilities for a polished mobile-first feel.
+
+- **Color palette**
+  - Backgrounds: soft off-white (`bg-slate-50`) for reduced eye strain.
+  - Surfaces/cards: white (`bg-white`) for clear hierarchy.
+  - Primary text: high-contrast dark gray (`text-slate-900`); secondary: `text-slate-500`.
+  - Primary accent: blue (`blue-600`) for actions and active states.
+  - Semantic: emerald green for active/positive states; rose red for urgent/negative states.
+- **Typography**
+  - Geist Sans (`--font-geist-sans`) as the primary typeface.
+  - Hierarchy via font weight (`font-medium`, `font-bold`) and size rather than color variation.
+- **Shape & depth**
+  - Generous border radii (`rounded-2xl`, `rounded-3xl`) for a friendly, modern feel.
+  - Subtle shadows (`shadow-sm`, `shadow-md`) to lift interactive elements without heaviness.
+- **Interaction & motion**
+  - Motion library for tap feedback (`whileTap={{ scale: 0.96 }}`), screen transitions, and state animations.
+  - Keep animations short and purposeful — they should feel native, not decorative.
 
 ### 3.2 Backend (Self-hosted Supabase)
 - **Supabase official Docker self-host setup** (multi-client capable)
