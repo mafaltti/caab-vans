@@ -82,13 +82,17 @@ export async function GET(
     }
   }
 
-  const schedule = entries
-    .sort((a, b) => a.time.localeCompare(b.time))
-    .map((e) => ({
-      id: e.id,
-      stopName: e.stop_name,
-      time: e.time,
-    }));
+  const sortedEntries = entries.sort((a, b) => a.time.localeCompare(b.time));
+  const totalStops = sortedEntries.length;
+  const currentStopIndex = nextStop
+    ? sortedEntries.findIndex((e) => e.time === nextStop.time)
+    : null;
+
+  const schedule = sortedEntries.map((e) => ({
+    id: e.id,
+    stopName: e.stop_name,
+    time: e.time,
+  }));
 
   return NextResponse.json({
     route: {
@@ -99,6 +103,11 @@ export async function GET(
         ? { stopName: nextStop.stopName, time: nextStop.time }
         : null,
       scheduleStatus,
+      totalStops,
+      currentStopIndex:
+        currentStopIndex !== null && currentStopIndex !== -1
+          ? currentStopIndex
+          : null,
       van: {
         id: van.id,
         locationUrl: van.location_url,
