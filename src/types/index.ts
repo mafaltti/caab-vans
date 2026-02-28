@@ -90,7 +90,7 @@ export type AnnouncementResponse = {
 
 // Client-side derived types
 
-export type TimelineStopStatus = "past" | "current" | "future";
+export type TimelineStopStatus = "past" | "current" | "future" | "neutral";
 
 export type TimelineStop = {
   id: string;
