@@ -3,6 +3,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import {
   nowBahia,
   formatTime,
+  formatTimeString,
   isWithinScheduleWindow,
   getNextStop,
   isSameDay,
@@ -57,7 +58,7 @@ export async function GET() {
     const times = entries.map((e) => e.time);
     const entryMapped = entries.map((e) => ({
       stopName: e.stop_name,
-      time: e.time,
+      time: formatTimeString(e.time),
     }));
 
     const isLocationUpdatedToday = van.location_updated_at
@@ -85,7 +86,9 @@ export async function GET() {
     );
     const totalStops = sortedEntries.length;
     const currentStopIndex = nextStop
-      ? sortedEntries.findIndex((e) => e.time === nextStop.time)
+      ? sortedEntries.findIndex(
+          (e) => formatTimeString(e.time) === nextStop.time,
+        )
       : null;
 
     return {

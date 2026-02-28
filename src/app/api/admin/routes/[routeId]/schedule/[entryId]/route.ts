@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/api/auth";
 import { apiError, validationError } from "@/lib/api/errors";
 import { createServiceClient } from "@/lib/supabase/server";
 import { updateScheduleEntrySchema } from "@/lib/validators/schedule-entry";
+import { formatTimeString } from "@/lib/time";
 
 type RouteParams = { params: Promise<{ routeId: string; entryId: string }> };
 
@@ -61,7 +62,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     entry: {
       id: data.id,
       stopName: data.stop_name,
-      time: data.time?.slice(0, 5),
+      time: data.time ? formatTimeString(data.time) : undefined,
     },
   });
 }
