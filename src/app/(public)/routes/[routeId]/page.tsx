@@ -3,12 +3,10 @@
 import { useParams, useRouter } from "next/navigation";
 import { useRouteDetail } from "@/lib/queries/use-route-detail";
 import { RouteStatusBadge } from "@/components/public/route-status-badge";
-import { NextStopDisplay } from "@/components/public/next-stop-display";
-import { LocationLinkCta } from "@/components/public/location-link-cta";
-import { ScheduleList } from "@/components/public/schedule-list";
+import { HeroCard } from "@/components/public/hero-card";
+import { ScheduleTimeline } from "@/components/public/schedule-timeline";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
 import { ArrowLeft, AlertCircle } from "lucide-react";
 
 export default function RouteDetailPage() {
@@ -19,10 +17,20 @@ export default function RouteDetailPage() {
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-20 w-full rounded-xl" />
-        <Skeleton className="h-12 w-full rounded-xl" />
-        <Skeleton className="h-48 w-full rounded-xl" />
+        <Skeleton className="h-8 w-24" />
+        <Skeleton className="h-6 w-48" />
+        {/* Hero card skeleton */}
+        <Skeleton className="h-48 w-full rounded-3xl" />
+        {/* Timeline skeleton */}
+        <div className="space-y-3 rounded-3xl bg-white p-5">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-3">
+              <Skeleton className="size-6 rounded-full" />
+              <Skeleton className="h-4 flex-1" />
+              <Skeleton className="h-4 w-12" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -30,15 +38,13 @@ export default function RouteDetailPage() {
   if (error) {
     return (
       <div className="space-y-4">
-        <Button
-          variant="ghost"
-          size="sm"
+        <button
           onClick={() => router.back()}
-          className="min-h-[44px]"
+          className="flex min-h-[44px] items-center gap-1 text-sm font-medium text-zinc-600"
         >
           <ArrowLeft className="size-4" />
           Voltar
-        </Button>
+        </button>
         <Alert variant="destructive">
           <AlertCircle className="size-4" />
           <AlertDescription>
@@ -68,33 +74,33 @@ export default function RouteDetailPage() {
 
   return (
     <div className="space-y-6">
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => router.back()}
-        className="min-h-[44px]"
-      >
-        <ArrowLeft className="size-4" />
-        Voltar
-      </Button>
-
-      <div className="flex items-center gap-3">
-        <h1 className="text-xl font-bold text-zinc-900">{route.name}</h1>
-        <RouteStatusBadge isRunning={route.isRunning} />
+      {/* Sticky header */}
+      <div className="sticky top-0 z-20 -mx-4 bg-zinc-50/80 px-4 py-3 backdrop-blur-md">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => router.back()}
+            className="flex min-h-[44px] items-center gap-1 text-sm font-medium text-zinc-600"
+          >
+            <ArrowLeft className="size-4" />
+            Voltar
+          </button>
+          <h1 className="truncate text-lg font-bold text-zinc-900">
+            {route.name}
+          </h1>
+          <RouteStatusBadge isRunning={route.isRunning} />
+        </div>
       </div>
 
-      <NextStopDisplay
+      <HeroCard
         nextStop={route.nextStop}
         scheduleStatus={route.scheduleStatus}
-      />
-
-      <LocationLinkCta
         locationUrl={route.van.locationUrl}
         locationUpdatedAt={route.van.locationUpdatedAt}
         isLocationOutdated={route.van.isLocationOutdated}
+        isRunning={route.isRunning}
       />
 
-      <ScheduleList schedule={route.schedule} nextStopId={nextStopId} />
+      <ScheduleTimeline schedule={route.schedule} nextStopId={nextStopId} />
     </div>
   );
 }

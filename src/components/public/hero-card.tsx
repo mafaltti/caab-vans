@@ -1,0 +1,117 @@
+"use client";
+
+import { Navigation, Clock, MapPin, AlertTriangle } from "lucide-react";
+import type { NextStop, ScheduleStatus } from "@/types";
+
+type HeroCardProps = {
+  nextStop: NextStop | null;
+  scheduleStatus: ScheduleStatus;
+  locationUrl: string | null;
+  locationUpdatedAt: string | null;
+  isLocationOutdated: boolean;
+  isRunning: boolean;
+};
+
+function formatTimestamp(isoDate: string): string {
+  return new Date(isoDate).toLocaleString("pt-BR", {
+    timeZone: "America/Bahia",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+export function HeroCard({
+  nextStop,
+  scheduleStatus,
+  locationUrl,
+  locationUpdatedAt,
+  isLocationOutdated,
+  isRunning,
+}: HeroCardProps) {
+  if (scheduleStatus === "ended") {
+    return (
+      <div className="rounded-3xl bg-zinc-200 p-6 text-center">
+        <p className="text-sm font-medium text-zinc-500">
+          Programação encerrada por hoje
+        </p>
+      </div>
+    );
+  }
+
+  if (!nextStop) {
+    return (
+      <div className="rounded-3xl bg-zinc-200 p-6 text-center">
+        <p className="text-sm font-medium text-zinc-500">
+          Nenhum horário disponível
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-600 to-indigo-700 p-6 text-white shadow-lg">
+      {/* Decorative blur circle */}
+      <div className="absolute -right-8 -top-8 size-32 rounded-full bg-white/10 blur-2xl" />
+
+      <div className="relative space-y-4">
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-blue-200">
+          <Navigation className="size-4" />
+          <span>Próxima parada</span>
+        </div>
+
+        <div>
+          <h2 className="text-2xl font-bold text-white">{nextStop.stopName}</h2>
+          <div className="mt-1 flex items-center gap-1.5 text-blue-100">
+            <Clock className="size-4" />
+            <span className="font-mono text-lg">{nextStop.time}</span>
+          </div>
+        </div>
+
+        {isRunning && locationUrl && (
+          <a
+            href={locationUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => {
+              try {
+                const payload = JSON.stringify({
+                  event: "open_location_link_clicked",
+                  timestamp: new Date().toISOString(),
+                });
+                if (navigator.sendBeacon) {
+                  navigator.sendBeacon(
+                    "/api/track",
+                    new Blob([payload], { type: "application/json" }),
+                  );
+                }
+              } catch {
+                // tracking is best-effort
+              }
+            }}
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-white/20 px-4 py-2.5 text-sm font-medium text-white backdrop-blur-sm transition-colors hover:bg-white/30"
+          >
+            <MapPin className="size-4" />
+            Abrir localização ao vivo
+          </a>
+        )}
+
+        <div className="flex items-center gap-2">
+          {locationUpdatedAt && (
+            <p className="text-xs text-blue-200">
+              Atualizado: {formatTimestamp(locationUpdatedAt)}
+            </p>
+          )}
+          {isLocationOutdated && (
+            <span className="inline-flex items-center gap-1 text-xs text-amber-300">
+              <AlertTriangle className="size-3" />
+              Desatualizado
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

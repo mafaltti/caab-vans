@@ -60,6 +60,8 @@ export type RouteWithStatus = {
   isRunning: boolean;
   nextStop: NextStop | null;
   scheduleStatus: ScheduleStatus;
+  totalStops: number;
+  currentStopIndex: number | null;
   van: {
     id: string;
     locationUrl: string | null;
@@ -84,6 +86,17 @@ export type AnnouncementResponse = {
   isUrgent: boolean;
   expiresAt: string | null;
   createdAt: string;
+};
+
+// Client-side derived types
+
+export type TimelineStopStatus = "past" | "current" | "future";
+
+export type TimelineStop = {
+  id: string;
+  stopName: string;
+  time: string;
+  status: TimelineStopStatus;
 };
 
 // API error shape
