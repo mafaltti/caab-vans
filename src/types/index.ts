@@ -14,6 +14,11 @@ export type Van = {
   location_url: string | null;
   location_updated_at: string | null;
   ingestion_token: string;
+  last_lat: number | null;
+  last_lng: number | null;
+  last_accuracy_m: number | null;
+  last_speed_mps: number | null;
+  last_heading_deg: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -23,6 +28,9 @@ export type ScheduleEntry = {
   route_id: string;
   stop_name: string;
   time: string; // HH:mm
+  stop_lat: number | null;
+  stop_lng: number | null;
+  geofence_radius_m: number;
   created_at: string;
 };
 
@@ -43,6 +51,34 @@ export type AdminUser = {
   role: "admin" | "superuser";
   is_active: boolean;
   created_at: string;
+};
+
+export type VanLocationPing = {
+  id: string;
+  van_id: string;
+  device_id: string;
+  lat: number;
+  lng: number;
+  accuracy_m: number | null;
+  speed_mps: number | null;
+  heading_deg: number | null;
+  device_ts: string;
+  received_at: string;
+};
+
+export type RouteRun = {
+  id: string;
+  route_id: string;
+  service_date: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type RouteRunStop = {
+  run_id: string;
+  schedule_entry_id: string;
+  status: "pending" | "passed";
+  passed_at: string | null;
 };
 
 // Computed types (BFF response shapes)
