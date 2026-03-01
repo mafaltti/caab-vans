@@ -18,7 +18,7 @@ export default function RouteDetailPage() {
   if (isLoading) {
     return (
       <>
-        <div className="fixed top-0 left-0 right-0 z-20 border-b border-zinc-200/50 bg-zinc-50/90 backdrop-blur-md">
+        <div className="fixed top-[env(safe-area-inset-top)] left-0 right-0 z-20 border-b border-zinc-200/50 bg-zinc-50/90 backdrop-blur-md">
           <div className="mx-auto max-w-lg px-4 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center">
@@ -29,7 +29,7 @@ export default function RouteDetailPage() {
             </div>
           </div>
         </div>
-        <div className="h-14" aria-hidden="true" />
+        <div className="h-[calc(3.5rem+env(safe-area-inset-top))]" aria-hidden="true" />
 
         <div className="space-y-4 pt-6">
           {/* Hero card skeleton */}
@@ -90,7 +90,7 @@ export default function RouteDetailPage() {
 
   return (
     <>
-      <div className="fixed top-0 left-0 right-0 z-20 border-b border-zinc-200/50 bg-zinc-50/90 backdrop-blur-md">
+      <div className="fixed top-[env(safe-area-inset-top)] left-0 right-0 z-20 border-b border-zinc-200/50 bg-zinc-50/90 backdrop-blur-md">
         <div className="mx-auto max-w-lg px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex min-w-0 items-center">
@@ -111,7 +111,7 @@ export default function RouteDetailPage() {
           </div>
         </div>
       </div>
-      <div className="h-14" aria-hidden="true" />
+      <div className="h-[calc(3.5rem+env(safe-area-inset-top))]" aria-hidden="true" />
 
       <div className="space-y-6 pt-6">
         <HeroCard
