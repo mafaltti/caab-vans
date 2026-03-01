@@ -55,7 +55,7 @@
 **Purpose**: Ensure the change passes all quality gates before PR.
 
 - [x] T003 Run lint (`eslint`), type-check (`tsc --noEmit`), and build (`next build`)
-- [ ] T004 Commit changes with conventional commit message in `src/components/public/schedule-timeline.tsx`
+- [x] T004 Commit changes with conventional commit message in `src/components/public/schedule-timeline.tsx`
 
 ---
 
