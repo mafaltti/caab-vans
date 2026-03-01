@@ -13,7 +13,7 @@ export function PublicHeader() {
   const title = PAGE_TITLES[pathname];
 
   return (
-    <div className="fixed top-[env(safe-area-inset-top,0px)] left-0 right-0 z-20 bg-zinc-50/90 backdrop-blur-md border-b border-zinc-200/50">
+    <div className={`fixed top-[env(safe-area-inset-top,0px)] left-0 right-0 z-20 ${title ? "bg-zinc-50/90 backdrop-blur-md border-b border-zinc-200/50" : ""}`}>
       {title ? (
         <div className="mx-auto max-w-lg px-5 py-4">
           <h1 className="text-2xl font-bold text-zinc-900">{title}</h1>
