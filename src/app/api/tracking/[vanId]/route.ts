@@ -4,6 +4,7 @@ import { DateTime } from "luxon";
 import { apiError, validationError } from "@/lib/api/errors";
 import { createRateLimiter } from "@/lib/api/rate-limit";
 import { createServiceClient } from "@/lib/supabase/server";
+import { inferStopProgress } from "@/lib/tracking/infer-stop-progress";
 import { trackingSchema } from "@/lib/validators/tracking";
 
 const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 25 });
@@ -109,6 +110,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (updateError) {
       return apiError("INTERNAL_ERROR", "Failed to update van position", 500);
     }
+  }
+
+  try {
+    await inferStopProgress(supabase, vanId, lat, lng);
+  } catch (error) {
+    console.error("Stop inference failed:", error);
   }
 
   return NextResponse.json({ received: true, ts: Date.now() });

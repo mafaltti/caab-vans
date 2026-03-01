@@ -17,14 +17,14 @@ export default function RouteDetailPage() {
 
   const route = data?.route;
 
-  const nextStopId =
-    route?.nextStop && route.schedule
+  const nextStopId = route?.progress?.nextStopId
+    ?? (route?.nextStop && route?.schedule
       ? (route.schedule.find(
           (s) =>
             s.stopName === route.nextStop!.stopName &&
             s.time === route.nextStop!.time,
         )?.id ?? null)
-      : null;
+      : null);
 
   return (
     <>
@@ -98,9 +98,18 @@ export default function RouteDetailPage() {
             locationUpdatedAt={route!.van.locationUpdatedAt}
             isLocationOutdated={route!.van.isLocationOutdated}
             isRunning={route!.isRunning}
+            etaMinutes={route!.progress?.etaNextStopMinutes}
+            etaISO={route!.progress?.etaNextStopISO}
           />
 
-          <ScheduleTimeline schedule={route!.schedule} nextStopId={nextStopId} isRunning={route!.isRunning} />
+          <ScheduleTimeline
+            schedule={route!.schedule}
+            nextStopId={nextStopId}
+            isRunning={route!.isRunning}
+            passedStopIds={route!.progress?.passedStopIds}
+            inferredNextStopId={route!.progress?.nextStopId}
+            etaMinutes={route!.progress?.etaNextStopMinutes}
+          />
         </div>
       )}
     </>

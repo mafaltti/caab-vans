@@ -2,12 +2,14 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import {
   nowBahia,
+  todayBahiaDate,
   formatTime,
   formatTimeString,
   isWithinScheduleWindow,
   getNextStop,
   isSameDay,
 } from "@/lib/time";
+import { computeEta } from "@/lib/tracking/eta";
 import { apiError } from "@/lib/api/errors";
 import { DateTime } from "luxon";
 import type { ScheduleStatus } from "@/types";
@@ -30,7 +32,9 @@ export async function GET(
       van:vans!inner (
         id,
         location_url,
-        location_updated_at
+        location_updated_at,
+        last_lat,
+        last_lng
       ),
       schedule_entries (
         id,
@@ -50,6 +54,8 @@ export async function GET(
     id: string;
     location_url: string | null;
     location_updated_at: string | null;
+    last_lat: number | null;
+    last_lng: number | null;
   };
   const entries = (route.schedule_entries ?? []) as {
     id: string;
@@ -91,11 +97,50 @@ export async function GET(
       )
     : null;
 
+  const nextStopEntry = nextStop
+    ? sortedEntries.find(
+        (e) => formatTimeString(e.time) === nextStop.time,
+      )
+    : null;
+
   const schedule = sortedEntries.map((e) => ({
     id: e.id,
     stopName: e.stop_name,
     time: formatTimeString(e.time),
   }));
+
+  const serviceDate = todayBahiaDate();
+
+  const { data: runData } = await supabase
+    .from("route_runs")
+    .select("id")
+    .eq("route_id", route.id)
+    .eq("service_date", serviceDate)
+    .single();
+
+  let progress = null;
+  if (runData) {
+    const { data: runStops } = await supabase
+      .from("route_run_stops")
+      .select("schedule_entry_id, status, passed_at, schedule_entries!inner(time)")
+      .eq("run_id", runData.id);
+
+    if (runStops && runStops.length > 0) {
+      const etaResult = computeEta({
+        stops: runStops.map((rs) => ({
+          scheduleEntryId: rs.schedule_entry_id,
+          time: (rs.schedule_entries as unknown as { time: string }).time,
+          status: rs.status as "pending" | "passed",
+          passedAt: rs.passed_at,
+        })),
+        now,
+      });
+      progress = {
+        serviceDate,
+        ...etaResult,
+      };
+    }
+  }
 
   return NextResponse.json({
     route: {
@@ -103,7 +148,11 @@ export async function GET(
       name: route.name,
       isRunning,
       nextStop: nextStop
-        ? { stopName: nextStop.stopName, time: nextStop.time }
+        ? {
+            stopName: nextStop.stopName,
+            time: nextStop.time,
+            id: nextStopEntry?.id ?? null,
+          }
         : null,
       scheduleStatus,
       totalStops,
@@ -116,8 +165,11 @@ export async function GET(
         locationUrl: van.location_url,
         locationUpdatedAt: van.location_updated_at,
         isLocationOutdated: !isLocationUpdatedToday,
+        lastLat: van.last_lat,
+        lastLng: van.last_lng,
       },
       schedule,
+      progress,
     },
     serverTime: currentTime,
   });

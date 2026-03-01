@@ -88,6 +88,16 @@ export type ScheduleStatus = "active" | "ended" | "not_started";
 export type NextStop = {
   stopName: string;
   time: string; // HH:mm
+  id: string;
+};
+
+export type RouteProgress = {
+  serviceDate: string;
+  nextStopId: string | null;
+  passedStopIds: string[];
+  etaNextStopISO: string | null;
+  etaNextStopMinutes: number | null;
+  delayMinutes: number | null;
 };
 
 export type RouteWithStatus = {
@@ -103,7 +113,10 @@ export type RouteWithStatus = {
     locationUrl: string | null;
     locationUpdatedAt: string | null;
     isLocationOutdated: boolean;
+    lastLat: number | null;
+    lastLng: number | null;
   };
+  progress: RouteProgress | null;
 };
 
 export type RouteDetail = RouteWithStatus & {

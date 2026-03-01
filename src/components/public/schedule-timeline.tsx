@@ -10,17 +10,34 @@ type ScheduleTimelineProps = {
   schedule: Array<{ id: string; stopName: string; time: string }>;
   nextStopId: string | null;
   isRunning: boolean;
+  passedStopIds?: string[];
+  inferredNextStopId?: string | null;
+  etaMinutes?: number | null;
 };
 
 function deriveTimelineStops(
   schedule: Array<{ id: string; stopName: string; time: string }>,
   nextStopId: string | null,
   isRunning: boolean,
+  passedStopIds?: string[],
+  inferredNextStopId?: string | null,
 ): TimelineStop[] {
   if (!isRunning) {
     return schedule.map((entry) => ({
       ...entry,
       status: "neutral" as TimelineStopStatus,
+    }));
+  }
+
+  if (passedStopIds && passedStopIds.length > 0) {
+    const passedSet = new Set(passedStopIds);
+    return schedule.map((entry) => ({
+      ...entry,
+      status: passedSet.has(entry.id)
+        ? ("past" as TimelineStopStatus)
+        : entry.id === inferredNextStopId
+          ? ("current" as TimelineStopStatus)
+          : ("future" as TimelineStopStatus),
     }));
   }
 
@@ -74,10 +91,13 @@ export function ScheduleTimeline({
   schedule,
   nextStopId,
   isRunning,
+  passedStopIds,
+  inferredNextStopId,
+  etaMinutes,
 }: ScheduleTimelineProps) {
   const prefersReducedMotion = useReducedMotion();
   const [showPast, setShowPast] = useState(false);
-  const stops = deriveTimelineStops(schedule, nextStopId, isRunning);
+  const stops = deriveTimelineStops(schedule, nextStopId, isRunning, passedStopIds, inferredNextStopId);
 
   if (stops.length === 0) {
     return (
@@ -145,6 +165,11 @@ export function ScheduleTimeline({
                 {stop.status === "current" && (
                   <p className="text-xs text-blue-500">
                     Próxima parada
+                  </p>
+                )}
+                {stop.status === "current" && etaMinutes != null && (
+                  <p className="text-xs text-blue-400">
+                    ~{etaMinutes} min
                   </p>
                 )}
               </div>

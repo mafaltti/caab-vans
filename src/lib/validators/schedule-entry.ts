@@ -8,6 +8,8 @@ export const createScheduleEntrySchema = z.object({
     .min(1, "Stop name is required")
     .max(200, "Stop name too long"),
   time: z.string().regex(timePattern, "Time must be in HH:mm format"),
+  stopLat: z.number().min(-90).max(90).nullable().optional(),
+  stopLng: z.number().min(-180).max(180).nullable().optional(),
 });
 
 export const updateScheduleEntrySchema = z.object({
@@ -16,4 +18,6 @@ export const updateScheduleEntrySchema = z.object({
     .min(1, "Stop name is required")
     .max(200, "Stop name too long"),
   time: z.string().regex(timePattern, "Time must be in HH:mm format"),
+  stopLat: z.number().min(-90).max(90).nullable().optional(),
+  stopLng: z.number().min(-180).max(180).nullable().optional(),
 });

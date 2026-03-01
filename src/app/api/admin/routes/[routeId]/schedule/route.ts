@@ -19,7 +19,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 
   const { data, error } = await supabase
     .from("schedule_entries")
-    .select("id, stop_name, time")
+    .select("id, stop_name, time, stop_lat, stop_lng")
     .eq("route_id", routeId)
     .order("time");
 
@@ -31,6 +31,8 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     id: e.id,
     stopName: e.stop_name,
     time: e.time ? formatTimeString(e.time) : undefined,
+    stopLat: e.stop_lat ?? null,
+    stopLng: e.stop_lng ?? null,
   }));
 
   return NextResponse.json({ entries });
@@ -77,6 +79,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       route_id: routeId,
       stop_name: parsed.data.stopName,
       time: parsed.data.time,
+      stop_lat: parsed.data.stopLat ?? null,
+      stop_lng: parsed.data.stopLng ?? null,
     })
     .select()
     .single();
@@ -91,6 +95,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         id: data.id,
         stopName: data.stop_name,
         time: data.time ? formatTimeString(data.time) : undefined,
+        stopLat: data.stop_lat ?? null,
+        stopLng: data.stop_lng ?? null,
       },
     },
     { status: 201 },

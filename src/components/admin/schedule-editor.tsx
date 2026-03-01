@@ -9,6 +9,8 @@ type EntryData = {
   id: string;
   stopName: string;
   time: string;
+  stopLat: number | null;
+  stopLng: number | null;
 };
 
 type ScheduleEditorProps = {
@@ -25,6 +27,10 @@ export function ScheduleEditor({ routeId }: ScheduleEditorProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editStopName, setEditStopName] = useState("");
   const [editTime, setEditTime] = useState("");
+  const [newStopLat, setNewStopLat] = useState("");
+  const [newStopLng, setNewStopLng] = useState("");
+  const [editStopLat, setEditStopLat] = useState("");
+  const [editStopLng, setEditStopLng] = useState("");
 
   const fetchedRouteId = useRef<string | null>(null);
   useEffect(() => {
@@ -44,7 +50,12 @@ export function ScheduleEditor({ routeId }: ScheduleEditorProps) {
     const res = await fetch(`/api/admin/routes/${routeId}/schedule`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ stopName: newStopName, time: newTime }),
+      body: JSON.stringify({
+        stopName: newStopName,
+        time: newTime,
+        stopLat: newStopLat.trim() ? parseFloat(newStopLat) : null,
+        stopLng: newStopLng.trim() ? parseFloat(newStopLng) : null,
+      }),
     });
 
     if (res.ok) {
@@ -54,6 +65,8 @@ export function ScheduleEditor({ routeId }: ScheduleEditorProps) {
       );
       setNewStopName("");
       setNewTime("");
+      setNewStopLat("");
+      setNewStopLng("");
     } else {
       const data = await res.json();
       setError(data.error?.message ?? "Erro ao adicionar");
@@ -65,6 +78,8 @@ export function ScheduleEditor({ routeId }: ScheduleEditorProps) {
     setEditingId(entry.id);
     setEditStopName(entry.stopName);
     setEditTime(entry.time);
+    setEditStopLat(entry.stopLat != null ? String(entry.stopLat) : "");
+    setEditStopLng(entry.stopLng != null ? String(entry.stopLng) : "");
     setError("");
   }
 
@@ -78,7 +93,12 @@ export function ScheduleEditor({ routeId }: ScheduleEditorProps) {
       {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stopName: editStopName, time: editTime }),
+        body: JSON.stringify({
+          stopName: editStopName,
+          time: editTime,
+          stopLat: editStopLat.trim() ? parseFloat(editStopLat) : null,
+          stopLng: editStopLng.trim() ? parseFloat(editStopLng) : null,
+        }),
       },
     );
 
@@ -137,6 +157,24 @@ export function ScheduleEditor({ routeId }: ScheduleEditorProps) {
                 placeholder="Nome do ponto"
                 className="flex-1"
               />
+              <div className="flex w-full gap-2">
+                <Input
+                  type="number"
+                  step="any"
+                  value={editStopLat}
+                  onChange={(e) => setEditStopLat(e.target.value)}
+                  placeholder="Latitude"
+                  className="w-28 text-xs"
+                />
+                <Input
+                  type="number"
+                  step="any"
+                  value={editStopLng}
+                  onChange={(e) => setEditStopLng(e.target.value)}
+                  placeholder="Longitude"
+                  className="w-28 text-xs"
+                />
+              </div>
               <Button size="sm" onClick={handleSaveEdit} disabled={saving}>
                 <Save className="h-4 w-4" />
               </Button>
@@ -153,7 +191,14 @@ export function ScheduleEditor({ routeId }: ScheduleEditorProps) {
               <span className="w-14 shrink-0 font-mono text-sm font-medium">
                 {entry.time}
               </span>
-              <span className="flex-1 text-sm">{entry.stopName}</span>
+              <span className="flex-1">
+                <span className="text-sm">{entry.stopName}</span>
+                {entry.stopLat != null && entry.stopLng != null && (
+                  <span className="block text-xs text-zinc-400">
+                    {"\uD83D\uDCCD"} {entry.stopLat}, {entry.stopLng}
+                  </span>
+                )}
+              </span>
               <Button
                 size="sm"
                 variant="ghost"
@@ -187,6 +232,24 @@ export function ScheduleEditor({ routeId }: ScheduleEditorProps) {
           placeholder="Nome do ponto"
           className="flex-1"
         />
+        <div className="flex w-full gap-2">
+          <Input
+            type="number"
+            step="any"
+            value={newStopLat}
+            onChange={(e) => setNewStopLat(e.target.value)}
+            placeholder="-12.9714"
+            className="w-28 text-xs"
+          />
+          <Input
+            type="number"
+            step="any"
+            value={newStopLng}
+            onChange={(e) => setNewStopLng(e.target.value)}
+            placeholder="-38.5124"
+            className="w-28 text-xs"
+          />
+        </div>
         <Button size="sm" onClick={handleAdd} disabled={saving}>
           <Plus className="mr-1 h-4 w-4" />
           Adicionar
