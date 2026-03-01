@@ -60,14 +60,12 @@ function TimelineNode({ status }: { status: TimelineStopStatus }) {
   if (status === "current") {
     return (
       <div className="flex size-6 items-center justify-center rounded-full bg-blue-100 border-2 border-blue-600 shadow-sm shadow-blue-200">
-        <div className="size-2 animate-pulse rounded-full bg-blue-600" />
+        <div className="size-3 rounded-full bg-blue-600" />
       </div>
     );
   }
   return (
-    <div className="flex size-6 items-center justify-center rounded-full bg-white border-2 border-zinc-200 group-hover:border-blue-300 transition-colors">
-      <div className="size-2 rounded-full bg-zinc-300" />
-    </div>
+    <div className="size-6 rounded-full bg-white border-2 border-zinc-200 group-hover:border-blue-300 transition-colors" />
   );
 }
 
