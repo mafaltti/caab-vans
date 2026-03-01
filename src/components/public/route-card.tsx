@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { RouteStatusBadge } from "./route-status-badge";
-import { Bus, ChevronRight, MapPin } from "lucide-react";
+import { Bus, ChevronRight, Clock, MapPin } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { motion, useReducedMotion } from "motion/react";
 import type { RouteWithStatus } from "@/types";
@@ -65,6 +65,14 @@ export function RouteCard({ route }: RouteCardProps) {
                   </span>
                   <ChevronRight className="size-4 shrink-0 text-zinc-300 transition-colors group-hover:text-blue-500" />
                 </div>
+                {route.progress?.etaNextStopMinutes != null && route.nextStop?.id === route.progress.nextStopId && (
+                  <div className="mt-1.5 flex items-center gap-1.5 px-0.5">
+                    <Clock className="size-3 text-blue-600" />
+                    <span className="text-xs text-blue-600 font-medium">
+                      ETA: ~{route.progress.etaNextStopMinutes} min
+                    </span>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>

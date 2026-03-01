@@ -48,6 +48,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     .update({
       stop_name: parsed.data.stopName,
       time: parsed.data.time,
+      stop_lat: parsed.data.stopLat ?? null,
+      stop_lng: parsed.data.stopLng ?? null,
     })
     .eq("id", entryId)
     .eq("route_id", routeId)
@@ -63,6 +65,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       id: data.id,
       stopName: data.stop_name,
       time: data.time ? formatTimeString(data.time) : undefined,
+      stopLat: data.stop_lat ?? null,
+      stopLng: data.stop_lng ?? null,
     },
   });
 }

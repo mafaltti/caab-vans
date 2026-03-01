@@ -12,6 +12,8 @@ type HeroCardProps = {
   locationUpdatedAt: string | null;
   isLocationOutdated: boolean;
   isRunning: boolean;
+  etaMinutes?: number | null;
+  etaISO?: string | null;
 };
 
 function formatTimestamp(isoDate: string): string {
@@ -32,6 +34,8 @@ export function HeroCard({
   locationUpdatedAt,
   isLocationOutdated,
   isRunning,
+  etaMinutes,
+  etaISO,
 }: HeroCardProps) {
   const prefersReducedMotion = useReducedMotion();
 
@@ -87,6 +91,21 @@ export function HeroCard({
             <span className="font-mono text-lg">{nextStop.time}</span>
           </div>
         </div>
+
+        {isRunning && etaMinutes != null && etaISO && (
+          <div className="flex items-center gap-1.5 text-blue-100">
+            <Clock className="size-3.5" />
+            <span className="text-sm">
+              Chegada estimada:{" "}
+              {new Date(etaISO).toLocaleString("pt-BR", {
+                timeZone: "America/Bahia",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}{" "}
+              (~{etaMinutes} min)
+            </span>
+          </div>
+        )}
 
         {isRunning && locationUrl && (
           <Button

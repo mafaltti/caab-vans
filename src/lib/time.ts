@@ -6,6 +6,10 @@ export function nowBahia(): DateTime {
   return DateTime.now().setZone(TIMEZONE);
 }
 
+export function todayBahiaDate(): string {
+  return nowBahia().toFormat("yyyy-MM-dd");
+}
+
 export function isSameDay(dt: DateTime): boolean {
   const now = nowBahia();
   return dt.setZone(TIMEZONE).hasSame(now, "day");
