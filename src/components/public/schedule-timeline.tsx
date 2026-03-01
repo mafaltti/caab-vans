@@ -142,7 +142,7 @@ export function ScheduleTimeline({
                 </p>
                 {stop.status === "current" && (
                   <p className="text-xs text-blue-500">
-                    Parada atual / Próxima
+                    Próxima parada
                   </p>
                 )}
               </div>
