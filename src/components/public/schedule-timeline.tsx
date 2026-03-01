@@ -94,20 +94,22 @@ export function ScheduleTimeline({
 
   return (
     <div className="rounded-3xl bg-white p-5 shadow-sm">
-      <h3 className="mb-4 text-lg font-bold text-zinc-900">Horários</h3>
-
-      {!showPast && pastStops.length > 0 && (
-        <Button
-          variant="secondary"
-          size="sm"
-          className="mb-3 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg"
-          onClick={() => setShowPast(true)}
-        >
-          <ChevronDown className="size-4" />
-          Ver {pastStops.length} parada{pastStops.length > 1 ? "s" : ""}{" "}
-          anterior{pastStops.length > 1 ? "es" : ""}
-        </Button>
-      )}
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-bold text-zinc-900">Horários</h3>
+        {pastStops.length > 0 && (
+          <Button
+            variant="secondary"
+            size="sm"
+            className="text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg"
+            onClick={() => setShowPast(!showPast)}
+          >
+            <ChevronDown className={`size-4 transition-transform ${showPast ? "rotate-180" : ""}`} />
+            {showPast
+              ? "Ocultar paradas anteriores"
+              : `Ver ${pastStops.length} parada${pastStops.length > 1 ? "s" : ""} anterior${pastStops.length > 1 ? "es" : ""}`}
+          </Button>
+        )}
+      </div>
 
       <div className="relative">
         {/* Vertical connecting line */}

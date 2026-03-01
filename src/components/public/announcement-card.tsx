@@ -26,6 +26,10 @@ export function AnnouncementCard({ announcement }: AnnouncementCardProps) {
           : "border-zinc-100"
       }`}
     >
+      {announcement.isUrgent && (
+        <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-rose-500" />
+      )}
+
       <CardContent className="p-5">
         {/* Type badge + pin */}
         <div className="flex items-center gap-2">
