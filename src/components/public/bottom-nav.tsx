@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Bus, Bell } from "lucide-react";
 import { useAnnouncements } from "@/lib/queries/use-announcements";
+import { useAvisosReadState } from "@/lib/hooks/use-avisos-read-state";
 
 const navItems = [
   { href: "/", label: "Rotas", icon: Bus },
@@ -13,8 +14,9 @@ const navItems = [
 export function BottomNav() {
   const pathname = usePathname();
   const { data } = useAnnouncements();
+  const { hasUnread } = useAvisosReadState();
 
-  const hasUrgent = data?.announcements?.some((a) => a.isUrgent) ?? false;
+  const showUnreadBadge = hasUnread(data?.announcements ?? []);
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-50 border-t bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.05)] pb-[env(safe-area-inset-bottom)]">
@@ -25,7 +27,7 @@ export function BottomNav() {
               ? pathname === "/" || pathname.startsWith("/routes")
               : pathname.startsWith(item.href);
           const Icon = item.icon;
-          const showDot = item.href === "/avisos" && hasUrgent;
+          const showDot = item.href === "/avisos" && showUnreadBadge;
 
           return (
             <Link
@@ -35,21 +37,19 @@ export function BottomNav() {
                 isActive ? "text-blue-600" : "text-zinc-400 hover:text-zinc-600"
               }`}
             >
-              <div className="relative">
-                <div
-                  className={`rounded-xl p-1.5 ${
-                    isActive ? "bg-blue-50" : ""
+              <div
+                className={`relative rounded-xl p-1.5 ${
+                  isActive ? "bg-blue-50" : ""
+                }`}
+              >
+                <Icon
+                  className={`size-6 transition-transform ${
+                    isActive ? "scale-110" : ""
                   }`}
-                >
-                  <Icon
-                    className={`size-6 transition-transform ${
-                      isActive ? "scale-110" : ""
-                    }`}
-                    strokeWidth={isActive ? 2.5 : 2}
-                  />
-                </div>
+                  strokeWidth={isActive ? 2.5 : 2}
+                />
                 {showDot && (
-                  <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full border-2 border-white bg-rose-500" />
+                  <span className="absolute right-2 top-1.5 size-2 rounded-full border-2 border-white bg-rose-500" />
                 )}
               </div>
               <span className="text-[10px] font-semibold tracking-wide">

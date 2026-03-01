@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import { useAnnouncements } from "@/lib/queries/use-announcements";
+import { useAvisosReadState } from "@/lib/hooks/use-avisos-read-state";
 import { AnnouncementCard } from "@/components/public/announcement-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -8,7 +10,15 @@ import { AlertCircle } from "lucide-react";
 import { motion } from "motion/react";
 
 export default function AvisosPage() {
-  const { data, isLoading, error, refetch } = useAnnouncements();
+  const { data, isLoading, isFetchedAfterMount, error, refetch } =
+    useAnnouncements();
+  const { markAsSeen } = useAvisosReadState();
+
+  useEffect(() => {
+    if (data && isFetchedAfterMount) {
+      markAsSeen();
+    }
+  }, [data, isFetchedAfterMount, markAsSeen]);
 
   const announcements = data?.announcements ?? [];
 
