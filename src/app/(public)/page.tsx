@@ -67,9 +67,12 @@ export default function HomePage() {
 
   return (
     <div className="space-y-4">
-      <div className="sticky top-0 z-20 -mx-4 px-5 py-4 bg-zinc-50/90 backdrop-blur-md border-b border-zinc-200/50">
-        <h1 className="text-2xl font-bold text-zinc-900">Rotas</h1>
+      <div className="fixed top-0 left-0 right-0 z-20 bg-zinc-50/90 backdrop-blur-md border-b border-zinc-200/50">
+        <div className="mx-auto max-w-lg px-5 py-4">
+          <h1 className="text-2xl font-bold text-zinc-900">Rotas</h1>
+        </div>
       </div>
+      <div className="h-14" aria-hidden="true" />
       {content}
     </div>
   );

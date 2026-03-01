@@ -13,7 +13,7 @@ export default function PublicLayout({
 }) {
   return (
     <div className="min-h-screen bg-zinc-50">
-      <main className="mx-auto max-w-lg px-4 pb-[calc(5rem+env(safe-area-inset-bottom))] pt-6">{children}</main>
+      <main className="mx-auto max-w-lg px-4 pb-[calc(5rem+env(safe-area-inset-bottom))] pt-2">{children}</main>
       <BottomNav />
     </div>
   );

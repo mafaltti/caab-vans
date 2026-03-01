@@ -18,15 +18,18 @@ export default function RouteDetailPage() {
   if (isLoading) {
     return (
       <>
-        <div className="sticky top-0 z-20 border-b border-zinc-200/50 bg-zinc-50/90 py-4 backdrop-blur-md">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <Skeleton className="mr-2 size-6 rounded-full" />
-              <Skeleton className="h-7 w-48" />
+        <div className="fixed top-0 left-0 right-0 z-20 border-b border-zinc-200/50 bg-zinc-50/90 backdrop-blur-md">
+          <div className="mx-auto max-w-lg px-4 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <Skeleton className="mr-2 size-6 rounded-full" />
+                <Skeleton className="h-7 w-48" />
+              </div>
+              <Skeleton className="h-5 w-24 rounded-full" />
             </div>
-            <Skeleton className="h-5 w-24 rounded-full" />
           </div>
         </div>
+        <div className="h-14" aria-hidden="true" />
 
         <div className="space-y-4 pt-6">
           {/* Hero card skeleton */}
@@ -87,25 +90,28 @@ export default function RouteDetailPage() {
 
   return (
     <>
-      <div className="sticky top-0 z-20 border-b border-zinc-200/50 bg-zinc-50/90 py-4 backdrop-blur-md">
-        <div className="flex items-center justify-between">
-          <div className="flex min-w-0 items-center">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => router.back()}
-              aria-label="Voltar"
-              className="rounded-full hover:bg-zinc-200/50 text-zinc-700 -ml-2 mr-2"
-            >
-              <ArrowLeft size={24} />
-            </Button>
-            <h1 className="min-w-0 truncate text-2xl font-bold text-zinc-900">
-              {route.name}
-            </h1>
+      <div className="fixed top-0 left-0 right-0 z-20 border-b border-zinc-200/50 bg-zinc-50/90 backdrop-blur-md">
+        <div className="mx-auto max-w-lg px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex min-w-0 items-center">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => router.back()}
+                aria-label="Voltar"
+                className="rounded-full hover:bg-zinc-200/50 text-zinc-700 -ml-2 mr-2"
+              >
+                <ArrowLeft size={24} />
+              </Button>
+              <h1 className="min-w-0 truncate text-2xl font-bold text-zinc-900">
+                {route.name}
+              </h1>
+            </div>
+            <RouteStatusBadge isRunning={route.isRunning} />
           </div>
-          <RouteStatusBadge isRunning={route.isRunning} />
         </div>
       </div>
+      <div className="h-14" aria-hidden="true" />
 
       <div className="space-y-6 pt-6">
         <HeroCard
