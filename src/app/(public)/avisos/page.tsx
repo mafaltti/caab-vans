@@ -59,12 +59,7 @@ export default function AvisosPage() {
 
   return (
     <div className="space-y-4">
-      <div className="fixed top-[env(safe-area-inset-top)] left-0 right-0 z-20 bg-zinc-50/90 backdrop-blur-md border-b border-zinc-200/50">
-        <div className="mx-auto max-w-lg px-5 py-4">
-          <h1 className="text-2xl font-bold text-zinc-900">Avisos</h1>
-        </div>
-      </div>
-      <div className="h-[calc(3.5rem+env(safe-area-inset-top))]" aria-hidden="true" />
+      <div className="h-[calc(3.5rem+env(safe-area-inset-top,0px))]" aria-hidden="true" />
       {content}
     </div>
   );

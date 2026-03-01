@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { BottomNav } from "@/components/public/bottom-nav";
+import { PublicHeader } from "@/components/public/public-header";
 
 export const metadata: Metadata = {
   title: "CAAB Vans",
@@ -13,6 +14,7 @@ export default function PublicLayout({
 }) {
   return (
     <div className="min-h-screen bg-zinc-50">
+      <PublicHeader />
       <main className="mx-auto max-w-lg px-4 pb-[calc(5rem+env(safe-area-inset-bottom))] pt-2">{children}</main>
       <BottomNav />
     </div>
