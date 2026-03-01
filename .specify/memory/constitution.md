@@ -92,7 +92,7 @@ The following technology decisions are locked for this project:
 
 - **Web frontend + BFF**: Next.js (App Router) with TypeScript. The BFF layer
   uses Next.js Route Handlers (`/app/api/*`).
-- **UI**: Tailwind CSS + shadcn/ui (New York style, Zinc base, Lucide icons,
+- **UI**: Tailwind CSS + shadcn/ui (New York style, Neutral base, Lucide icons,
   Geist font). Design direction: clean utility / modern mobile app.
 - **Motion**: Motion library for transitions and tap feedback.
 - **Data fetching**: TanStack Query (polling, caching, request dedupe).

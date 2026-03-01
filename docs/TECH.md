@@ -28,7 +28,7 @@ Non-goal:
 
 ### 3.1 Web (Frontend + BFF)
 - **Next.js (App Router) + TypeScript**
-- **Tailwind CSS + shadcn/ui**: shadcn/ui (New York style, Zinc base, Lucide icons, Geist font). See **Design Direction** below.
+- **Tailwind CSS + shadcn/ui**: shadcn/ui (New York style, Neutral base, Lucide icons, Geist font). See **Design Direction** below.
 - **Motion** (smooth transitions and tap feedback)
 - **TanStack Query** (polling, caching, request dedupe)
 - **Zod** (validation for API inputs and internal ops)
