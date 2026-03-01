@@ -10,14 +10,15 @@ import { AlertCircle } from "lucide-react";
 import { motion } from "motion/react";
 
 export default function AvisosPage() {
-  const { data, isLoading, error, refetch } = useAnnouncements();
+  const { data, isLoading, isFetchedAfterMount, error, refetch } =
+    useAnnouncements();
   const { markAsSeen } = useAvisosReadState();
 
   useEffect(() => {
-    if (data && !isLoading) {
+    if (data && isFetchedAfterMount) {
       markAsSeen();
     }
-  }, [data, isLoading, markAsSeen]);
+  }, [data, isFetchedAfterMount, markAsSeen]);
 
   const announcements = data?.announcements ?? [];
 
