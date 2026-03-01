@@ -10,10 +10,10 @@ This app **replaces** the current Pabbly/Telegram ingestion flow used for van lo
 Telegram message → Pabbly webhook → `POST /api/ingest/[vanId]` → extracts Google Maps URL → stores `vans.location_url`
 
 **New flow:**
-Expo app → `POST /api/tracking/[vanId]` → stores raw coordinates in `device_locations` table + updates `vans.location_updated_at`
+Expo app → `POST /api/tracking/[vanId]` → stores raw coordinates in `van_location_pings` table + updates `vans` latest fields
 
 Key changes:
-- `vans.location_url` becomes **deprecated** — replaced by raw `lat`/`lng` coordinates stored in `device_locations`.
+- `vans.location_url` becomes **deprecated** — replaced by raw `lat`/`lng` coordinates stored in `van_location_pings`.
 - The web app will render an **embedded map** (Leaflet/OpenStreetMap) using stored coordinates. Full frontend spec is separate.
 - No Google Maps URL generation — the app sends raw coordinates only.
 
@@ -157,77 +157,15 @@ The app sends UTC timestamps (`Date.now()` — Unix milliseconds). The server co
 }
 ```
 
-## Backend Contract
+## Backend Implementation
 
-This section defines the server-side implementation for `POST /api/tracking/[vanId]`.
+For full backend details (route handler, database schema, Zod validation, stop inference, ETA computation), see **`docs/android-app+tracking/live-tracking-spec.md`**.
 
-### Route Handler: `src/app/api/tracking/[vanId]/route.ts`
+Key points relevant to this app:
 
-Follows the same patterns as the existing `src/app/api/ingest/[vanId]/route.ts`.
-
-**Auth:**
-- Read `x-ingestion-token` header.
-- Look up `vans` row by `vanId`.
-- Compare token against `vans.ingestion_token`. Return `401` if mismatch.
-
-**Rate Limit:**
-- ~1,500 requests/hour per van (to accommodate 3s send interval = ~1,200 req/hour with headroom).
-- Use `createRateLimiter({ windowMs: 60_000, maxRequests: 25 })` (25/min ≈ 1,500/hour).
-
-**Validation (Zod schema):**
-
-```ts
-import { z } from "zod";
-
-const trackingSchema = z.object({
-  deviceId: z.string().uuid(),
-  lat: z.number().min(-90).max(90),
-  lng: z.number().min(-180).max(180),
-  accuracy: z.number().nullable(),
-  speed: z.number().nullable(),
-  heading: z.number().nullable(),
-  ts: z.number().int().positive(),
-});
-```
-
-**Storage — two operations in sequence:**
-
-1. **Insert** into `device_locations` table (full history):
-
-```sql
-INSERT INTO device_locations (van_id, device_id, lat, lng, accuracy, speed, heading, device_ts)
-VALUES ($1, $2, $3, $4, $5, $6, $7, to_timestamp($8 / 1000.0));
-```
-
-2. **Update** `vans` row (latest timestamp):
-
-```sql
-UPDATE vans SET location_updated_at = now() WHERE id = $1;
-```
-
-### Database Table: `device_locations`
-
-```sql
-CREATE TABLE device_locations (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  van_id        UUID NOT NULL REFERENCES vans(id),
-  device_id     UUID NOT NULL,
-  lat           DOUBLE PRECISION NOT NULL,
-  lng           DOUBLE PRECISION NOT NULL,
-  accuracy      DOUBLE PRECISION,
-  speed         DOUBLE PRECISION,
-  heading       DOUBLE PRECISION,
-  device_ts     TIMESTAMPTZ NOT NULL,
-  received_at   TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX idx_device_locations_van_id_received
-  ON device_locations (van_id, received_at DESC);
-```
-
-### Response
-
-On success: `200 { "received": true, "ts": <server unix ms> }`
+- The server stores pings in `van_location_pings` (history) and updates `vans` latest fields.
+- Rate limit is 25 req/min per van. Client should handle `429` by backing off.
+- The server runs stop inference as a side effect of each ping — this is transparent to the app.
 
 ## Settings Screen
 
@@ -258,7 +196,7 @@ When the device has no network connectivity:
 
 ## Frontend Integration Note
 
-The CAAB Vans web app will display van positions on an **embedded map** (Leaflet/OpenStreetMap) using the coordinates stored in `device_locations`. The map implementation is covered in a separate frontend spec — this document defines only the data pipeline that feeds it.
+The CAAB Vans web app will display van positions on an **embedded map** (Leaflet/OpenStreetMap) using the coordinates stored in `van_location_pings`. The map implementation is covered in a separate frontend spec — this document defines only the data pipeline that feeds it.
 
 ## Quality Bar
 
