@@ -38,10 +38,10 @@
 
 ### Implementation for User Story 2
 
-- [x] T003 [US2] Adjust layout top padding for fixed headers in `src/app/(public)/layout.tsx`
-- [x] T004 [P] [US2] Convert Routes list header from `sticky` to `fixed` with spacer div in `src/app/(public)/page.tsx`
-- [x] T005 [P] [US2] Convert Announcements header from `sticky` to `fixed` with spacer div in `src/app/(public)/avisos/page.tsx`
-- [x] T006 [P] [US2] Convert Route Detail header (loaded + skeleton states) from `sticky` to `fixed` with spacer div in `src/app/(public)/routes/[routeId]/page.tsx`
+- [x] T003 [US2] Adjust layout top padding (`pt-6` → `pt-2`) and add `PublicHeader` component in `src/app/(public)/layout.tsx`
+- [x] T004 [P] [US2] Create layout-level `PublicHeader` with pathname-based titles and skeleton fallback in `src/components/public/public-header.tsx`; remove per-page header from `src/app/(public)/page.tsx` (spacer kept)
+- [x] T005 [P] [US2] Remove per-page header from `src/app/(public)/avisos/page.tsx` (now handled by `PublicHeader`; spacer kept)
+- [x] T006 [P] [US2] Restructure Route Detail to single return with stable fixed header container and conditional inner content in `src/app/(public)/routes/[routeId]/page.tsx`
 
 **Checkpoint**: All three pages have fixed headers that never move. Content is not hidden behind headers.
 
@@ -50,7 +50,7 @@
 ## Phase 3: Polish & Cross-Cutting Concerns
 
 - [x] T007 Run lint, typecheck, and build to verify no regressions
-- [ ] T008 Run quickstart.md validation (manual visual check on all pages)
+- [x] T008 Run quickstart.md validation (manual visual check on all pages)
 
 ---
 
@@ -112,4 +112,5 @@ Both stories are P1 and independent. Either can serve as MVP:
 - [Story] label maps task to specific user story for traceability
 - Both user stories are independently completable and testable
 - Commit after each story for clean git history
-- All changes are CSS/Tailwind class modifications — no new files or dependencies
+- Mostly CSS/Tailwind class modifications; one new file (`public-header.tsx`) added for transition stability
+- Safe-area-inset handling added for iOS notch/status bar compatibility (`viewportFit: "cover"`)
