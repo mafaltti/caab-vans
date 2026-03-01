@@ -8,12 +8,21 @@ import type { TimelineStop, TimelineStopStatus } from "@/types";
 type ScheduleTimelineProps = {
   schedule: Array<{ id: string; stopName: string; time: string }>;
   nextStopId: string | null;
+  isRunning: boolean;
 };
 
 function deriveTimelineStops(
   schedule: Array<{ id: string; stopName: string; time: string }>,
   nextStopId: string | null,
+  isRunning: boolean,
 ): TimelineStop[] {
+  if (!isRunning) {
+    return schedule.map((entry) => ({
+      ...entry,
+      status: "neutral" as TimelineStopStatus,
+    }));
+  }
+
   if (!nextStopId) {
     return schedule.map((entry) => ({
       ...entry,
@@ -65,9 +74,10 @@ function TimelineNode({ status }: { status: TimelineStopStatus }) {
 export function ScheduleTimeline({
   schedule,
   nextStopId,
+  isRunning,
 }: ScheduleTimelineProps) {
   const [showPast, setShowPast] = useState(false);
-  const stops = deriveTimelineStops(schedule, nextStopId);
+  const stops = deriveTimelineStops(schedule, nextStopId, isRunning);
 
   if (stops.length === 0) {
     return (

@@ -117,7 +117,7 @@ export default function RouteDetailPage() {
           isRunning={route.isRunning}
         />
 
-        <ScheduleTimeline schedule={route.schedule} nextStopId={nextStopId} />
+        <ScheduleTimeline schedule={route.schedule} nextStopId={nextStopId} isRunning={route.isRunning} />
       </div>
     </>
   );
