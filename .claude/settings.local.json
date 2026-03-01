@@ -49,7 +49,9 @@
       "WebFetch(domain:caab-vans.lovable.app)",
       "Bash(grep:*)",
       "Bash(cygpath:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(do echo:*)",
+      "Bash(gh repo:*)"
     ]
   }
 }
