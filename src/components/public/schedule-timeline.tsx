@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { CheckCircle2, ChevronDown } from "lucide-react";
+import { useReducedMotion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import type { TimelineStop, TimelineStopStatus } from "@/types";
 
@@ -49,7 +50,7 @@ function deriveTimelineStops(
   }));
 }
 
-function TimelineNode({ status }: { status: TimelineStopStatus }) {
+function TimelineNode({ status, reducedMotion }: { status: TimelineStopStatus; reducedMotion: boolean }) {
   if (status === "past") {
     return (
       <div className="flex size-6 items-center justify-center rounded-full bg-zinc-100 border-2 border-white">
@@ -60,7 +61,7 @@ function TimelineNode({ status }: { status: TimelineStopStatus }) {
   if (status === "current") {
     return (
       <div className="flex size-6 items-center justify-center rounded-full bg-blue-100 border-2 border-blue-600 shadow-sm shadow-blue-200">
-        <div className="size-3 rounded-full bg-blue-600" />
+        <div className={`size-3 rounded-full bg-blue-600${reducedMotion ? "" : " animate-pulse"}`} />
       </div>
     );
   }
@@ -74,6 +75,7 @@ export function ScheduleTimeline({
   nextStopId,
   isRunning,
 }: ScheduleTimelineProps) {
+  const prefersReducedMotion = useReducedMotion();
   const [showPast, setShowPast] = useState(false);
   const stops = deriveTimelineStops(schedule, nextStopId, isRunning);
 
@@ -126,7 +128,7 @@ export function ScheduleTimeline({
               }`}
             >
               <div className="relative z-10 shrink-0">
-                <TimelineNode status={stop.status} />
+                <TimelineNode status={stop.status} reducedMotion={!!prefersReducedMotion} />
               </div>
               <div className="min-w-0 flex-1">
                 <p
