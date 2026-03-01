@@ -98,8 +98,8 @@ export default function RouteDetailPage() {
             locationUpdatedAt={route!.van.locationUpdatedAt}
             isLocationOutdated={route!.van.isLocationOutdated}
             isRunning={route!.isRunning}
-            etaMinutes={route!.progress?.etaNextStopMinutes}
-            etaISO={route!.progress?.etaNextStopISO}
+            etaMinutes={route!.nextStop?.id === route!.progress?.nextStopId ? route!.progress?.etaNextStopMinutes : undefined}
+            etaISO={route!.nextStop?.id === route!.progress?.nextStopId ? route!.progress?.etaNextStopISO : undefined}
           />
 
           <ScheduleTimeline

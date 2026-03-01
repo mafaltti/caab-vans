@@ -65,7 +65,7 @@ export function RouteCard({ route }: RouteCardProps) {
                   </span>
                   <ChevronRight className="size-4 shrink-0 text-zinc-300 transition-colors group-hover:text-blue-500" />
                 </div>
-                {route.progress?.etaNextStopMinutes != null && (
+                {route.progress?.etaNextStopMinutes != null && route.nextStop?.id === route.progress.nextStopId && (
                   <div className="mt-1.5 flex items-center gap-1.5 px-0.5">
                     <Clock className="size-3 text-blue-600" />
                     <span className="text-xs text-blue-600 font-medium">
