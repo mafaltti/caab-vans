@@ -33,7 +33,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .eq("id", vanId)
     .single();
 
-  if (vanError || !van) {
+  if (vanError) {
+    return vanError.code === "PGRST116"
+      ? apiError("NOT_FOUND", "Van not found", 404)
+      : apiError("INTERNAL_ERROR", "Failed to look up van", 500);
+  }
+
+  if (!van) {
     return apiError("NOT_FOUND", "Van not found", 404);
   }
 
@@ -79,20 +85,30 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return apiError("INTERNAL_ERROR", "Failed to store ping", 500);
   }
 
-  const { error: updateError } = await supabase
-    .from("vans")
-    .update({
-      last_lat: lat,
-      last_lng: lng,
-      last_accuracy_m: accuracy,
-      last_speed_mps: speed,
-      last_heading_deg: heading,
-      location_updated_at: new Date().toISOString(),
-    })
-    .eq("id", vanId);
+  // Only update van position if no ping with a newer device_ts exists,
+  // preventing out-of-order buffer flushes from regressing the position
+  const { count } = await supabase
+    .from("van_location_pings")
+    .select("*", { count: "exact", head: true })
+    .eq("van_id", vanId)
+    .gt("device_ts", deviceTs);
 
-  if (updateError) {
-    return apiError("INTERNAL_ERROR", "Failed to update van position", 500);
+  if (count === 0) {
+    const { error: updateError } = await supabase
+      .from("vans")
+      .update({
+        last_lat: lat,
+        last_lng: lng,
+        last_accuracy_m: accuracy,
+        last_speed_mps: speed,
+        last_heading_deg: heading,
+        location_updated_at: new Date().toISOString(),
+      })
+      .eq("id", vanId);
+
+    if (updateError) {
+      return apiError("INTERNAL_ERROR", "Failed to update van position", 500);
+    }
   }
 
   return NextResponse.json({ received: true, ts: Date.now() });
