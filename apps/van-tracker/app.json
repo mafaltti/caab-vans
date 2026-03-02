@@ -45,6 +45,12 @@
         }
       ]
     ],
-    "scheme": "van-tracker"
+    "scheme": "van-tracker",
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "418988a1-3a9c-43f3-9a02-4ffaec448e98"
+      }
+    }
   }
 }
