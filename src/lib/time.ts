@@ -10,9 +10,12 @@ export function todayBahiaDate(): string {
   return nowBahia().toFormat("yyyy-MM-dd");
 }
 
-export function isSameDay(dt: DateTime): boolean {
+export const STALENESS_THRESHOLD_MINUTES = 10;
+
+export function isLocationFresh(dt: DateTime): boolean {
   const now = nowBahia();
-  return dt.setZone(TIMEZONE).hasSame(now, "day");
+  const elapsed = now.diff(dt.setZone(TIMEZONE), "minutes").minutes;
+  return elapsed < STALENESS_THRESHOLD_MINUTES;
 }
 
 export function formatTime(dt: DateTime): string {
