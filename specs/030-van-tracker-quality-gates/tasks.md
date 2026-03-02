@@ -5,7 +5,7 @@
 
 **Tests**: Not requested — manual verification only.
 
-**Organization**: Tasks grouped by user story. All tasks modify a single file (`apps/van-tracker/package.json`).
+**Organization**: Tasks grouped by user story. Primary changes in `apps/van-tracker/package.json` and `apps/van-tracker/app.json`.
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -88,7 +88,7 @@
 
 ## Notes
 
-- Single file change: `apps/van-tracker/package.json`
-- No new dependencies required (R5)
+- Modified files: `apps/van-tracker/package.json` and `apps/van-tracker/app.json`
+- Peer dependencies added: `react-dom` and `react-native-web` (resolve peer dep conflicts, not quality-gate deps) (R5)
 - All commands verified during research phase (exits 0 on current codebase)
 - Script naming matches root project exactly (R1)

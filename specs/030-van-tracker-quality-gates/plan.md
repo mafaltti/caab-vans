@@ -5,7 +5,7 @@
 
 ## Summary
 
-Add `lint`, `typecheck`, and `check` npm scripts to the van-tracker Expo app (`apps/van-tracker/package.json`) so developers can run quality gates locally before committing. This aligns the van-tracker with the root project's quality gate conventions (Constitution §IV).
+Add `lint`, `typecheck`, and `check` npm scripts to the van-tracker Expo app (`apps/van-tracker/package.json`) so developers can run quality gates locally before committing. Additionally, add `react-dom` and `react-native-web` as peer dependency fixes and update `apps/van-tracker/app.json` with Android permission and EAS configuration. This aligns the van-tracker with the root project's quality gate conventions (Constitution §IV).
 
 ## Technical Context
 
@@ -17,7 +17,7 @@ Add `lint`, `typecheck`, and `check` npm scripts to the van-tracker Expo app (`a
 **Project Type**: Mobile app (Expo React Native) — developer tooling change only
 **Performance Goals**: Quality gates complete in < 30 seconds on clean codebase
 **Constraints**: Scripts must work on Windows (bash via Git Bash) and macOS
-**Scale/Scope**: 3 scripts added to 1 file (`package.json`)
+**Scale/Scope**: 3 scripts added to `package.json`; peer deps and `app.json` config updated
 
 ## Constitution Check
 
@@ -29,8 +29,8 @@ Add `lint`, `typecheck`, and `check` npm scripts to the van-tracker Expo app (`a
 | II. Explicit Trade-offs | **PASS** | PR will document: adds scripts matching root project pattern |
 | III. Branch & Merge Discipline | **PASS** | Feature branch targeting `dev` |
 | IV. Quality Gates | **PASS** | This feature *enables* Constitution §IV for van-tracker |
-| V. Stack Constraints | **PASS** | Uses existing ESLint + TypeScript tooling, no new dependencies |
-| Security Constraints | **N/A** | No security surface |
+| V. Stack Constraints | **PASS** | Uses existing ESLint + TypeScript tooling; `react-dom` and `react-native-web` added to resolve peer dependency conflicts |
+| Security Constraints | **PASS** | Android permissions in `app.json` updated (location, foreground service) — review required for permission scope |
 | Timezone & Data | **N/A** | No data or time operations |
 
 **Gate result**: All gates pass. No violations.
@@ -52,10 +52,11 @@ specs/030-van-tracker-quality-gates/
 
 ```text
 apps/van-tracker/
-└── package.json         # Only file modified (add scripts)
+├── package.json         # Add lint/typecheck/check scripts + peer deps
+└── app.json             # Android permissions cleanup + EAS config
 ```
 
-**Structure Decision**: No new files or directories. This feature only modifies the existing `package.json` to add script entries.
+**Structure Decision**: No new files or directories. This feature modifies `package.json` (scripts and dependencies) and `app.json` (Android permissions and EAS configuration).
 
 ## Complexity Tracking
 
