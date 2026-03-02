@@ -1,6 +1,12 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 
-import { nowBahia, todayBahiaDate, formatTime } from "@/lib/time";
+import {
+  nowBahia,
+  todayBahiaDate,
+  formatTime,
+  parseTime,
+  EARLY_ARRIVAL_WINDOW_MINUTES,
+} from "@/lib/time";
 import { DateTime } from "luxon";
 
 import { haversineDistanceMeters } from "./haversine";
@@ -84,6 +90,8 @@ export async function inferStopProgress(
 
   // 6. Check geofence for each pending stop
   const newlyPassedIds: string[] = [];
+  const now = nowBahia();
+  const matchedCoords = new Set<string>();
 
   if (pendingStops) {
     for (const stop of pendingStops) {
@@ -93,6 +101,17 @@ export async function inferStopProgress(
         stop_lng: number;
         geofence_radius_m: number;
       };
+
+      const coordKey = `${entry.stop_lat.toFixed(6)},${entry.stop_lng.toFixed(6)}`;
+
+      // Skip if this coordinate was already matched in this invocation
+      if (matchedCoords.has(coordKey)) continue;
+
+      // Skip if the stop's scheduled time is too far in the future
+      const stopTime = parseTime(entry.time);
+      if (now < stopTime.minus({ minutes: EARLY_ARRIVAL_WINDOW_MINUTES })) {
+        continue;
+      }
 
       const distance = haversineDistanceMeters(
         lat,
@@ -112,6 +131,7 @@ export async function inferStopProgress(
           .eq("schedule_entry_id", stop.schedule_entry_id);
 
         newlyPassedIds.push(stop.schedule_entry_id);
+        matchedCoords.add(coordKey);
       }
     }
   }
