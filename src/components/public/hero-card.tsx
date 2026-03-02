@@ -51,17 +51,6 @@ export function HeroCard({
     );
   }
 
-  if (runStatus === "idle") {
-    return (
-      <div className="rounded-3xl bg-amber-50 p-6 text-center">
-        <Clock className="mx-auto mb-2 size-6 text-amber-500" />
-        <p className="text-sm font-medium text-amber-600">
-          Entre turnos
-        </p>
-      </div>
-    );
-  }
-
   if (runStatus === "waiting") {
     return (
       <div className="rounded-3xl bg-amber-50 p-6 text-center">

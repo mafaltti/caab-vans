@@ -1,19 +1,8 @@
-import type { RunStatus } from "@/types";
-
 type RouteStatusBadgeProps = {
   isRunning: boolean;
-  runStatus?: RunStatus;
 };
 
-export function RouteStatusBadge({ isRunning, runStatus }: RouteStatusBadgeProps) {
-  if (runStatus === "idle") {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold tracking-wide bg-amber-100 text-amber-700">
-        Entre turnos
-      </span>
-    );
-  }
-
+export function RouteStatusBadge({ isRunning }: RouteStatusBadgeProps) {
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold tracking-wide ${
