@@ -9,7 +9,7 @@ import {
   getNextStop,
   isLocationFresh,
 } from "@/lib/time";
-import { computeEta } from "@/lib/tracking/eta";
+import { computeEta, type VanPosition } from "@/lib/tracking/eta";
 import { DateTime } from "luxon";
 import type { ScheduleStatus } from "@/types";
 
@@ -29,12 +29,15 @@ export async function GET() {
         location_url,
         location_updated_at,
         last_lat,
-        last_lng
+        last_lng,
+        last_speed_mps
       ),
       schedule_entries (
         id,
         stop_name,
-        time
+        time,
+        stop_lat,
+        stop_lng
       )
     `,
     )
@@ -56,11 +59,14 @@ export async function GET() {
       location_updated_at: string | null;
       last_lat: number | null;
       last_lng: number | null;
+      last_speed_mps: number | null;
     };
     const entries = (route.schedule_entries ?? []) as {
       id: string;
       stop_name: string;
       time: string;
+      stop_lat: number | null;
+      stop_lng: number | null;
     }[];
 
     const times = entries.map((e) => e.time);
@@ -105,6 +111,23 @@ export async function GET() {
         )
       : null;
 
+    const vanPosition: VanPosition | null =
+      van.last_lat != null &&
+      van.last_lng != null &&
+      van.last_speed_mps != null &&
+      van.location_updated_at != null
+        ? {
+            lat: van.last_lat,
+            lng: van.last_lng,
+            speedMps: van.last_speed_mps,
+            locationUpdatedAt: DateTime.fromISO(van.location_updated_at),
+          }
+        : null;
+
+    const stopCoordsMap = new Map(
+      entries.map((e) => [e.id, { stopLat: e.stop_lat, stopLng: e.stop_lng }]),
+    );
+
     const { data: runData } = await supabase
       .from("route_runs")
       .select("id")
@@ -121,13 +144,19 @@ export async function GET() {
 
       if (runStops && runStops.length > 0) {
         const etaResult = computeEta({
-          stops: runStops.map((rs) => ({
-            scheduleEntryId: rs.schedule_entry_id,
-            time: (rs.schedule_entries as unknown as { time: string }).time,
-            status: rs.status as "pending" | "passed",
-            passedAt: rs.passed_at,
-          })),
+          stops: runStops.map((rs) => {
+            const coords = stopCoordsMap.get(rs.schedule_entry_id);
+            return {
+              scheduleEntryId: rs.schedule_entry_id,
+              time: (rs.schedule_entries as unknown as { time: string }).time,
+              status: rs.status as "pending" | "passed",
+              passedAt: rs.passed_at,
+              stopLat: coords?.stopLat ?? null,
+              stopLng: coords?.stopLng ?? null,
+            };
+          }),
           now,
+          vanPosition,
         });
         progress = {
           serviceDate,
