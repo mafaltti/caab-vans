@@ -83,7 +83,7 @@ export async function GET() {
     const withinWindow = isWithinScheduleWindow(times, now);
     const isRunning = withinWindow && locationFresh;
 
-    const nextStop = isRunning ? getNextStop(entryMapped, now) : null;
+    let nextStop = isRunning ? getNextStop(entryMapped, now) : null;
 
     let scheduleStatus: ScheduleStatus = "not_started";
     if (times.length > 0) {
@@ -100,15 +100,15 @@ export async function GET() {
       a.time.localeCompare(b.time),
     );
     const totalStops = sortedEntries.length;
-    const currentStopIndex = nextStop
+    let currentStopIndex = nextStop
       ? sortedEntries.findIndex(
-          (e) => formatTimeString(e.time) === nextStop.time,
+          (e) => formatTimeString(e.time) === nextStop!.time,
         )
       : null;
 
-    const nextStopEntry = nextStop
+    let nextStopEntry = nextStop
       ? sortedEntries.find(
-          (e) => formatTimeString(e.time) === nextStop.time,
+          (e) => formatTimeString(e.time) === nextStop!.time,
         )
       : null;
 
@@ -196,6 +196,21 @@ export async function GET() {
             etaSource: null,
           };
         }
+      }
+    }
+
+    // Override next stop with tracking-based stop when progress is active
+    if (isRunning && progress?.nextStopId) {
+      const trackedEntry = sortedEntries.find(
+        (e) => e.id === progress.nextStopId,
+      );
+      if (trackedEntry) {
+        nextStop = {
+          stopName: trackedEntry.stop_name,
+          time: formatTimeString(trackedEntry.time),
+        };
+        currentStopIndex = sortedEntries.indexOf(trackedEntry);
+        nextStopEntry = trackedEntry;
       }
     }
 
