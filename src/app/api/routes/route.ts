@@ -152,7 +152,7 @@ export async function GET() {
       const runStatus = deriveRunStatus(shiftsArr, isPastScheduleWindow);
       const activeShift = shiftsArr.find((s) => s.ended_at === null);
 
-      if (runStatus === "idle") {
+      if (runStatus === "completed") {
         progress = null;
       } else {
         const { data: runStops } = await supabase
