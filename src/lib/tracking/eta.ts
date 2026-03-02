@@ -150,6 +150,8 @@ interface ScheduleEntry {
   id: string;
   stop_name: string;
   time: string;
+  stop_lat: number | null;
+  stop_lng: number | null;
 }
 
 interface ResolvedNextStop {

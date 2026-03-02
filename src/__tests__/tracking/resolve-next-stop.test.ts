@@ -2,9 +2,9 @@
 import { resolveNextStop } from "@/lib/tracking/eta";
 
 const entries = [
-  { id: "s1", stop_name: "Terminal A", time: "08:00:00" },
-  { id: "s2", stop_name: "Centro", time: "08:15:00" },
-  { id: "s3", stop_name: "Rodoviária", time: "08:30:00" },
+  { id: "s1", stop_name: "Terminal A", time: "08:00:00", stop_lat: null, stop_lng: null },
+  { id: "s2", stop_name: "Centro", time: "08:15:00", stop_lat: null, stop_lng: null },
+  { id: "s3", stop_name: "Rodoviária", time: "08:30:00", stop_lat: null, stop_lng: null },
 ];
 
 const fmt = (t: string) => t.slice(0, 5);
