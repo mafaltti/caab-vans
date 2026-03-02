@@ -153,7 +153,17 @@ export async function GET() {
       const activeShift = shiftsArr.find((s) => s.ended_at === null);
 
       if (runStatus === "completed") {
-        progress = null;
+        progress = {
+          serviceDate,
+          runStatus,
+          shiftStartedAt: null,
+          nextStopId: null,
+          passedStopIds: [] as string[],
+          etaNextStopISO: null,
+          etaNextStopMinutes: null,
+          delayMinutes: null,
+          etaSource: null,
+        };
       } else {
         const { data: runStops } = await supabase
           .from("route_run_stops")

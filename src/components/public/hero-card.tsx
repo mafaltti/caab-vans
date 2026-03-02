@@ -41,6 +41,7 @@ export function HeroCard({
 }: HeroCardProps) {
   const prefersReducedMotion = useReducedMotion();
 
+  // 1. Day completed — all shifts done, past schedule
   if (runStatus === "completed") {
     return (
       <div className="rounded-3xl bg-emerald-50 p-6 text-center">
@@ -51,7 +52,31 @@ export function HeroCard({
     );
   }
 
-  if (runStatus === "waiting") {
+  // 2. Active shift but GPS stale — show operating with warning
+  if (runStatus === "in_progress" && !isRunning) {
+    return (
+      <div className="rounded-3xl bg-gradient-to-br from-blue-600 to-indigo-700 p-6 text-center text-white shadow-lg">
+        <Navigation className="mx-auto mb-2 size-6 text-blue-200" />
+        <p className="text-sm font-medium">Em operação</p>
+        <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-amber-300">
+          <AlertTriangle className="size-3" />
+          Localização desatualizada
+        </p>
+      </div>
+    );
+  }
+
+  // 3. Waiting/idle — route_run exists but no active shift
+  if (runStatus === "waiting" || (runStatus === "idle" && !isRunning)) {
+    if (scheduleStatus === "ended") {
+      return (
+        <div className="rounded-3xl bg-zinc-200 p-6 text-center">
+          <p className="text-sm font-medium text-zinc-500">
+            Programação encerrada por hoje
+          </p>
+        </div>
+      );
+    }
     return (
       <div className="rounded-3xl bg-amber-50 p-6 text-center">
         <Clock className="mx-auto mb-2 size-6 text-amber-500" />
@@ -61,7 +86,9 @@ export function HeroCard({
       </div>
     );
   }
+  // Note: idle + isRunning falls through to blue card below
 
+  // 4. Schedule ended, no route_run
   if (scheduleStatus === "ended") {
     return (
       <div className="rounded-3xl bg-zinc-200 p-6 text-center">
@@ -72,7 +99,18 @@ export function HeroCard({
     );
   }
 
+  // 5. Not running — no route_run, schedule active or not started
   if (!isRunning) {
+    if (scheduleStatus === "active") {
+      return (
+        <div className="rounded-3xl bg-amber-50 p-6 text-center">
+          <Clock className="mx-auto mb-2 size-6 text-amber-500" />
+          <p className="text-sm font-medium text-amber-600">
+            Aguardando início da rota
+          </p>
+        </div>
+      );
+    }
     return (
       <div className="rounded-3xl bg-zinc-200 p-6 text-center">
         <p className="text-sm font-medium text-zinc-500">
