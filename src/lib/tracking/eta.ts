@@ -145,3 +145,36 @@ export function computeEta(args: {
     etaSource: "schedule",
   };
 }
+
+interface ScheduleEntry {
+  id: string;
+  stop_name: string;
+  time: string;
+}
+
+interface ResolvedNextStop {
+  nextStop: { stopName: string; time: string };
+  currentStopIndex: number;
+  nextStopEntry: ScheduleEntry;
+}
+
+/**
+ * When tracking is active, resolve the next stop from progress.nextStopId
+ * instead of the time-based getNextStop result.
+ */
+export function resolveNextStop(
+  sortedEntries: ScheduleEntry[],
+  nextStopId: string,
+  formatTime: (t: string) => string,
+): ResolvedNextStop | null {
+  const trackedEntry = sortedEntries.find((e) => e.id === nextStopId);
+  if (!trackedEntry) return null;
+  return {
+    nextStop: {
+      stopName: trackedEntry.stop_name,
+      time: formatTime(trackedEntry.time),
+    },
+    currentStopIndex: sortedEntries.indexOf(trackedEntry),
+    nextStopEntry: trackedEntry,
+  };
+}

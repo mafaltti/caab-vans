@@ -9,7 +9,7 @@ import {
   getNextStop,
   isLocationFresh,
 } from "@/lib/time";
-import { computeEta, type VanPosition } from "@/lib/tracking/eta";
+import { computeEta, resolveNextStop, type VanPosition } from "@/lib/tracking/eta";
 import { deriveRunStatus } from "@/lib/tracking/run-status";
 import { apiError } from "@/lib/api/errors";
 import { DateTime } from "luxon";
@@ -207,16 +207,11 @@ export async function GET(
 
   // Override next stop with tracking-based stop when progress is active
   if (isRunning && progress?.nextStopId) {
-    const trackedEntry = sortedEntries.find(
-      (e) => e.id === progress.nextStopId,
-    );
-    if (trackedEntry) {
-      nextStop = {
-        stopName: trackedEntry.stop_name,
-        time: formatTimeString(trackedEntry.time),
-      };
-      currentStopIndex = sortedEntries.indexOf(trackedEntry);
-      nextStopEntry = trackedEntry;
+    const resolved = resolveNextStop(sortedEntries, progress.nextStopId, formatTimeString);
+    if (resolved) {
+      nextStop = resolved.nextStop;
+      currentStopIndex = resolved.currentStopIndex;
+      nextStopEntry = resolved.nextStopEntry;
     }
   }
 
