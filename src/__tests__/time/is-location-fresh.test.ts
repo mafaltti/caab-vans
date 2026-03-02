@@ -34,15 +34,19 @@ describe("isLocationFresh", () => {
   });
 
   it("works correctly across midnight boundary", () => {
-    const beforeMidnight = DateTime.fromObject(
-      { hour: 23, minute: 58 },
-      { zone: TZ },
-    );
-    const afterMidnight = beforeMidnight.plus({ minutes: 5 });
-    // 5 minutes elapsed — should be fresh
-    const elapsed = afterMidnight.diff(beforeMidnight, "minutes").minutes;
-    expect(elapsed).toBeCloseTo(5);
-    expect(elapsed).toBeLessThan(STALENESS_THRESHOLD_MINUTES);
+    vi.useFakeTimers();
+    try {
+      const afterMidnight = DateTime.fromObject(
+        { year: 2026, month: 3, day: 2, hour: 0, minute: 3 },
+        { zone: TZ },
+      );
+      vi.setSystemTime(afterMidnight.toJSDate());
+
+      const beforeMidnight = afterMidnight.minus({ minutes: 5 });
+      expect(isLocationFresh(beforeMidnight)).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("exports the threshold constant as 10", () => {

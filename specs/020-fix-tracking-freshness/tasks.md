@@ -107,4 +107,4 @@
 - US2 tasks: 1 (T005)
 - Shared/foundational: 2 (T001, T002)
 - Polish: 2 (T006, T007)
-- This is a minimal, focused bug fix — no new files except the test file
+- This is a minimal, focused bug fix — no new production/runtime files except the test file

@@ -9,7 +9,7 @@ import { trackingSchema } from "@/lib/validators/tracking";
 
 const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 25 });
 
-const MAX_FUTURE_MS = 24 * 60 * 60 * 1000;
+const MAX_FUTURE_MS = 5 * 60 * 1000; // 5 minutes — clamp anything beyond this
 
 type RouteParams = { params: Promise<{ vanId: string }> };
 
@@ -62,12 +62,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   const { deviceId, lat, lng, accuracy, speed, heading, ts } = parsed.data;
 
-  // Convert device timestamp from Unix ms to ISO; cap if >24h in the future
+  // Clamp device timestamp: if >5 min in the future, use server time instead.
+  // This prevents a single bad client clock from poisoning the out-of-order guard.
   const now = Date.now();
-  const deviceTs =
-    ts > now + MAX_FUTURE_MS
-      ? DateTime.now().toISO()!
-      : DateTime.fromMillis(ts).toISO()!;
+  const clampedTs = ts > now + MAX_FUTURE_MS ? now : ts;
+  const deviceTs = DateTime.fromMillis(clampedTs).toISO()!;
 
   const { error: insertError } = await supabase
     .from("van_location_pings")
@@ -86,25 +85,37 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return apiError("INTERNAL_ERROR", "Failed to store ping", 500);
   }
 
-  // Update van position — always use the latest ping's data.
-  // The previous out-of-order guard compared device_ts values, but a single
-  // bad client timestamp could permanently block all future updates.
-  // Since pings arrive sequentially per van and the BFF processes them
-  // in order, a simple unconditional update is sufficient.
-  const { error: updateError } = await supabase
-    .from("vans")
-    .update({
-      last_lat: lat,
-      last_lng: lng,
-      last_accuracy_m: accuracy,
-      last_speed_mps: speed,
-      last_heading_deg: heading,
-      location_updated_at: new Date().toISOString(),
-    })
-    .eq("id", vanId);
+  // Update van position only if this ping is newer than (or equal to) the
+  // latest known ping for this van. Combined with the 5-min future clamp above,
+  // this prevents both out-of-order regressions and timestamp poisoning.
+  const { data: latest } = await supabase
+    .from("van_location_pings")
+    .select("device_ts")
+    .eq("van_id", vanId)
+    .order("device_ts", { ascending: false })
+    .limit(1)
+    .single();
 
-  if (updateError) {
-    return apiError("INTERNAL_ERROR", "Failed to update van position", 500);
+  const isNewest =
+    !latest ||
+    DateTime.fromISO(deviceTs) >= DateTime.fromISO(latest.device_ts);
+
+  if (isNewest) {
+    const { error: updateError } = await supabase
+      .from("vans")
+      .update({
+        last_lat: lat,
+        last_lng: lng,
+        last_accuracy_m: accuracy,
+        last_speed_mps: speed,
+        last_heading_deg: heading,
+        location_updated_at: new Date().toISOString(),
+      })
+      .eq("id", vanId);
+
+    if (updateError) {
+      return apiError("INTERNAL_ERROR", "Failed to update van position", 500);
+    }
   }
 
   try {
