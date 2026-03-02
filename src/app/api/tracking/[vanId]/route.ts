@@ -86,30 +86,25 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return apiError("INTERNAL_ERROR", "Failed to store ping", 500);
   }
 
-  // Only update van position if no ping with a newer device_ts exists,
-  // preventing out-of-order buffer flushes from regressing the position
-  const { count } = await supabase
-    .from("van_location_pings")
-    .select("*", { count: "exact", head: true })
-    .eq("van_id", vanId)
-    .gt("device_ts", deviceTs);
+  // Update van position — always use the latest ping's data.
+  // The previous out-of-order guard compared device_ts values, but a single
+  // bad client timestamp could permanently block all future updates.
+  // Since pings arrive sequentially per van and the BFF processes them
+  // in order, a simple unconditional update is sufficient.
+  const { error: updateError } = await supabase
+    .from("vans")
+    .update({
+      last_lat: lat,
+      last_lng: lng,
+      last_accuracy_m: accuracy,
+      last_speed_mps: speed,
+      last_heading_deg: heading,
+      location_updated_at: new Date().toISOString(),
+    })
+    .eq("id", vanId);
 
-  if (count === 0) {
-    const { error: updateError } = await supabase
-      .from("vans")
-      .update({
-        last_lat: lat,
-        last_lng: lng,
-        last_accuracy_m: accuracy,
-        last_speed_mps: speed,
-        last_heading_deg: heading,
-        location_updated_at: new Date().toISOString(),
-      })
-      .eq("id", vanId);
-
-    if (updateError) {
-      return apiError("INTERNAL_ERROR", "Failed to update van position", 500);
-    }
+  if (updateError) {
+    return apiError("INTERNAL_ERROR", "Failed to update van position", 500);
   }
 
   try {
