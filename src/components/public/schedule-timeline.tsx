@@ -13,14 +13,16 @@ type ScheduleTimelineProps = {
   passedStopIds?: string[];
   inferredNextStopId?: string | null;
   etaMinutes?: number | null;
+  serverTime?: string;
 };
 
-function deriveTimelineStops(
+export function deriveTimelineStops(
   schedule: Array<{ id: string; stopName: string; time: string }>,
   nextStopId: string | null,
   isRunning: boolean,
   passedStopIds?: string[],
   inferredNextStopId?: string | null,
+  serverTime?: string,
 ): TimelineStop[] {
   if (!isRunning) {
     return schedule.map((entry) => ({
@@ -33,7 +35,7 @@ function deriveTimelineStops(
     const passedSet = new Set(passedStopIds);
     return schedule.map((entry) => ({
       ...entry,
-      status: passedSet.has(entry.id)
+      status: passedSet.has(entry.id) || (serverTime && entry.time < serverTime)
         ? ("past" as TimelineStopStatus)
         : entry.id === inferredNextStopId
           ? ("current" as TimelineStopStatus)
@@ -94,10 +96,11 @@ export function ScheduleTimeline({
   passedStopIds,
   inferredNextStopId,
   etaMinutes,
+  serverTime,
 }: ScheduleTimelineProps) {
   const prefersReducedMotion = useReducedMotion();
   const [showPast, setShowPast] = useState(false);
-  const stops = deriveTimelineStops(schedule, nextStopId, isRunning, passedStopIds, inferredNextStopId);
+  const stops = deriveTimelineStops(schedule, nextStopId, isRunning, passedStopIds, inferredNextStopId, serverTime);
 
   if (stops.length === 0) {
     return (

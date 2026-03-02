@@ -141,4 +141,140 @@ describe("computeEta", () => {
     expect(result.etaNextStopMinutes).toBe(5);
     expect(result.passedStopIds).toEqual(["a"]);
   });
+
+  describe("time-aware filtering", () => {
+    it("picks the correct future stop when tracking starts mid-day", () => {
+      const stops = [
+        {
+          scheduleEntryId: "caab-0000",
+          time: "00:00",
+          status: "pending" as const,
+          passedAt: null,
+        },
+        {
+          scheduleEntryId: "stop-0800",
+          time: "08:00",
+          status: "pending" as const,
+          passedAt: null,
+        },
+        {
+          scheduleEntryId: "stop-2200",
+          time: "22:00",
+          status: "passed" as const,
+          passedAt: DateTime.fromObject(
+            { hour: 22, minute: 2 },
+            { zone: TZ },
+          ).toISO()!,
+        },
+        {
+          scheduleEntryId: "stop-2240",
+          time: "22:40",
+          status: "pending" as const,
+          passedAt: null,
+        },
+      ];
+      const now = DateTime.fromObject({ hour: 22, minute: 35 }, { zone: TZ });
+
+      const result = computeEta({ stops, now });
+
+      expect(result.nextStopId).toBe("stop-2240");
+      expect(result.etaNextStopMinutes).toBeGreaterThan(0);
+      expect(result.passedStopIds).toEqual(["stop-2200"]);
+    });
+
+    it("returns null ETA when all pending stops are in the past", () => {
+      const stops = [
+        {
+          scheduleEntryId: "caab-0000",
+          time: "00:00",
+          status: "pending" as const,
+          passedAt: null,
+        },
+        {
+          scheduleEntryId: "stop-0800",
+          time: "08:00",
+          status: "pending" as const,
+          passedAt: null,
+        },
+        {
+          scheduleEntryId: "stop-2200",
+          time: "22:00",
+          status: "passed" as const,
+          passedAt: "2026-03-01T22:02:00-03:00",
+        },
+        {
+          scheduleEntryId: "stop-2220",
+          time: "22:20",
+          status: "passed" as const,
+          passedAt: "2026-03-01T22:22:00-03:00",
+        },
+      ];
+      const now = DateTime.fromObject({ hour: 23, minute: 0 }, { zone: TZ });
+
+      const result = computeEta({ stops, now });
+
+      expect(result.nextStopId).toBeNull();
+      expect(result.etaNextStopMinutes).toBeNull();
+      expect(result.etaNextStopISO).toBeNull();
+      expect(result.passedStopIds).toEqual(["stop-2200", "stop-2220"]);
+    });
+
+    it("does not regress when all pending stops are in the future", () => {
+      const stops = [
+        {
+          scheduleEntryId: "a",
+          time: "09:00",
+          status: "pending" as const,
+          passedAt: null,
+        },
+        {
+          scheduleEntryId: "b",
+          time: "09:15",
+          status: "pending" as const,
+          passedAt: null,
+        },
+      ];
+      const now = DateTime.fromObject({ hour: 8, minute: 50 }, { zone: TZ });
+
+      const result = computeEta({ stops, now });
+
+      expect(result.nextStopId).toBe("a");
+      expect(result.etaNextStopMinutes).toBe(10);
+    });
+
+    it("still counts passed stops correctly with time-aware filter", () => {
+      const stops = [
+        {
+          scheduleEntryId: "a",
+          time: "08:00",
+          status: "passed" as const,
+          passedAt: "2026-03-01T08:02:00-03:00",
+        },
+        {
+          scheduleEntryId: "b",
+          time: "08:15",
+          status: "passed" as const,
+          passedAt: "2026-03-01T08:18:00-03:00",
+        },
+        {
+          scheduleEntryId: "c-past-pending",
+          time: "08:30",
+          status: "pending" as const,
+          passedAt: null,
+        },
+        {
+          scheduleEntryId: "d",
+          time: "22:40",
+          status: "pending" as const,
+          passedAt: null,
+        },
+      ];
+      const now = DateTime.fromObject({ hour: 22, minute: 35 }, { zone: TZ });
+
+      const result = computeEta({ stops, now });
+
+      expect(result.passedStopIds).toEqual(["a", "b"]);
+      expect(result.nextStopId).toBe("d");
+    });
+  });
 });

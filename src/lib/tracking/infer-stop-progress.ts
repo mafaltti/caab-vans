@@ -1,6 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 
-import { todayBahiaDate } from "@/lib/time";
+import { nowBahia, todayBahiaDate } from "@/lib/time";
 
 import { haversineDistanceMeters } from "./haversine";
 
@@ -122,6 +122,7 @@ export async function inferStopProgress(
     .eq("run_id", run.id)
     .order("time", { referencedTable: "schedule_entries", ascending: true });
 
+  const nowHHmm = nowBahia().toFormat("HH:mm");
   const passedStopIds: string[] = [];
   let nextStopId: string | null = null;
   let lastPassedStopId: string | null = null;
@@ -132,7 +133,10 @@ export async function inferStopProgress(
         passedStopIds.push(stop.schedule_entry_id);
         lastPassedStopId = stop.schedule_entry_id;
       } else if (stop.status === "pending" && nextStopId === null) {
-        nextStopId = stop.schedule_entry_id;
+        const entry = stop.schedule_entries as unknown as { time: string };
+        if (entry.time >= nowHHmm) {
+          nextStopId = stop.schedule_entry_id;
+        }
       }
     }
   }
