@@ -77,7 +77,7 @@ No additional tasks needed. US3 acceptance scenarios are verified by the same te
 
 ### Task Dependencies
 
-```
+```text
 T001 ──┬──→ T003 ──→ T004
        │         ├──→ T005 ──┐
 T002 ──┘         └──→ T006 ──┼──→ T007

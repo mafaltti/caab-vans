@@ -63,13 +63,16 @@ export function computeEta(args: {
   const nextStopId = nextStop.scheduleEntryId;
 
   // GPS branch: use distance/speed when all conditions are met
+  const locationAgeMinutes = vanPosition
+    ? now.diff(vanPosition.locationUpdatedAt, "minutes").minutes
+    : Infinity;
   const gpsConditionsMet =
     vanPosition != null &&
     nextStop.stopLat != null &&
     nextStop.stopLng != null &&
     vanPosition.speedMps >= MIN_SPEED_MPS &&
-    now.diff(vanPosition.locationUpdatedAt, "minutes").minutes <
-      STALENESS_THRESHOLD_MINUTES;
+    locationAgeMinutes >= 0 &&
+    locationAgeMinutes < STALENESS_THRESHOLD_MINUTES;
 
   if (gpsConditionsMet) {
     const distanceMeters = haversineDistanceMeters(

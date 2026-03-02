@@ -408,6 +408,21 @@ describe("computeEta", () => {
       expect(result.etaNextStopMinutes).toBe(0);
     });
 
+    it("falls back when locationUpdatedAt is in the future (clock skew)", () => {
+      const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+      const vanPosition = makeVanPosition({
+        locationUpdatedAt: DateTime.fromObject(
+          { hour: 8, minute: 50 },
+          { zone: TZ },
+        ), // 8 minutes in the future
+      });
+      const stops = makeStops();
+
+      const result = computeEta({ stops, now, vanPosition });
+
+      expect(result.etaSource).toBe("schedule");
+    });
+
     it("backward compat: existing tests work with vanPosition not provided", () => {
       const stops = [
         {

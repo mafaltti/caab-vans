@@ -55,7 +55,7 @@ interface EtaResult {
 
 | Condition | etaSource | ETA computation |
 |-----------|-----------|-----------------|
-| `vanPosition` provided, speed >= 1.0 m/s, position < 10 min old, next stop has lat/lng | `"gps"` | `now + (haversine × 1.3) / speed` |
+| `vanPosition` provided, speed >= 1.0 m/s, position < 10 min old, next stop has lat/lng | `"gps"` | `travelSeconds = (haversine_m × 1.3) / speed_mps`, ETA = `now + travelSeconds` |
 | Any GPS condition not met | `"schedule"` | Existing schedule-delay logic |
 | No next stop found | `null` | All ETA fields null |
 
