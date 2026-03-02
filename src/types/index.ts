@@ -98,6 +98,7 @@ export type RouteProgress = {
   etaNextStopISO: string | null;
   etaNextStopMinutes: number | null;
   delayMinutes: number | null;
+  etaSource: "gps" | "schedule" | null;
 };
 
 export type RouteWithStatus = {

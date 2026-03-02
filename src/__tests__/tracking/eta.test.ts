@@ -2,6 +2,7 @@
 import { DateTime } from "luxon";
 
 import { computeEta } from "@/lib/tracking/eta";
+import type { VanPosition } from "@/lib/tracking/eta";
 
 const TZ = "America/Bahia";
 
@@ -275,6 +276,164 @@ describe("computeEta", () => {
 
       expect(result.passedStopIds).toEqual(["a", "b"]);
       expect(result.nextStopId).toBe("d");
+    });
+  });
+
+  describe("GPS-based ETA", () => {
+    // Salvador, Bahia area coordinates
+    // Van position: ~12.9714° S, 38.5124° W (Pituba)
+    // Stop position: ~12.9814° S, 38.4524° W (Itapuã) — ~6.6 km apart
+    const VAN_LAT = -12.9714;
+    const VAN_LNG = -38.5124;
+    const STOP_LAT = -12.9814;
+    const STOP_LNG = -38.4524;
+
+    function makeVanPosition(
+      overrides: Partial<VanPosition> = {},
+    ): VanPosition {
+      return {
+        lat: VAN_LAT,
+        lng: VAN_LNG,
+        speedMps: 10, // ~36 km/h
+        locationUpdatedAt: DateTime.fromObject(
+          { hour: 8, minute: 40 },
+          { zone: TZ },
+        ),
+        ...overrides,
+      };
+    }
+
+    function makeStops(overrides: { stopLat?: number | null; stopLng?: number | null } = {}) {
+      return [
+        {
+          scheduleEntryId: "a",
+          time: "08:30",
+          status: "passed" as const,
+          passedAt: DateTime.fromObject(
+            { hour: 8, minute: 35 },
+            { zone: TZ },
+          ).toISO()!,
+          stopLat: -12.96,
+          stopLng: -38.52,
+        },
+        {
+          scheduleEntryId: "b",
+          time: "08:45",
+          status: "pending" as const,
+          passedAt: null,
+          stopLat: overrides.stopLat !== undefined ? overrides.stopLat : STOP_LAT,
+          stopLng: overrides.stopLng !== undefined ? overrides.stopLng : STOP_LNG,
+        },
+      ];
+    }
+
+    it("uses GPS when van is moving + fresh location + stop has coords", () => {
+      const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+      const vanPosition = makeVanPosition();
+      const stops = makeStops();
+
+      const result = computeEta({ stops, now, vanPosition });
+
+      expect(result.etaSource).toBe("gps");
+      expect(result.nextStopId).toBe("b");
+      expect(result.etaNextStopMinutes).toBeGreaterThan(0);
+      expect(result.etaNextStopISO).not.toBeNull();
+    });
+
+    it("falls back when speed = 0", () => {
+      const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+      const vanPosition = makeVanPosition({ speedMps: 0 });
+      const stops = makeStops();
+
+      const result = computeEta({ stops, now, vanPosition });
+
+      expect(result.etaSource).toBe("schedule");
+    });
+
+    it("falls back when speed < MIN_SPEED_MPS", () => {
+      const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+      const vanPosition = makeVanPosition({ speedMps: 0.5 });
+      const stops = makeStops();
+
+      const result = computeEta({ stops, now, vanPosition });
+
+      expect(result.etaSource).toBe("schedule");
+    });
+
+    it("falls back when location is stale (>10 min)", () => {
+      const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+      const vanPosition = makeVanPosition({
+        locationUpdatedAt: DateTime.fromObject(
+          { hour: 8, minute: 20 },
+          { zone: TZ },
+        ), // 22 minutes ago
+      });
+      const stops = makeStops();
+
+      const result = computeEta({ stops, now, vanPosition });
+
+      expect(result.etaSource).toBe("schedule");
+    });
+
+    it("falls back when stop has no coords", () => {
+      const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+      const vanPosition = makeVanPosition();
+      const stops = makeStops({ stopLat: null, stopLng: null });
+
+      const result = computeEta({ stops, now, vanPosition });
+
+      expect(result.etaSource).toBe("schedule");
+    });
+
+    it("falls back when vanPosition is null", () => {
+      const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+      const stops = makeStops();
+
+      const result = computeEta({ stops, now, vanPosition: null });
+
+      expect(result.etaSource).toBe("schedule");
+    });
+
+    it("returns ~0 min ETA when van is at the stop", () => {
+      const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+      const vanPosition = makeVanPosition({
+        lat: STOP_LAT,
+        lng: STOP_LNG,
+      });
+      const stops = makeStops();
+
+      const result = computeEta({ stops, now, vanPosition });
+
+      expect(result.etaSource).toBe("gps");
+      expect(result.etaNextStopMinutes).toBe(0);
+    });
+
+    it("backward compat: existing tests work with vanPosition not provided", () => {
+      const stops = [
+        {
+          scheduleEntryId: "a",
+          time: "08:30",
+          status: "passed" as const,
+          passedAt: DateTime.fromObject(
+            { hour: 8, minute: 35 },
+            { zone: TZ },
+          ).toISO()!,
+        },
+        {
+          scheduleEntryId: "b",
+          time: "08:45",
+          status: "pending" as const,
+          passedAt: null,
+        },
+      ];
+      const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+
+      const result = computeEta({ stops, now });
+
+      expect(result.etaSource).toBe("schedule");
+      expect(result.nextStopId).toBe("b");
+      expect(result.delayMinutes).toBe(5);
+      expect(result.etaNextStopMinutes).toBe(8);
     });
   });
 });
