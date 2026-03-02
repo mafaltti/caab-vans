@@ -20,6 +20,6 @@ export function useRoutes() {
   return useQuery({
     queryKey: ["routes"],
     queryFn: fetchRoutes,
-    refetchInterval: 60_000,
+    refetchInterval: 15_000,
   });
 }

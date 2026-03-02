@@ -25,7 +25,7 @@ export function useRouteDetail(routeId: string) {
   return useQuery({
     queryKey: ["route", routeId],
     queryFn: () => fetchRouteDetail(routeId),
-    refetchInterval: 30_000,
+    refetchInterval: 15_000,
     enabled: !!routeId,
   });
 }
