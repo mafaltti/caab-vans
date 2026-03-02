@@ -3,16 +3,7 @@ import { requireAuth } from "@/lib/api/auth";
 import { apiError } from "@/lib/api/errors";
 import { createServiceClient } from "@/lib/supabase/server";
 import { nowBahia, todayBahiaDate, formatTime, formatTimeString } from "@/lib/time";
-import type { RunStatus } from "@/types";
-
-function deriveRunStatus(
-  startedAt: string | null,
-  endedAt: string | null,
-): RunStatus {
-  if (endedAt) return "completed";
-  if (startedAt) return "in_progress";
-  return "waiting";
-}
+import { deriveRunStatus } from "@/lib/tracking/run-status";
 
 export async function GET() {
   let auth;

@@ -10,8 +10,9 @@ import {
   isLocationFresh,
 } from "@/lib/time";
 import { computeEta, type VanPosition } from "@/lib/tracking/eta";
+import { deriveRunStatus } from "@/lib/tracking/run-status";
 import { DateTime } from "luxon";
-import type { RunStatus, ScheduleStatus } from "@/types";
+import type { ScheduleStatus } from "@/types";
 
 export async function GET() {
   const supabase = createServiceClient();
@@ -134,12 +135,6 @@ export async function GET() {
       .eq("route_id", route.id)
       .eq("service_date", serviceDate)
       .single();
-
-    function deriveRunStatus(startedAt: string | null, endedAt: string | null): RunStatus {
-      if (endedAt) return "completed";
-      if (startedAt) return "in_progress";
-      return "waiting";
-    }
 
     let progress = null;
     if (runData) {

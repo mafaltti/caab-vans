@@ -3,15 +3,9 @@ import { requireAuth } from "@/lib/api/auth";
 import { apiError } from "@/lib/api/errors";
 import { createServiceClient } from "@/lib/supabase/server";
 import { todayBahiaDate } from "@/lib/time";
-import type { RunStatus } from "@/types";
+import { deriveRunStatus } from "@/lib/tracking/run-status";
 
 type RouteParams = { params: Promise<{ routeId: string }> };
-
-function deriveStatus(startedAt: string | null, endedAt: string | null): RunStatus {
-  if (endedAt) return "completed";
-  if (startedAt) return "in_progress";
-  return "waiting";
-}
 
 export async function POST(_request: NextRequest, { params }: RouteParams) {
   let auth;
@@ -110,7 +104,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       serviceDate: run.service_date,
       startedAt: run.started_at,
       endedAt: run.ended_at,
-      status: deriveStatus(run.started_at, run.ended_at),
+      status: deriveRunStatus(run.started_at, run.ended_at),
     },
   });
 }

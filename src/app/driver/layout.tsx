@@ -39,7 +39,8 @@ export default async function DriverLayout({
 }) {
   const user = await getUser();
 
-  if (!user) {
+  const role = user?.app_metadata?.role;
+  if (!user || role !== "driver") {
     redirect("/admin/login");
   }
 

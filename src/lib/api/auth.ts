@@ -39,6 +39,14 @@ export async function requireRole(
     throw apiError("FORBIDDEN", "Superuser access required", 403);
   }
 
+  if (
+    requiredRole === "admin" &&
+    auth.role !== "admin" &&
+    auth.role !== "superuser"
+  ) {
+    throw apiError("FORBIDDEN", "Admin access required", 403);
+  }
+
   if (requiredRole === "driver" && auth.role !== "driver") {
     throw apiError("FORBIDDEN", "Driver access required", 403);
   }

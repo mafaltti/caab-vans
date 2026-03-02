@@ -35,6 +35,20 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
   const supabase = createServiceClient();
 
+  // Validate driverId references an active driver
+  if (parsed.data.driverId) {
+    const { data: driver } = await supabase.auth.admin.getUserById(
+      parsed.data.driverId,
+    );
+    if (
+      !driver?.user ||
+      driver.user.app_metadata?.role !== "driver" ||
+      driver.user.app_metadata?.is_active === false
+    ) {
+      return apiError("VALIDATION_ERROR", "Driver not found or not a driver", 400);
+    }
+  }
+
   const updates: Record<string, unknown> = {};
   if (parsed.data.name !== undefined) updates.name = parsed.data.name;
   if (parsed.data.regenerateToken) updates.ingestion_token = crypto.randomUUID();

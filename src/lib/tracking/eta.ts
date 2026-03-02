@@ -44,7 +44,7 @@ export function computeEta(args: {
 
   // Time floor: started_at (explicit) > now (fallback)
   const timeFloor = startedAt
-    ? DateTime.fromISO(startedAt).toFormat("HH:mm")
+    ? DateTime.fromISO(startedAt).setZone(now.zone).toFormat("HH:mm")
     : now.toFormat("HH:mm");
   const futurePending = pending.filter((s) => s.time >= timeFloor);
 
