@@ -34,7 +34,7 @@
 
 ### Implementation for User Story 1
 
-- [X] T003 [US1] Expand `RouteStatusBadge` component to accept optional `runStatus` and `scheduleStatus` props and implement 4-variant badge mapping (in_progress → green "Em operação" with pulse, waiting/idle → amber "Aguardando início", completed → muted emerald "Encerrada", default → zinc "Fora de operação") in `src/components/public/route-status-badge.tsx`
+- [X] T003 [US1] Expand `RouteStatusBadge` component to accept optional `runStatus` and `scheduleStatus` props and implement 6-step badge mapping (in_progress → green, idle+isRunning → green, waiting/idle+scheduleEnded → zinc, waiting/idle → amber, completed → emerald, scheduleActive → amber, default → zinc) in `src/components/public/route-status-badge.tsx`
 - [X] T004 [US1] Pass `route.progress?.runStatus` and `route.scheduleStatus` from `RouteCard` to `RouteStatusBadge` in `src/components/public/route-card.tsx`
 
 **Checkpoint**: Route list page shows correct badge for each van's lifecycle state.
@@ -50,8 +50,9 @@
 ### Implementation for User Story 2
 
 - [X] T005 [US2] Pass `route.progress?.runStatus` and `route.scheduleStatus` to `RouteStatusBadge` in the detail page header in `src/app/(public)/routes/[routeId]/page.tsx`
+- [X] T008 [US2] Rewrite HeroCard decision tree to match badge for all 13 reachable state combinations, fixing 3 badge/hero inconsistencies (cases #2, #9, #12). Add "Em operação + Localização desatualizada" state for active shift with stale GPS in `src/components/public/hero-card.tsx`
 
-**Checkpoint**: Detail page header badge and list page badge show identical status for the same route.
+**Checkpoint**: Detail page header badge and hero card both match the list page badge for the same route.
 
 ---
 
@@ -70,7 +71,7 @@
 
 - **Foundational (Phase 1)**: No dependencies — can start immediately. T001 and T002 are parallelizable (different files).
 - **User Story 1 (Phase 2)**: Depends on Phase 1. T003 must complete before T004 (T004 passes props to the component T003 modifies).
-- **User Story 2 (Phase 3)**: Depends on T003 (uses the updated badge component). Can run in parallel with T004 since it modifies a different file.
+- **User Story 2 (Phase 3)**: Depends on T003 (uses the updated badge component). T005 can run in parallel with T004. T008 (HeroCard rewrite) depends on T003 and was added during implementation after discovering badge/hero inconsistencies.
 - **Polish (Phase 4)**: Depends on all implementation tasks.
 
 ### Parallel Opportunities
@@ -114,8 +115,9 @@ T005: Wire runStatus in detail page header (src/app/(public)/routes/[routeId]/pa
 
 ## Notes
 
-- Total tasks: 7 (2 API, 2 component, 1 page, 2 validation)
+- Total tasks: 8 (2 API, 2 component, 1 hero card rewrite, 1 page, 2 validation)
 - No new files created — all modifications to existing files
 - No database or schema changes
-- The badge component change (T003) is the core task — it implements the 4-variant mapping logic
-- Keep `isRunning` as a fallback prop for backward compatibility in case any other consumer still passes only `isRunning`
+- The badge component change (T003) is the core task — it implements the 6-step mapping logic
+- T008 (HeroCard rewrite) was unplanned — discovered during testing that 3 of 13 state combinations had badge/hero inconsistencies
+- `isRunning` is kept as a prop and used to differentiate `idle` between "Em operação" (GPS fresh) and "Aguardando início" (GPS stale)
