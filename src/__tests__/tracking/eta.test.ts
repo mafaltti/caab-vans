@@ -450,5 +450,42 @@ describe("computeEta", () => {
       expect(result.delayMinutes).toBe(5);
       expect(result.etaNextStopMinutes).toBe(8);
     });
+
+    it("uses GPS ETA for next pending occurrence after repeated stop partial progress", () => {
+      const now = DateTime.fromObject({ hour: 8, minute: 30 }, { zone: TZ });
+      const vanPosition = makeVanPosition({
+        locationUpdatedAt: DateTime.fromObject(
+          { hour: 8, minute: 28 },
+          { zone: TZ },
+        ),
+      });
+      const stops = [
+        {
+          scheduleEntryId: "caab-0700",
+          time: "07:00",
+          status: "passed" as const,
+          passedAt: DateTime.fromObject(
+            { hour: 7, minute: 3 },
+            { zone: TZ },
+          ).toISO()!,
+          stopLat: STOP_LAT,
+          stopLng: STOP_LNG,
+        },
+        {
+          scheduleEntryId: "caab-0900",
+          time: "09:00",
+          status: "pending" as const,
+          passedAt: null,
+          stopLat: STOP_LAT,
+          stopLng: STOP_LNG,
+        },
+      ];
+
+      const result = computeEta({ stops, now, vanPosition });
+
+      expect(result.etaSource).toBe("gps");
+      expect(result.nextStopId).toBe("caab-0900");
+      expect(result.etaNextStopMinutes).toBeGreaterThan(0);
+    });
   });
 });
