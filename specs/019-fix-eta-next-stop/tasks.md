@@ -47,7 +47,7 @@
 
 ### Tests
 
-- [x] T006 [P] [US1] Add unit tests for `deriveTimelineStops` hybrid classification: (1) un-geofenced past-time stops classified as "past", (2) GPS-confirmed passed stops still classified as "past", (3) correct stop marked as "current" with time >= serverTime, (4) no-GPS fallback unchanged, (5) not-running state returns all "neutral" `src/components/public/__tests__/schedule-timeline.test.ts`
+- [x] T006 [P] [US1] Add unit tests for `deriveTimelineStops` hybrid classification: (1) un-geofenced past-time stops classified as "past", (2) GPS-confirmed passed stops still classified as "past", (3) correct stop marked as "current" with time >= serverTime, (4) no-GPS fallback unchanged, (5) not-running state returns all "neutral" `src/__tests__/components/schedule-timeline.test.ts`
 
 **Checkpoint**: Timeline correctly shows hybrid time+GPS stop classification for all scenarios
 
@@ -105,7 +105,7 @@ T006 ──┘──→ T008, T009 (quality gates after all tasks)
 **Round 2** (3 tasks in parallel — all different files):
 - T003: `src/lib/tracking/__tests__/eta.test.ts`
 - T005: `src/app/(public)/routes/[routeId]/page.tsx`
-- T006: `src/components/public/__tests__/schedule-timeline.test.ts`
+- T006: `src/__tests__/components/schedule-timeline.test.ts`
 
 **Round 3** (sequential):
 - T007: Verify hero card (depends on all fixes)

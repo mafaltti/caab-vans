@@ -48,7 +48,7 @@ The `progress` object within the response will now return different values for t
 
 | Field | Before | After |
 |-------|--------|-------|
-| `nextStopId` | First pending stop by time (00:00) | First pending stop with time >= now (22:40) |
+| `nextStopId` | First pending stop by time (00:00) | First pending stop with time >= now (22:35), i.e. 22:40 |
 | `etaNextStopMinutes` | 0 (clamped from negative) | 5 (realistic future value) |
 | `etaNextStopISO` | Past timestamp | Future timestamp |
 
