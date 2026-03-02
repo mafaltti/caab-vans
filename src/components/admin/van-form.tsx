@@ -5,13 +5,6 @@ import { z } from "zod/v4";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { fetchWithAuth } from "@/lib/api/fetch-with-auth";
 
 const vanSchema = z.object({
@@ -21,8 +14,8 @@ const vanSchema = z.object({
 type DriverOption = { id: string; email: string };
 
 type VanFormProps = {
-  defaultValues?: { name: string; driverId?: string | null };
-  onSubmit: (data: { name: string; driverId?: string | null }) => Promise<void>;
+  defaultValues?: { name: string; driverIds?: string[] };
+  onSubmit: (data: { name: string; driverIds?: string[] }) => Promise<void>;
   submitLabel?: string;
   showDriverSelect?: boolean;
 };
@@ -34,8 +27,8 @@ export function VanForm({
   showDriverSelect = false,
 }: VanFormProps) {
   const [name, setName] = useState(defaultValues?.name ?? "");
-  const [driverId, setDriverId] = useState<string | null>(
-    defaultValues?.driverId ?? null,
+  const [driverIds, setDriverIds] = useState<string[]>(
+    defaultValues?.driverIds ?? [],
   );
   const [drivers, setDrivers] = useState<DriverOption[]>([]);
   const [error, setError] = useState("");
@@ -58,9 +51,15 @@ export function VanForm({
         })));
       })
       .catch(() => {
-        // Fail silently — driver select will just be empty
+        // Fail silently — driver list will just be empty
       });
   }, [showDriverSelect]);
+
+  function toggleDriver(id: string) {
+    setDriverIds((prev) =>
+      prev.includes(id) ? prev.filter((d) => d !== id) : [...prev, id],
+    );
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -76,7 +75,7 @@ export function VanForm({
     try {
       await onSubmit({
         ...parsed.data,
-        ...(showDriverSelect ? { driverId } : {}),
+        ...(showDriverSelect ? { driverIds } : {}),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao salvar");
@@ -100,23 +99,24 @@ export function VanForm({
 
       {showDriverSelect && (
         <div className="space-y-2">
-          <Label htmlFor="van-driver">Motorista</Label>
-          <Select
-            value={driverId ?? "__none__"}
-            onValueChange={(v) => setDriverId(v === "__none__" ? null : v)}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Nenhum motorista" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">Nenhum</SelectItem>
+          <Label>Motoristas</Label>
+          {drivers.length === 0 ? (
+            <p className="text-sm text-zinc-500">Nenhum motorista disponível</p>
+          ) : (
+            <div className="space-y-2">
               {drivers.map((d) => (
-                <SelectItem key={d.id} value={d.id}>
+                <label key={d.id} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={driverIds.includes(d.id)}
+                    onChange={() => toggleDriver(d.id)}
+                    className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
+                  />
                   {d.email}
-                </SelectItem>
+                </label>
               ))}
-            </SelectContent>
-          </Select>
+            </div>
+          )}
         </div>
       )}
 

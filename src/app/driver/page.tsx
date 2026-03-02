@@ -8,6 +8,7 @@ import { MapPin } from "lucide-react";
 
 export default function DriverPage() {
   const [routes, setRoutes] = useState<DriverRoute[]>([]);
+  const [userId, setUserId] = useState("");
   const [loading, setLoading] = useState(true);
 
   const didFetch = useRef(false);
@@ -16,7 +17,10 @@ export default function DriverPage() {
     didFetch.current = true;
     fetchWithAuth("/api/driver/routes")
       .then((res) => res.json())
-      .then((data) => setRoutes(data.routes ?? []))
+      .then((data) => {
+        setRoutes(data.routes ?? []);
+        setUserId(data.userId ?? "");
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -46,6 +50,7 @@ export default function DriverPage() {
         <RouteCard
           key={route.id}
           route={route}
+          userId={userId}
           onUpdate={handleRouteUpdate}
         />
       ))}

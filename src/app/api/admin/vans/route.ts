@@ -18,17 +18,29 @@ export async function GET() {
   const supabase = createServiceClient();
   const { data, error } = await supabase
     .from("vans")
-    .select("id, name, driver_id, ingestion_token, location_url, location_updated_at, created_at")
+    .select("id, name, ingestion_token, location_url, location_updated_at, created_at")
     .order("name");
 
   if (error) {
     return apiError("NOT_FOUND", "Failed to fetch vans", 500);
   }
 
+  const vanIds = (data ?? []).map((v) => v.id);
+  const { data: assignments } = vanIds.length > 0
+    ? await supabase.from("van_drivers").select("van_id, driver_id").in("van_id", vanIds)
+    : { data: [] };
+
+  const driversByVan = new Map<string, string[]>();
+  for (const a of assignments ?? []) {
+    const list = driversByVan.get(a.van_id) ?? [];
+    list.push(a.driver_id);
+    driversByVan.set(a.van_id, list);
+  }
+
   const vans = (data ?? []).map((v) => ({
     id: v.id,
     name: v.name,
-    driverId: v.driver_id,
+    driverIds: driversByVan.get(v.id) ?? [],
     ingestionToken: v.ingestion_token,
     locationUrl: v.location_url,
     locationUpdatedAt: v.location_updated_at,

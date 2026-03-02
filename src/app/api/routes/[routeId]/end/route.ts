@@ -21,10 +21,9 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
   const { routeId } = await params;
   const supabase = createServiceClient();
 
-  // Fetch route + van
   const { data: route } = await supabase
     .from("routes")
-    .select("id, van:vans!inner(id, driver_id)")
+    .select("id")
     .eq("id", routeId)
     .single();
 
@@ -32,51 +31,59 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     return apiError("NOT_FOUND", "Route not found", 404);
   }
 
-  const van = route.van as unknown as { id: string; driver_id: string | null };
-
-  if (van.driver_id !== auth.user.id) {
-    return apiError("FORBIDDEN", "You are not assigned to this route's van", 403);
-  }
-
   const serviceDate = todayBahiaDate();
 
-  // Find active run (started but not ended)
   const { data: run } = await supabase
     .from("route_runs")
-    .select("id, started_at, ended_at")
+    .select("id, route_id, service_date")
     .eq("route_id", routeId)
     .eq("service_date", serviceDate)
     .single();
 
-  if (!run || !run.started_at) {
+  if (!run) {
     return apiError("NOT_FOUND", "No active run found for today", 404);
   }
 
-  if (run.ended_at) {
-    return apiError("CONFLICT", "Route already ended today", 409);
+  const { data: activeShift } = await supabase
+    .from("route_shifts")
+    .select("id, run_id, driver_id, started_at, ended_at")
+    .eq("run_id", run.id)
+    .is("ended_at", null)
+    .single();
+
+  if (!activeShift) {
+    return apiError("NOT_FOUND", "No active shift found for today", 404);
+  }
+
+  if (activeShift.driver_id !== auth.user.id) {
+    return apiError("FORBIDDEN", "This shift was started by a different driver", 403);
   }
 
   const now = new Date().toISOString();
 
   const { data: updated, error } = await supabase
-    .from("route_runs")
+    .from("route_shifts")
     .update({ ended_at: now })
-    .eq("id", run.id)
-    .select("id, route_id, service_date, started_at, ended_at")
+    .eq("id", activeShift.id)
+    .select("id, run_id, driver_id, started_at, ended_at")
     .single();
 
   if (error || !updated) {
-    return apiError("INTERNAL_ERROR", "Failed to end route", 500);
+    return apiError("INTERNAL_ERROR", "Failed to end shift", 500);
   }
 
   return NextResponse.json({
-    run: {
+    shift: {
       id: updated.id,
-      routeId: updated.route_id,
-      serviceDate: updated.service_date,
+      runId: updated.run_id,
+      driverId: updated.driver_id,
       startedAt: updated.started_at,
       endedAt: updated.ended_at,
-      status: "completed" as const,
+    },
+    run: {
+      id: run.id,
+      routeId: run.route_id,
+      serviceDate: run.service_date,
     },
   });
 }

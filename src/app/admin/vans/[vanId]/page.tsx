@@ -10,7 +10,7 @@ import Link from "next/link";
 type VanData = {
   id: string;
   name: string;
-  driverId: string | null;
+  driverIds: string[];
 };
 
 export default function AdminVanEditPage() {
@@ -30,7 +30,7 @@ export default function AdminVanEditPage() {
       .catch(() => setLoading(false));
   }, [vanId]);
 
-  async function handleSubmit(data: { name: string; driverId?: string | null }) {
+  async function handleSubmit(data: { name: string; driverIds?: string[] }) {
     const res = await fetch(`/api/admin/vans/${vanId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -65,7 +65,7 @@ export default function AdminVanEditPage() {
       </div>
 
       <VanForm
-        defaultValues={{ name: van.name, driverId: van.driverId }}
+        defaultValues={{ name: van.name, driverIds: van.driverIds }}
         onSubmit={handleSubmit}
         submitLabel="Salvar"
         showDriverSelect
