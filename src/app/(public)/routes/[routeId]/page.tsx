@@ -54,7 +54,7 @@ export default function RouteDetailPage() {
                   {route?.name}
                 </h1>
               </div>
-              {route && <RouteStatusBadge isRunning={route.isRunning} runStatus={route.progress?.runStatus} />}
+              {route && <RouteStatusBadge isRunning={route.isRunning} />}
             </div>
           )}
         </div>

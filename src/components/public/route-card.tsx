@@ -50,7 +50,7 @@ export function RouteCard({ route }: RouteCardProps) {
                 </div>
               </div>
 
-              <RouteStatusBadge isRunning={route.isRunning} runStatus={route.progress?.runStatus} />
+              <RouteStatusBadge isRunning={route.isRunning} />
             </div>
 
             {route.nextStop && (
