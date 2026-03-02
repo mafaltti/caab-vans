@@ -10,8 +10,9 @@ type RouteDetailResponse = {
 
 async function fetchRouteDetail(
   routeId: string,
+  signal?: AbortSignal,
 ): Promise<RouteDetailResponse> {
-  const res = await fetch(`/api/routes/${routeId}`);
+  const res = await fetch(`/api/routes/${routeId}`, { signal });
   if (!res.ok) {
     if (res.status === 404) {
       throw new Error("Route not found");
@@ -24,7 +25,7 @@ async function fetchRouteDetail(
 export function useRouteDetail(routeId: string) {
   return useQuery({
     queryKey: ["route", routeId],
-    queryFn: () => fetchRouteDetail(routeId),
+    queryFn: ({ signal }) => fetchRouteDetail(routeId, signal),
     refetchInterval: 15_000,
     enabled: !!routeId,
   });

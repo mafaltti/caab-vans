@@ -8,8 +8,8 @@ type RoutesResponse = {
   serverTime: string;
 };
 
-async function fetchRoutes(): Promise<RoutesResponse> {
-  const res = await fetch("/api/routes");
+async function fetchRoutes(signal?: AbortSignal): Promise<RoutesResponse> {
+  const res = await fetch("/api/routes", { signal });
   if (!res.ok) {
     throw new Error("Failed to fetch routes");
   }
@@ -19,7 +19,7 @@ async function fetchRoutes(): Promise<RoutesResponse> {
 export function useRoutes() {
   return useQuery({
     queryKey: ["routes"],
-    queryFn: fetchRoutes,
+    queryFn: ({ signal }) => fetchRoutes(signal),
     refetchInterval: 15_000,
   });
 }
