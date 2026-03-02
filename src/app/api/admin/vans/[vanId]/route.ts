@@ -7,6 +7,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 const updateVanSchema = z.object({
   name: z.string().min(1, "Name is required").max(100, "Name too long").optional(),
   regenerateToken: z.boolean().optional(),
+  driverId: z.string().uuid("Invalid driver ID").nullable().optional(),
 });
 
 type RouteParams = { params: Promise<{ vanId: string }> };
@@ -37,6 +38,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   const updates: Record<string, unknown> = {};
   if (parsed.data.name !== undefined) updates.name = parsed.data.name;
   if (parsed.data.regenerateToken) updates.ingestion_token = crypto.randomUUID();
+  if (parsed.data.driverId !== undefined) updates.driver_id = parsed.data.driverId;
 
   if (Object.keys(updates).length === 0) {
     return apiError("VALIDATION_ERROR", "No fields to update", 400);
@@ -57,6 +59,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     van: {
       id: data.id,
       name: data.name,
+      driverId: data.driver_id,
       ingestionToken: data.ingestion_token,
       locationUrl: data.location_url,
       locationUpdatedAt: data.location_updated_at,

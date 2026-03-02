@@ -11,6 +11,7 @@ export type Route = {
 export type Van = {
   id: string;
   name: string;
+  driver_id: string | null;
   location_url: string | null;
   location_updated_at: string | null;
   ingestion_token: string;
@@ -48,7 +49,7 @@ export type Announcement = {
 export type AdminUser = {
   id: string;
   email: string;
-  role: "admin" | "superuser";
+  role: "admin" | "superuser" | "driver";
   is_active: boolean;
   created_at: string;
 };
@@ -70,6 +71,8 @@ export type RouteRun = {
   id: string;
   route_id: string;
   service_date: string;
+  started_at: string | null;
+  ended_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -83,6 +86,8 @@ export type RouteRunStop = {
 
 // Computed types (BFF response shapes)
 
+export type RunStatus = "waiting" | "in_progress" | "completed";
+
 export type ScheduleStatus = "active" | "ended" | "not_started";
 
 export type NextStop = {
@@ -93,6 +98,8 @@ export type NextStop = {
 
 export type RouteProgress = {
   serviceDate: string;
+  runStatus?: RunStatus;
+  startedAt?: string | null;
   nextStopId: string | null;
   passedStopIds: string[];
   etaNextStopISO: string | null;
@@ -136,6 +143,24 @@ export type AnnouncementResponse = {
   isUrgent: boolean;
   expiresAt: string | null;
   createdAt: string;
+};
+
+// Driver types
+
+export type DriverRoute = {
+  id: string;
+  name: string;
+  vanName: string;
+  totalStops: number;
+  firstStopTime: string | null;
+  lastStopTime: string | null;
+  run: {
+    id: string;
+    serviceDate: string;
+    status: RunStatus;
+    startedAt: string | null;
+    endedAt: string | null;
+  } | null;
 };
 
 // Client-side derived types

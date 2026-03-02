@@ -28,11 +28,34 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user && request.nextUrl.pathname.startsWith("/admin/login") === false) {
+  const pathname = request.nextUrl.pathname;
+  const isLoginPage = pathname.startsWith("/admin/login");
+
+  if (!user && !isLoginPage) {
     const loginUrl = new URL("/admin/login", request.url);
     const redirect = NextResponse.redirect(loginUrl);
     redirect.headers.set("Cache-Control", "no-store");
     return redirect;
+  }
+
+  if (user) {
+    const role = user.app_metadata?.role as string | undefined;
+
+    // Drivers hitting /admin/* (except login) → redirect to /driver
+    if (role === "driver" && pathname.startsWith("/admin") && !isLoginPage) {
+      const driverUrl = new URL("/driver", request.url);
+      const redirect = NextResponse.redirect(driverUrl);
+      redirect.headers.set("Cache-Control", "no-store");
+      return redirect;
+    }
+
+    // Non-drivers hitting /driver/* → redirect to /admin
+    if (role !== "driver" && pathname.startsWith("/driver")) {
+      const adminUrl = new URL("/admin", request.url);
+      const redirect = NextResponse.redirect(adminUrl);
+      redirect.headers.set("Cache-Control", "no-store");
+      return redirect;
+    }
   }
 
   response.headers.set("Cache-Control", "no-store");
@@ -40,5 +63,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*"],
+  matcher: ["/admin/:path*", "/driver/:path*"],
 };

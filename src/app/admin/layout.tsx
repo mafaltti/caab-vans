@@ -43,7 +43,7 @@ export default async function AdminLayout({
     return <>{children}</>;
   }
 
-  const role = (user.app_metadata?.role ?? "admin") as "admin" | "superuser";
+  const role = (user.app_metadata?.role ?? "admin") as "admin" | "superuser" | "driver";
 
   return (
     <div className="flex min-h-screen bg-zinc-50">
@@ -71,6 +71,6 @@ export default async function AdminLayout({
   );
 }
 
-function MobileNav({ role }: { role: "admin" | "superuser" }) {
+function MobileNav({ role }: { role: "admin" | "superuser" | "driver" }) {
   return <SidebarNav role={role} />;
 }

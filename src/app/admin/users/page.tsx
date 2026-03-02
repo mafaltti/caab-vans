@@ -19,7 +19,7 @@ import { Plus, Pencil, Users } from "lucide-react";
 type UserItem = {
   id: string;
   email: string;
-  role: "admin" | "superuser";
+  role: "admin" | "superuser" | "driver";
   isActive: boolean;
   createdAt: string;
 };
@@ -93,7 +93,7 @@ export default function AdminUsersPage() {
                 <TableCell className="font-medium">{user.email}</TableCell>
                 <TableCell className="hidden md:table-cell">
                   <Badge variant={user.role === "superuser" ? "default" : "secondary"}>
-                    {user.role === "superuser" ? "Superusuário" : "Admin"}
+                    {user.role === "superuser" ? "Superusuário" : user.role === "driver" ? "Motorista" : "Admin"}
                   </Badge>
                 </TableCell>
                 <TableCell className="hidden sm:table-cell">

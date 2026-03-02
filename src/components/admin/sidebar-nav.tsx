@@ -13,7 +13,7 @@ const navItems = [
 ];
 
 type SidebarNavProps = {
-  role: "admin" | "superuser";
+  role: "admin" | "superuser" | "driver";
 };
 
 export function SidebarNav({ role }: SidebarNavProps) {

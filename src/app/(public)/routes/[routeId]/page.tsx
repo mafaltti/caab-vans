@@ -100,6 +100,7 @@ export default function RouteDetailPage() {
             isRunning={route!.isRunning}
             etaMinutes={route!.nextStop?.id === route!.progress?.nextStopId ? route!.progress?.etaNextStopMinutes : undefined}
             etaISO={route!.nextStop?.id === route!.progress?.nextStopId ? route!.progress?.etaNextStopISO : undefined}
+            runStatus={route!.progress?.runStatus}
           />
 
           <ScheduleTimeline
@@ -110,6 +111,7 @@ export default function RouteDetailPage() {
             inferredNextStopId={route!.progress?.nextStopId}
             etaMinutes={route!.progress?.etaNextStopMinutes}
             serverTime={data?.serverTime}
+            runStatus={route!.progress?.runStatus}
           />
         </div>
       )}

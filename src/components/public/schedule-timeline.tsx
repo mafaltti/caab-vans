@@ -4,7 +4,7 @@ import { useState } from "react";
 import { CheckCircle2, ChevronDown } from "lucide-react";
 import { useReducedMotion } from "motion/react";
 import { Button } from "@/components/ui/button";
-import type { TimelineStop, TimelineStopStatus } from "@/types";
+import type { RunStatus, TimelineStop, TimelineStopStatus } from "@/types";
 
 type ScheduleTimelineProps = {
   schedule: Array<{ id: string; stopName: string; time: string }>;
@@ -14,6 +14,7 @@ type ScheduleTimelineProps = {
   inferredNextStopId?: string | null;
   etaMinutes?: number | null;
   serverTime?: string;
+  runStatus?: RunStatus;
 };
 
 export function deriveTimelineStops(
@@ -23,7 +24,22 @@ export function deriveTimelineStops(
   passedStopIds?: string[],
   inferredNextStopId?: string | null,
   serverTime?: string,
+  runStatus?: RunStatus,
 ): TimelineStop[] {
+  if (runStatus === "waiting") {
+    return schedule.map((entry) => ({
+      ...entry,
+      status: "neutral" as TimelineStopStatus,
+    }));
+  }
+
+  if (runStatus === "completed") {
+    return schedule.map((entry) => ({
+      ...entry,
+      status: "past" as TimelineStopStatus,
+    }));
+  }
+
   if (!isRunning) {
     return schedule.map((entry) => ({
       ...entry,
@@ -97,10 +113,11 @@ export function ScheduleTimeline({
   inferredNextStopId,
   etaMinutes,
   serverTime,
+  runStatus,
 }: ScheduleTimelineProps) {
   const prefersReducedMotion = useReducedMotion();
   const [showPast, setShowPast] = useState(false);
-  const stops = deriveTimelineStops(schedule, nextStopId, isRunning, passedStopIds, inferredNextStopId, serverTime);
+  const stops = deriveTimelineStops(schedule, nextStopId, isRunning, passedStopIds, inferredNextStopId, serverTime, runStatus);
 
   if (stops.length === 0) {
     return (

@@ -30,7 +30,8 @@ export default function AdminLoginPage() {
         return;
       }
 
-      window.location.href = "/admin";
+      const data = await res.json();
+      window.location.href = data.user?.role === "driver" ? "/driver" : "/admin";
     } catch {
       setError("Erro de conexão");
     } finally {

@@ -16,11 +16,11 @@ import {
 const userSchema = z.object({
   email: z.email("E-mail inválido"),
   password: z.string().min(8, "Senha deve ter no mínimo 8 caracteres"),
-  role: z.enum(["admin", "superuser"]),
+  role: z.enum(["admin", "superuser", "driver"]),
 });
 
 const editUserSchema = z.object({
-  role: z.enum(["admin", "superuser"]),
+  role: z.enum(["admin", "superuser", "driver"]),
   password: z
     .string()
     .min(8, "Senha deve ter no mínimo 8 caracteres")
@@ -31,11 +31,11 @@ const editUserSchema = z.object({
 type UserFormData = {
   email?: string;
   password?: string;
-  role: "admin" | "superuser";
+  role: "admin" | "superuser" | "driver";
 };
 
 type UserFormProps = {
-  defaultValues?: { email: string; role: "admin" | "superuser" };
+  defaultValues?: { email: string; role: "admin" | "superuser" | "driver" };
   isEdit?: boolean;
   onSubmit: (data: UserFormData) => Promise<void>;
   submitLabel?: string;
@@ -49,7 +49,7 @@ export function UserForm({
 }: UserFormProps) {
   const [email, setEmail] = useState(defaultValues?.email ?? "");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"admin" | "superuser">(
+  const [role, setRole] = useState<"admin" | "superuser" | "driver">(
     defaultValues?.role ?? "admin",
   );
   const [error, setError] = useState("");
@@ -133,13 +133,14 @@ export function UserForm({
 
       <div className="space-y-2">
         <Label htmlFor="user-role">Papel</Label>
-        <Select value={role} onValueChange={(v) => setRole(v as "admin" | "superuser")}>
+        <Select value={role} onValueChange={(v) => setRole(v as "admin" | "superuser" | "driver")}>
           <SelectTrigger className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="admin">Admin</SelectItem>
             <SelectItem value="superuser">Superusuário</SelectItem>
+            <SelectItem value="driver">Motorista</SelectItem>
           </SelectContent>
         </Select>
       </div>

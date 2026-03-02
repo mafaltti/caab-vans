@@ -20,7 +20,7 @@ import Link from "next/link";
 type UserData = {
   id: string;
   email: string;
-  role: "admin" | "superuser";
+  role: "admin" | "superuser" | "driver";
   isActive: boolean;
 };
 
@@ -55,7 +55,7 @@ export default function AdminUserEditPage() {
   async function handleSubmit(data: {
     email?: string;
     password?: string;
-    role: "admin" | "superuser";
+    role: "admin" | "superuser" | "driver";
   }) {
     const res = await fetch(`/api/admin/users/${userId}`, {
       method: "PUT",
