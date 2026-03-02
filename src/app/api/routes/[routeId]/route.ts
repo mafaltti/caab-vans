@@ -10,6 +10,7 @@ import {
   isLocationFresh,
 } from "@/lib/time";
 import { computeEta, type VanPosition } from "@/lib/tracking/eta";
+import { deriveRunStatus } from "@/lib/tracking/run-status";
 import { apiError } from "@/lib/api/errors";
 import { DateTime } from "luxon";
 import type { ScheduleStatus } from "@/types";
@@ -136,13 +137,15 @@ export async function GET(
 
   const { data: runData } = await supabase
     .from("route_runs")
-    .select("id")
+    .select("id, started_at, ended_at")
     .eq("route_id", route.id)
     .eq("service_date", serviceDate)
     .single();
 
   let progress = null;
   if (runData) {
+    const runStatus = deriveRunStatus(runData.started_at, runData.ended_at);
+
     const { data: runStops } = await supabase
       .from("route_run_stops")
       .select("schedule_entry_id, status, passed_at, schedule_entries!inner(time)")
@@ -163,10 +166,25 @@ export async function GET(
         }),
         now,
         vanPosition,
+        startedAt: runData.started_at,
       });
       progress = {
         serviceDate,
+        runStatus,
+        startedAt: runData.started_at,
         ...etaResult,
+      };
+    } else {
+      progress = {
+        serviceDate,
+        runStatus,
+        startedAt: runData.started_at,
+        nextStopId: null,
+        passedStopIds: [] as string[],
+        etaNextStopISO: null,
+        etaNextStopMinutes: null,
+        delayMinutes: null,
+        etaSource: null,
       };
     }
   }

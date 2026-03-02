@@ -27,7 +27,7 @@ export default function AdminUserCreatePage() {
   async function handleSubmit(data: {
     email?: string;
     password?: string;
-    role: "admin" | "superuser";
+    role: "admin" | "superuser" | "driver";
   }) {
     const res = await fetch("/api/admin/users", {
       method: "POST",

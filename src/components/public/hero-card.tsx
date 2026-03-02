@@ -3,7 +3,7 @@
 import { Navigation, Clock, MapPin, AlertTriangle } from "lucide-react";
 import { useReducedMotion } from "motion/react";
 import { Button } from "@/components/ui/button";
-import type { NextStop, ScheduleStatus } from "@/types";
+import type { NextStop, RunStatus, ScheduleStatus } from "@/types";
 
 type HeroCardProps = {
   nextStop: NextStop | null;
@@ -14,6 +14,7 @@ type HeroCardProps = {
   isRunning: boolean;
   etaMinutes?: number | null;
   etaISO?: string | null;
+  runStatus?: RunStatus;
 };
 
 function formatTimestamp(isoDate: string): string {
@@ -36,8 +37,30 @@ export function HeroCard({
   isRunning,
   etaMinutes,
   etaISO,
+  runStatus,
 }: HeroCardProps) {
   const prefersReducedMotion = useReducedMotion();
+
+  if (runStatus === "completed") {
+    return (
+      <div className="rounded-3xl bg-emerald-50 p-6 text-center">
+        <p className="text-sm font-medium text-emerald-600">
+          Rota encerrada por hoje
+        </p>
+      </div>
+    );
+  }
+
+  if (runStatus === "waiting") {
+    return (
+      <div className="rounded-3xl bg-amber-50 p-6 text-center">
+        <Clock className="mx-auto mb-2 size-6 text-amber-500" />
+        <p className="text-sm font-medium text-amber-600">
+          Aguardando início da rota
+        </p>
+      </div>
+    );
+  }
 
   if (scheduleStatus === "ended") {
     return (

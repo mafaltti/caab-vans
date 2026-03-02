@@ -1,6 +1,7 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 
-import { nowBahia, todayBahiaDate } from "@/lib/time";
+import { nowBahia, todayBahiaDate, formatTime } from "@/lib/time";
+import { DateTime } from "luxon";
 
 import { haversineDistanceMeters } from "./haversine";
 
@@ -41,7 +42,7 @@ export async function inferStopProgress(
       { route_id: route.id, service_date: serviceDate },
       { onConflict: "route_id,service_date" },
     )
-    .select("id")
+    .select("id, started_at")
     .single();
 
   if (!run) return EMPTY_PROGRESS;
@@ -122,7 +123,10 @@ export async function inferStopProgress(
     .eq("run_id", run.id)
     .order("time", { referencedTable: "schedule_entries", ascending: true });
 
-  const nowHHmm = nowBahia().toFormat("HH:mm");
+  // Time floor: started_at (explicit) > now (fallback)
+  const timeFloor = run.started_at
+    ? formatTime(DateTime.fromISO(run.started_at))
+    : nowBahia().toFormat("HH:mm");
   const passedStopIds: string[] = [];
   let nextStopId: string | null = null;
   let lastPassedStopId: string | null = null;
@@ -134,7 +138,7 @@ export async function inferStopProgress(
         lastPassedStopId = stop.schedule_entry_id;
       } else if (stop.status === "pending" && nextStopId === null) {
         const entry = stop.schedule_entries as unknown as { time: string };
-        if (entry.time >= nowHHmm) {
+        if (entry.time >= timeFloor) {
           nextStopId = stop.schedule_entry_id;
         }
       }

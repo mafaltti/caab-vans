@@ -34,16 +34,19 @@ export function computeEta(args: {
   stops: Stop[];
   now: DateTime;
   vanPosition?: VanPosition | null;
+  startedAt?: string | null;
 }): EtaResult {
-  const { stops, now, vanPosition } = args;
+  const { stops, now, vanPosition, startedAt } = args;
 
   const passed = stops.filter((s) => s.status === "passed");
   const pending = stops.filter((s) => s.status === "pending");
   const passedStopIds = passed.map((s) => s.scheduleEntryId);
 
-  // Filter pending stops to only those at or after the current time
-  const nowHHmm = now.toFormat("HH:mm");
-  const futurePending = pending.filter((s) => s.time >= nowHHmm);
+  // Time floor: started_at (explicit) > now (fallback)
+  const timeFloor = startedAt
+    ? DateTime.fromISO(startedAt).setZone(now.zone).toFormat("HH:mm")
+    : now.toFormat("HH:mm");
+  const futurePending = pending.filter((s) => s.time >= timeFloor);
 
   if (futurePending.length === 0) {
     return {
