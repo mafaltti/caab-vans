@@ -7,7 +7,7 @@ import {
   formatTimeString,
   isWithinScheduleWindow,
   getNextStop,
-  isSameDay,
+  isLocationFresh,
 } from "@/lib/time";
 import { computeEta } from "@/lib/tracking/eta";
 import { apiError } from "@/lib/api/errors";
@@ -69,12 +69,12 @@ export async function GET(
     time: formatTimeString(e.time),
   }));
 
-  const isLocationUpdatedToday = van.location_updated_at
-    ? isSameDay(DateTime.fromISO(van.location_updated_at))
+  const locationFresh = van.location_updated_at
+    ? isLocationFresh(DateTime.fromISO(van.location_updated_at))
     : false;
 
   const withinWindow = isWithinScheduleWindow(times, now);
-  const isRunning = withinWindow && isLocationUpdatedToday;
+  const isRunning = withinWindow && locationFresh;
 
   const nextStop = isRunning ? getNextStop(entryMapped, now) : null;
 
@@ -164,7 +164,7 @@ export async function GET(
         id: van.id,
         locationUrl: van.location_url,
         locationUpdatedAt: van.location_updated_at,
-        isLocationOutdated: !isLocationUpdatedToday,
+        isLocationOutdated: !locationFresh,
         lastLat: van.last_lat,
         lastLng: van.last_lng,
       },
