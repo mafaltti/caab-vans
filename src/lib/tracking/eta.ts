@@ -26,7 +26,11 @@ export function computeEta(args: {
   const pending = stops.filter((s) => s.status === "pending");
   const passedStopIds = passed.map((s) => s.scheduleEntryId);
 
-  if (pending.length === 0) {
+  // Filter pending stops to only those at or after the current time
+  const nowHHmm = now.toFormat("HH:mm");
+  const futurePending = pending.filter((s) => s.time >= nowHHmm);
+
+  if (futurePending.length === 0) {
     return {
       etaNextStopISO: null,
       etaNextStopMinutes: null,
@@ -36,7 +40,7 @@ export function computeEta(args: {
     };
   }
 
-  const sortedPending = [...pending].sort((a, b) =>
+  const sortedPending = [...futurePending].sort((a, b) =>
     a.time.localeCompare(b.time),
   );
   const nextStop = sortedPending[0];

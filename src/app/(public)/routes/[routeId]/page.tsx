@@ -109,6 +109,7 @@ export default function RouteDetailPage() {
             passedStopIds={route!.progress?.passedStopIds}
             inferredNextStopId={route!.progress?.nextStopId}
             etaMinutes={route!.progress?.etaNextStopMinutes}
+            serverTime={data?.serverTime}
           />
         </div>
       )}
