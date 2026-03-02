@@ -21,20 +21,27 @@ export async function GET() {
   const now = nowBahia();
   const serviceDate = todayBahiaDate();
 
-  const { data: vans } = await supabase
-    .from("vans")
-    .select("id, name")
+  const { data: vanDrivers } = await supabase
+    .from("van_drivers")
+    .select("van_id")
     .eq("driver_id", auth.user.id);
 
-  if (!vans || vans.length === 0) {
+  if (!vanDrivers || vanDrivers.length === 0) {
     return NextResponse.json({
       routes: [],
       serverTime: formatTime(now),
+      userId: auth.user.id,
     });
   }
 
-  const vanIds = vans.map((v) => v.id);
-  const vanMap = new Map(vans.map((v) => [v.id, v.name]));
+  const vanIds = vanDrivers.map((vd) => vd.van_id);
+
+  const { data: vans } = await supabase
+    .from("vans")
+    .select("id, name")
+    .in("id", vanIds);
+
+  const vanMap = new Map((vans ?? []).map((v) => [v.id, v.name]));
 
   const { data: routes } = await supabase
     .from("routes")
@@ -55,13 +62,14 @@ export async function GET() {
     return NextResponse.json({
       routes: [],
       serverTime: formatTime(now),
+      userId: auth.user.id,
     });
   }
 
   const routeIds = routes.map((r) => r.id);
   const { data: runs } = await supabase
     .from("route_runs")
-    .select("id, route_id, service_date, started_at, ended_at")
+    .select("id, route_id, service_date")
     .in("route_id", routeIds)
     .eq("service_date", serviceDate);
 
@@ -69,10 +77,58 @@ export async function GET() {
     (runs ?? []).map((r) => [r.route_id, r]),
   );
 
+  const runIds = (runs ?? []).map((r) => r.id);
+
+  const shiftsByRun = new Map<string, { id: string; run_id: string; driver_id: string; started_at: string; ended_at: string | null }[]>();
+  if (runIds.length > 0) {
+    const { data: shifts } = await supabase
+      .from("route_shifts")
+      .select("id, run_id, driver_id, started_at, ended_at")
+      .in("run_id", runIds)
+      .order("started_at", { ascending: true });
+
+    for (const s of shifts ?? []) {
+      const arr = shiftsByRun.get(s.run_id) ?? [];
+      arr.push(s);
+      shiftsByRun.set(s.run_id, arr);
+    }
+  }
+
+  const uniqueDriverIds = new Set<string>();
+  for (const shifts of shiftsByRun.values()) {
+    for (const s of shifts) {
+      uniqueDriverIds.add(s.driver_id);
+    }
+  }
+
+  const driverEmailMap = new Map<string, string>();
+  const emailResults = await Promise.all(
+    [...uniqueDriverIds].map((driverId) =>
+      supabase.auth.admin.getUserById(driverId).then(({ data }) => ({
+        driverId,
+        email: data?.user?.email ?? null,
+      })),
+    ),
+  );
+  for (const { driverId, email } of emailResults) {
+    if (email) driverEmailMap.set(driverId, email);
+  }
+
   const result = routes.map((route) => {
     const entries = (route.schedule_entries ?? []) as { id: string; time: string }[];
     const sortedTimes = entries.map((e) => e.time).sort();
     const run = runByRoute.get(route.id);
+    const shifts = run ? (shiftsByRun.get(run.id) ?? []) : [];
+
+    const lastTime = sortedTimes.length > 0 ? sortedTimes[sortedTimes.length - 1] : null;
+    let isPastScheduleWindow = false;
+    if (lastTime) {
+      const [h, m] = lastTime.split(":").map(Number);
+      const lastDt = now.set({ hour: h, minute: m, second: 0, millisecond: 0 });
+      isPastScheduleWindow = now > lastDt;
+    }
+
+    const activeShift = shifts.find((s) => s.ended_at === null) ?? null;
 
     return {
       id: route.id,
@@ -80,21 +136,27 @@ export async function GET() {
       vanName: vanMap.get(route.van_id) ?? "",
       totalStops: entries.length,
       firstStopTime: sortedTimes.length > 0 ? formatTimeString(sortedTimes[0]) : null,
-      lastStopTime: sortedTimes.length > 0 ? formatTimeString(sortedTimes[sortedTimes.length - 1]) : null,
+      lastStopTime: lastTime ? formatTimeString(lastTime) : null,
+      runStatus: deriveRunStatus(shifts, isPastScheduleWindow),
       run: run
-        ? {
-            id: run.id,
-            serviceDate: run.service_date,
-            status: deriveRunStatus(run.started_at, run.ended_at),
-            startedAt: run.started_at,
-            endedAt: run.ended_at,
-          }
+        ? { id: run.id, serviceDate: run.service_date }
         : null,
+      activeShift: activeShift
+        ? { id: activeShift.id, driverId: activeShift.driver_id, startedAt: activeShift.started_at }
+        : null,
+      todayShifts: shifts.map((s) => ({
+        id: s.id,
+        driverId: s.driver_id,
+        driverEmail: driverEmailMap.get(s.driver_id) ?? "",
+        startedAt: s.started_at,
+        endedAt: s.ended_at,
+      })),
     };
   });
 
   return NextResponse.json({
     routes: result,
     serverTime: formatTime(now),
+    userId: auth.user.id,
   });
 }

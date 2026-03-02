@@ -11,7 +11,6 @@ export type Route = {
 export type Van = {
   id: string;
   name: string;
-  driver_id: string | null;
   location_url: string | null;
   location_updated_at: string | null;
   ingestion_token: string;
@@ -71,8 +70,6 @@ export type RouteRun = {
   id: string;
   route_id: string;
   service_date: string;
-  started_at: string | null;
-  ended_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -86,7 +83,7 @@ export type RouteRunStop = {
 
 // Computed types (BFF response shapes)
 
-export type RunStatus = "waiting" | "in_progress" | "completed";
+export type RunStatus = "waiting" | "in_progress" | "idle" | "completed";
 
 export type ScheduleStatus = "active" | "ended" | "not_started";
 
@@ -99,7 +96,7 @@ export type NextStop = {
 export type RouteProgress = {
   serviceDate: string;
   runStatus?: RunStatus;
-  startedAt?: string | null;
+  shiftStartedAt?: string | null;
   nextStopId: string | null;
   passedStopIds: string[];
   etaNextStopISO: string | null;
@@ -154,13 +151,40 @@ export type DriverRoute = {
   totalStops: number;
   firstStopTime: string | null;
   lastStopTime: string | null;
+  runStatus: RunStatus;
   run: {
     id: string;
     serviceDate: string;
-    status: RunStatus;
-    startedAt: string | null;
-    endedAt: string | null;
   } | null;
+  activeShift: {
+    id: string;
+    driverId: string;
+    startedAt: string;
+  } | null;
+  todayShifts: {
+    id: string;
+    driverId: string;
+    driverEmail: string;
+    startedAt: string;
+    endedAt: string | null;
+  }[];
+};
+
+// New entity types
+
+export type VanDriver = {
+  van_id: string;
+  driver_id: string;
+  created_at: string;
+};
+
+export type RouteShift = {
+  id: string;
+  run_id: string;
+  driver_id: string;
+  started_at: string;
+  ended_at: string | null;
+  created_at: string;
 };
 
 // Client-side derived types

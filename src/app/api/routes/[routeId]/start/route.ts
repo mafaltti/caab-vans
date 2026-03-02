@@ -3,7 +3,6 @@ import { requireAuth } from "@/lib/api/auth";
 import { apiError } from "@/lib/api/errors";
 import { createServiceClient } from "@/lib/supabase/server";
 import { todayBahiaDate } from "@/lib/time";
-import { deriveRunStatus } from "@/lib/tracking/run-status";
 
 type RouteParams = { params: Promise<{ routeId: string }> };
 
@@ -22,10 +21,9 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
   const { routeId } = await params;
   const supabase = createServiceClient();
 
-  // Fetch route + van
   const { data: route } = await supabase
     .from("routes")
-    .select("id, van:vans!inner(id, driver_id)")
+    .select("id, van:vans!inner(id)")
     .eq("id", routeId)
     .single();
 
@@ -33,13 +31,19 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     return apiError("NOT_FOUND", "Route not found", 404);
   }
 
-  const van = route.van as unknown as { id: string; driver_id: string | null };
+  const van = route.van as unknown as { id: string };
 
-  if (van.driver_id !== auth.user.id) {
+  const { data: assignment } = await supabase
+    .from("van_drivers")
+    .select("van_id")
+    .eq("van_id", van.id)
+    .eq("driver_id", auth.user.id)
+    .single();
+
+  if (!assignment) {
     return apiError("FORBIDDEN", "You are not assigned to this route's van", 403);
   }
 
-  // Check route has schedule entries
   const { count } = await supabase
     .from("schedule_entries")
     .select("*", { count: "exact", head: true })
@@ -51,60 +55,65 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
 
   const serviceDate = todayBahiaDate();
 
-  // Check if run already started today
   const { data: existingRun } = await supabase
     .from("route_runs")
-    .select("id, started_at, ended_at")
+    .select("id")
     .eq("route_id", routeId)
     .eq("service_date", serviceDate)
     .single();
 
-  if (existingRun?.started_at) {
-    return apiError("CONFLICT", "Route already started today", 409);
+  let runId: string;
+
+  if (existingRun) {
+    runId = existingRun.id;
+  } else {
+    const { data: newRun, error } = await supabase
+      .from("route_runs")
+      .insert({ route_id: routeId, service_date: serviceDate })
+      .select("id")
+      .single();
+
+    if (error || !newRun) {
+      return apiError("INTERNAL_ERROR", "Failed to create route run", 500);
+    }
+    runId = newRun.id;
+  }
+
+  const { data: activeShift } = await supabase
+    .from("route_shifts")
+    .select("id")
+    .eq("run_id", runId)
+    .is("ended_at", null)
+    .single();
+
+  if (activeShift) {
+    return apiError("CONFLICT", "A shift is already active on this route today", 409);
   }
 
   const now = new Date().toISOString();
 
-  let run;
-  if (existingRun) {
-    // Update existing run (created by GPS pings)
-    const { data, error } = await supabase
-      .from("route_runs")
-      .update({ started_at: now })
-      .eq("id", existingRun.id)
-      .select("id, route_id, service_date, started_at, ended_at")
-      .single();
+  const { data: shift, error: shiftError } = await supabase
+    .from("route_shifts")
+    .insert({ run_id: runId, driver_id: auth.user.id, started_at: now })
+    .select("id, run_id, driver_id, started_at, ended_at")
+    .single();
 
-    if (error || !data) {
-      return apiError("INTERNAL_ERROR", "Failed to start route", 500);
-    }
-    run = data;
-  } else {
-    // Create new run with started_at
-    const { data, error } = await supabase
-      .from("route_runs")
-      .insert({
-        route_id: routeId,
-        service_date: serviceDate,
-        started_at: now,
-      })
-      .select("id, route_id, service_date, started_at, ended_at")
-      .single();
-
-    if (error || !data) {
-      return apiError("INTERNAL_ERROR", "Failed to start route", 500);
-    }
-    run = data;
+  if (shiftError || !shift) {
+    return apiError("INTERNAL_ERROR", "Failed to start shift", 500);
   }
 
   return NextResponse.json({
+    shift: {
+      id: shift.id,
+      runId: shift.run_id,
+      driverId: shift.driver_id,
+      startedAt: shift.started_at,
+      endedAt: shift.ended_at,
+    },
     run: {
-      id: run.id,
-      routeId: run.route_id,
-      serviceDate: run.service_date,
-      startedAt: run.started_at,
-      endedAt: run.ended_at,
-      status: deriveRunStatus(run.started_at, run.ended_at),
+      id: runId,
+      routeId,
+      serviceDate,
     },
   });
 }

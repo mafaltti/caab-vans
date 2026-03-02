@@ -131,55 +131,71 @@ export async function GET() {
 
     const { data: runData } = await supabase
       .from("route_runs")
-      .select("id, started_at, ended_at")
+      .select("id")
       .eq("route_id", route.id)
       .eq("service_date", serviceDate)
       .single();
 
     let progress = null;
     if (runData) {
-      const runStatus = deriveRunStatus(runData.started_at, runData.ended_at);
-
-      const { data: runStops } = await supabase
-        .from("route_run_stops")
-        .select("schedule_entry_id, status, passed_at, schedule_entries!inner(time)")
+      const { data: shifts } = await supabase
+        .from("route_shifts")
+        .select("id, started_at, ended_at")
         .eq("run_id", runData.id);
 
-      if (runStops && runStops.length > 0) {
-        const etaResult = computeEta({
-          stops: runStops.map((rs) => {
-            const coords = stopCoordsMap.get(rs.schedule_entry_id);
-            return {
-              scheduleEntryId: rs.schedule_entry_id,
-              time: (rs.schedule_entries as unknown as { time: string }).time,
-              status: rs.status as "pending" | "passed",
-              passedAt: rs.passed_at,
-              stopLat: coords?.stopLat ?? null,
-              stopLng: coords?.stopLng ?? null,
-            };
-          }),
-          now,
-          vanPosition,
-          startedAt: runData.started_at,
-        });
-        progress = {
-          serviceDate,
-          runStatus,
-          startedAt: runData.started_at,
-          ...etaResult,
-        };
+      const shiftsArr = shifts ?? [];
+      const sorted = [...times].sort();
+      const lastTime = sorted.length > 0 ? sorted[sorted.length - 1] : null;
+      const isPastScheduleWindow = lastTime
+        ? now.toFormat("HH:mm") > lastTime
+        : false;
+      const runStatus = deriveRunStatus(shiftsArr, isPastScheduleWindow);
+      const activeShift = shiftsArr.find((s) => s.ended_at === null);
+
+      if (runStatus === "idle") {
+        progress = null;
       } else {
-        progress = {
-          serviceDate,
-          runStatus,
-          startedAt: runData.started_at,
-          nextStopId: null,
-          passedStopIds: [] as string[],
-          etaNextStopISO: null,
-          etaNextStopMinutes: null,
-          delayMinutes: null,
-          etaSource: null,
-        };
+        const { data: runStops } = await supabase
+          .from("route_run_stops")
+          .select("schedule_entry_id, status, passed_at, schedule_entries!inner(time)")
+          .eq("run_id", runData.id);
+
+        if (runStops && runStops.length > 0) {
+          const etaResult = computeEta({
+            stops: runStops.map((rs) => {
+              const coords = stopCoordsMap.get(rs.schedule_entry_id);
+              return {
+                scheduleEntryId: rs.schedule_entry_id,
+                time: (rs.schedule_entries as unknown as { time: string }).time,
+                status: rs.status as "pending" | "passed",
+                passedAt: rs.passed_at,
+                stopLat: coords?.stopLat ?? null,
+                stopLng: coords?.stopLng ?? null,
+              };
+            }),
+            now,
+            vanPosition,
+            startedAt: activeShift?.started_at,
+          });
+          progress = {
+            serviceDate,
+            runStatus,
+            shiftStartedAt: activeShift?.started_at ?? null,
+            ...etaResult,
+          };
+        } else {
+          progress = {
+            serviceDate,
+            runStatus,
+            shiftStartedAt: activeShift?.started_at ?? null,
+            nextStopId: null,
+            passedStopIds: [] as string[],
+            etaNextStopISO: null,
+            etaNextStopMinutes: null,
+            delayMinutes: null,
+            etaSource: null,
+          };
+        }
       }
     }
 
