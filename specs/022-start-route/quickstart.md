@@ -14,14 +14,13 @@
    psql -h localhost -p 5432 -U postgres -d postgres -f supabase/migrations/00003_start_route.sql
    ```
 
-2. **Create a test driver user** (via Studio or API):
-   - Email: `driver@test.com`, Password: `test1234`
-   - `app_metadata`: `{ "role": "driver", "is_active": true }`
+2. **Create a test driver user** (via Admin UI):
+   - Log in as superuser at `/admin/login`
+   - Go to Users → New (`/admin/users/new`)
+   - Email: `driver@test.com`, Password: `test1234`, Role: **Motorista**
 
-3. **Assign driver to a van** (via Studio or API):
-   ```sql
-   UPDATE vans SET driver_id = '<driver-user-uuid>' WHERE name = '<van-name>';
-   ```
+3. **Assign driver to a van** (via Admin UI):
+   - Go to Vans → edit a van → assign the driver
 
 4. **Start the dev server**:
    ```bash
