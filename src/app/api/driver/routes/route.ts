@@ -102,11 +102,16 @@ export async function GET() {
   }
 
   const driverEmailMap = new Map<string, string>();
-  for (const driverId of uniqueDriverIds) {
-    const { data } = await supabase.auth.admin.getUserById(driverId);
-    if (data?.user?.email) {
-      driverEmailMap.set(driverId, data.user.email);
-    }
+  const emailResults = await Promise.all(
+    [...uniqueDriverIds].map((driverId) =>
+      supabase.auth.admin.getUserById(driverId).then(({ data }) => ({
+        driverId,
+        email: data?.user?.email ?? null,
+      })),
+    ),
+  );
+  for (const { driverId, email } of emailResults) {
+    if (email) driverEmailMap.set(driverId, email);
   }
 
   const result = routes.map((route) => {

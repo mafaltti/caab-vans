@@ -66,6 +66,13 @@ export function RouteCard({ route, userId, onUpdate }: RouteCardProps) {
         return;
       }
       const data = await res.json();
+      const newShift = {
+        id: data.shift.id,
+        driverId: data.shift.driverId,
+        driverEmail: "",
+        startedAt: data.shift.startedAt,
+        endedAt: null,
+      };
       onUpdate({
         ...route,
         runStatus: "in_progress",
@@ -75,6 +82,7 @@ export function RouteCard({ route, userId, onUpdate }: RouteCardProps) {
           driverId: data.shift.driverId,
           startedAt: data.shift.startedAt,
         },
+        todayShifts: [...route.todayShifts, newShift],
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao iniciar turno");

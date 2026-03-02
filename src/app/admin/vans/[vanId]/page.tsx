@@ -34,7 +34,7 @@ export default function AdminVanEditPage() {
     const res = await fetch(`/api/admin/vans/${vanId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
+      body: JSON.stringify({ name: data.name, driverIds: data.driverIds ?? [] }),
     });
 
     if (!res.ok) {

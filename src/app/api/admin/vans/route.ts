@@ -26,9 +26,13 @@ export async function GET() {
   }
 
   const vanIds = (data ?? []).map((v) => v.id);
-  const { data: assignments } = vanIds.length > 0
+  const { data: assignments, error: assignErr } = vanIds.length > 0
     ? await supabase.from("van_drivers").select("van_id, driver_id").in("van_id", vanIds)
-    : { data: [] };
+    : { data: [] as { van_id: string; driver_id: string }[], error: null };
+
+  if (assignErr) {
+    return apiError("INTERNAL_ERROR", "Failed to fetch driver assignments", 500);
+  }
 
   const driversByVan = new Map<string, string[]>();
   for (const a of assignments ?? []) {
