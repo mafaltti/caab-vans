@@ -12,9 +12,14 @@ export function haversineDistance(
   const Δφ = (lat2 - lat1) * DEG_TO_RAD;
   const Δλ = (lng2 - lng1) * DEG_TO_RAD;
 
-  const a =
-    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  const a = Math.max(
+    0,
+    Math.min(
+      1,
+      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+        Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2),
+    ),
+  );
 
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 

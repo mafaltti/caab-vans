@@ -1,5 +1,5 @@
 import "@/location/task";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -7,7 +7,7 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { isSettingsComplete } from "@/storage/settings";
 import { getLastSentAt } from "@/storage/tracking-state";
 import { startTracking, stopTracking, isTracking } from "@/location/tracking";
@@ -50,15 +50,17 @@ export default function HomeScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    checkSettings();
-    refreshStatus();
+  useFocusEffect(
+    useCallback(() => {
+      checkSettings();
+      refreshStatus();
 
-    intervalRef.current = setInterval(refreshStatus, 2000);
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [checkSettings, refreshStatus]);
+      intervalRef.current = setInterval(refreshStatus, 2000);
+      return () => {
+        if (intervalRef.current) clearInterval(intervalRef.current);
+      };
+    }, [checkSettings, refreshStatus]),
+  );
 
   const handleStart = async () => {
     setLoading(true);

@@ -9,7 +9,12 @@ const UUID_REGEX =
 export async function getSettings(): Promise<Settings | null> {
   const json = await AsyncStorage.getItem(SETTINGS_KEY);
   if (!json) return null;
-  return JSON.parse(json) as Settings;
+  try {
+    return JSON.parse(json) as Settings;
+  } catch {
+    await AsyncStorage.removeItem(SETTINGS_KEY);
+    return null;
+  }
 }
 
 export async function saveSettings(settings: Settings): Promise<void> {

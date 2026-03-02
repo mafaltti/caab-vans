@@ -40,22 +40,25 @@ async function flushBuffer(
   const buffer = await getBuffer();
   if (buffer.length === 0) return;
 
-  let flushed = 0;
+  let consumed = 0;
   for (const bufferedPoint of buffer) {
     try {
       const result = await sendLocationPing(settings, deviceId, bufferedPoint);
       if (result.success) {
-        flushed++;
+        consumed++;
+      } else if (result.status && result.status >= 400 && result.status < 500) {
+        // Client error (400/401/404/429) — point is bad or rejected, drop it
+        consumed++;
       } else {
-        break; // Stop flushing on first server error
+        break; // Server error (5xx) — stop flushing, retry later
       }
     } catch {
-      break; // Stop flushing on network error
+      break; // Network error — stop flushing, retry later
     }
   }
 
-  if (flushed > 0) {
-    await removeFromBuffer(flushed);
+  if (consumed > 0) {
+    await removeFromBuffer(consumed);
   }
 }
 

@@ -1,4 +1,5 @@
 import * as Location from "expo-location";
+import * as Notifications from "expo-notifications";
 import * as TaskManager from "expo-task-manager";
 import { Platform } from "react-native";
 import { setTrackingEnabled } from "@/storage/tracking-state";
@@ -23,8 +24,7 @@ export async function startTracking(): Promise<void> {
 
   if (Platform.OS === "android" && Platform.Version >= 33) {
     const { status: notifStatus } =
-      await Location.requestForegroundPermissionsAsync();
-    // Notification permission is best-effort on Android 13+
+      await Notifications.requestPermissionsAsync();
     if (notifStatus !== "granted") {
       console.warn(
         "[CAAB Tracker] Notification permission not granted; foreground service notification may not show.",

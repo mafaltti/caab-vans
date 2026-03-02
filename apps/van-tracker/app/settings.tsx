@@ -17,6 +17,7 @@ export default function SettingsScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [vanIdError, setVanIdError] = useState("");
+  const [formError, setFormError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
   useEffect(() => {
@@ -41,6 +42,7 @@ export default function SettingsScreen() {
   const handleSave = async () => {
     // Clear previous messages
     setVanIdError("");
+    setFormError("");
     setSuccessMessage("");
 
     setSaving(true);
@@ -59,7 +61,7 @@ export default function SettingsScreen() {
       if (errorMessage.includes("vanId")) {
         setVanIdError(errorMessage);
       } else {
-        setVanIdError("Failed to save settings");
+        setFormError(errorMessage);
       }
     } finally {
       setSaving(false);
@@ -113,6 +115,12 @@ export default function SettingsScreen() {
           placeholderTextColor="#999"
         />
       </View>
+
+      {formError ? (
+        <View style={styles.formErrorContainer}>
+          <Text style={styles.formErrorText}>{formError}</Text>
+        </View>
+      ) : null}
 
       {/* Success Message */}
       {successMessage && (
@@ -186,6 +194,16 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
+  },
+  formErrorContainer: {
+    backgroundColor: "#fef2f2",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  formErrorText: {
+    color: "#dc2626",
+    fontSize: 14,
   },
   successContainer: {
     backgroundColor: "#dcfce7",

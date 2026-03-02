@@ -19,6 +19,18 @@ export class NetworkError extends Error {
   }
 }
 
+const REQUEST_TIMEOUT = 15000; // 15 seconds
+
+async function safeJsonParse(
+  response: Response,
+): Promise<Record<string, unknown> | null> {
+  try {
+    return (await response.json()) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
 export async function sendLocationPing(
   settings: Settings,
   deviceId: string,
@@ -36,6 +48,9 @@ export async function sendLocationPing(
     ts: point.ts,
   };
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+
   try {
     const response = await fetch(url, {
       method: "POST",
@@ -44,42 +59,31 @@ export async function sendLocationPing(
         "x-ingestion-token": settings.ingestionToken,
       },
       body: JSON.stringify(body),
+      signal: controller.signal,
     });
 
     if (response.ok) {
-      const responseBody = await response.json();
+      const responseBody = await safeJsonParse(response);
       return {
         success: true,
-        serverTs: responseBody.ts,
+        serverTs: (responseBody?.ts as number) ?? Date.now(),
       };
     }
 
-    if (
-      response.status === 400 ||
-      response.status === 401 ||
-      response.status === 404 ||
-      response.status === 429
-    ) {
-      const errorBody = await response.json();
-      return {
-        success: false,
-        code: errorBody.error.code,
-        message: errorBody.error.message,
-        status: response.status,
-      };
-    }
+    const errorBody = await safeJsonParse(response);
+    const error = errorBody?.error as Record<string, unknown> | undefined;
 
-    // For any other status, treat it as an error
-    const errorBody = await response.json();
     return {
       success: false,
-      code: errorBody.error?.code || "UNKNOWN_ERROR",
-      message: errorBody.error?.message || "Unknown error",
+      code: (error?.code as string) ?? "UNKNOWN_ERROR",
+      message: (error?.message as string) ?? `HTTP ${response.status}`,
       status: response.status,
     };
   } catch (error) {
     throw new NetworkError(
       error instanceof Error ? error.message : "Unknown network error",
     );
+  } finally {
+    clearTimeout(timeout);
   }
 }
