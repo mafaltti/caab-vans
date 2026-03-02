@@ -102,7 +102,7 @@ export async function inferStopProgress(
         geofence_radius_m: number;
       };
 
-      const coordKey = `${entry.stop_lat},${entry.stop_lng}`;
+      const coordKey = `${entry.stop_lat.toFixed(6)},${entry.stop_lng.toFixed(6)}`;
 
       // Skip if this coordinate was already matched in this invocation
       if (matchedCoords.has(coordKey)) continue;

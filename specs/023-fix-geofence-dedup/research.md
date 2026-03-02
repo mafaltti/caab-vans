@@ -11,7 +11,7 @@
 
 **Alternatives considered**:
 - Breaking on first match per coordinate group — simple but doesn't handle the time window guard.
-- Tracking "already matched coordinates" in a Set — adds unnecessary state.
+- Persistent tracking of matched coordinates across invocations — adds unnecessary state and complexity.
 
 ## R2: Fix Approach — First-Pending-Only + Time Window
 

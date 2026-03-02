@@ -58,10 +58,15 @@ describe("geofence detection via haversineDistanceMeters", () => {
 // Mock time module to control "now"
 vi.mock("@/lib/time", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/time")>();
+  const mockedNowBahia = vi.fn(() => actual.nowBahia());
   return {
     ...actual,
-    nowBahia: vi.fn(() => actual.nowBahia()),
-    todayBahiaDate: vi.fn(() => actual.todayBahiaDate()),
+    nowBahia: mockedNowBahia,
+    todayBahiaDate: vi.fn(() => mockedNowBahia().toFormat("yyyy-MM-dd")),
+    parseTime: vi.fn((hhMm: string) => {
+      const [hour, minute] = hhMm.split(":").map(Number);
+      return mockedNowBahia().set({ hour, minute, second: 0, millisecond: 0 });
+    }),
   };
 });
 
