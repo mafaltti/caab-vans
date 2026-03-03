@@ -1,6 +1,8 @@
 "use client";
 
+import { Component, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { useRouteDetail } from "@/lib/queries/use-route-detail";
 import { RouteStatusBadge } from "@/components/public/route-status-badge";
 import { HeroCard } from "@/components/public/hero-card";
@@ -9,6 +11,38 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, AlertCircle } from "lucide-react";
+
+const VanTrackingMap = dynamic(
+  () =>
+    import("@/components/public/van-tracking-map").then(
+      (mod) => mod.VanTrackingMap,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[250px] w-full rounded-2xl bg-slate-100 animate-pulse" />
+    ),
+  },
+);
+
+class MapErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  render() {
+    if (this.state.hasError) return null;
+    return this.props.children;
+  }
+}
 
 export default function RouteDetailPage() {
   const params = useParams<{ routeId: string }>();
@@ -94,7 +128,6 @@ export default function RouteDetailPage() {
           <HeroCard
             nextStop={route!.nextStop}
             scheduleStatus={route!.scheduleStatus}
-            locationUrl={route!.van.locationUrl}
             locationUpdatedAt={route!.van.locationUpdatedAt}
             isLocationOutdated={route!.van.isLocationOutdated}
             isRunning={route!.isRunning}
@@ -102,6 +135,26 @@ export default function RouteDetailPage() {
             etaISO={route!.nextStop?.id === route!.progress?.nextStopId ? route!.progress?.etaNextStopISO : undefined}
             runStatus={route!.progress?.runStatus}
           />
+
+          {route!.isRunning && route!.van.lastLat != null && route!.van.lastLng != null && (
+            <MapErrorBoundary>
+              <VanTrackingMap
+                vanLat={route!.van.lastLat}
+                vanLng={route!.van.lastLng}
+                isLocationOutdated={route!.van.isLocationOutdated}
+                stops={route!.schedule
+                  .filter((s) => s.stopLat != null && s.stopLng != null)
+                  .map((s) => ({
+                    id: s.id,
+                    stopName: s.stopName,
+                    stopLat: s.stopLat!,
+                    stopLng: s.stopLng!,
+                  }))}
+                nextStopId={route!.progress?.nextStopId ?? null}
+                passedStopIds={route!.progress?.passedStopIds ?? []}
+              />
+            </MapErrorBoundary>
+          )}
 
           <ScheduleTimeline
             schedule={route!.schedule}

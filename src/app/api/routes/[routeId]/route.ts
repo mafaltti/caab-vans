@@ -114,6 +114,8 @@ export async function GET(
     id: e.id,
     stopName: e.stop_name,
     time: formatTimeString(e.time),
+    stopLat: e.stop_lat,
+    stopLng: e.stop_lng,
   }));
 
   const serviceDate = todayBahiaDate();

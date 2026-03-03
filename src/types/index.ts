@@ -129,6 +129,8 @@ export type RouteDetail = RouteWithStatus & {
     id: string;
     stopName: string;
     time: string;
+    stopLat: number | null;
+    stopLng: number | null;
   }[];
 };
 
