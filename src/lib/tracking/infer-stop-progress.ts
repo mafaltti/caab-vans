@@ -88,12 +88,13 @@ export async function inferStopProgress(
     .not("schedule_entries.stop_lng", "is", null)
     .order("time", { referencedTable: "schedule_entries", ascending: true });
 
-  // 6. Check geofence for each pending stop
+  // 6. Check geofence for each pending stop — closest-in-time matching
   const newlyPassedIds: string[] = [];
   const now = nowBahia();
-  const matchedCoords = new Set<string>();
 
   if (pendingStops) {
+    // Group pending stops by coordinate key
+    const coordGroups = new Map<string, typeof pendingStops>();
     for (const stop of pendingStops) {
       const entry = stop.schedule_entries as unknown as {
         time: string;
@@ -101,38 +102,95 @@ export async function inferStopProgress(
         stop_lng: number;
         geofence_radius_m: number;
       };
-
       const coordKey = `${entry.stop_lat.toFixed(6)},${entry.stop_lng.toFixed(6)}`;
+      if (!coordGroups.has(coordKey)) coordGroups.set(coordKey, []);
+      coordGroups.get(coordKey)!.push(stop);
+    }
 
-      // Skip if this coordinate was already matched in this invocation
-      if (matchedCoords.has(coordKey)) continue;
+    // For each coordinate group: check geofence, then pick closest-in-time
+    for (const [, group] of coordGroups) {
+      const firstEntry = group[0].schedule_entries as unknown as {
+        time: string;
+        stop_lat: number;
+        stop_lng: number;
+        geofence_radius_m: number;
+      };
 
-      // Skip if the stop's scheduled time is too far in the future
-      const stopTime = parseTime(entry.time);
-      if (now < stopTime.minus({ minutes: EARLY_ARRIVAL_WINDOW_MINUTES })) {
-        continue;
-      }
-
+      // Geofence check (same coords for all in group)
       const distance = haversineDistanceMeters(
         lat,
         lng,
-        entry.stop_lat,
-        entry.stop_lng,
+        firstEntry.stop_lat,
+        firstEntry.stop_lng,
       );
+      if (distance > firstEntry.geofence_radius_m) continue;
 
-      if (distance <= entry.geofence_radius_m) {
-        await supabase
-          .from("route_run_stops")
-          .update({
-            status: "passed",
-            passed_at: new Date().toISOString(),
-          })
-          .eq("run_id", run.id)
-          .eq("schedule_entry_id", stop.schedule_entry_id);
+      // Filter by early arrival window
+      const eligible = group.filter((stop) => {
+        const entry = stop.schedule_entries as unknown as { time: string };
+        const stopTime = parseTime(entry.time);
+        return now >= stopTime.minus({ minutes: EARLY_ARRIVAL_WINDOW_MINUTES });
+      });
+      if (eligible.length === 0) continue;
 
-        newlyPassedIds.push(stop.schedule_entry_id);
-        matchedCoords.add(coordKey);
+      // Pick stop with smallest |time - now|
+      let bestStop = eligible[0];
+      let bestDiff = Math.abs(
+        parseTime(
+          (bestStop.schedule_entries as unknown as { time: string }).time,
+        ).diff(now, "minutes").minutes,
+      );
+      for (let i = 1; i < eligible.length; i++) {
+        const entry = eligible[i].schedule_entries as unknown as {
+          time: string;
+        };
+        const diff = Math.abs(
+          parseTime(entry.time).diff(now, "minutes").minutes,
+        );
+        if (diff < bestDiff) {
+          bestStop = eligible[i];
+          bestDiff = diff;
+        }
       }
+
+      // Mark as passed
+      await supabase
+        .from("route_run_stops")
+        .update({ status: "passed", passed_at: new Date().toISOString() })
+        .eq("run_id", run.id)
+        .eq("schedule_entry_id", bestStop.schedule_entry_id);
+
+      newlyPassedIds.push(bestStop.schedule_entry_id);
+    }
+  }
+
+  // 6b. Chronological backfill: mark all earlier pending stops as passed
+  if (newlyPassedIds.length > 0 && pendingStops) {
+    // Find the max scheduled time among newly passed stops
+    let maxPassedTime = "";
+    for (const stop of pendingStops) {
+      if (newlyPassedIds.includes(stop.schedule_entry_id)) {
+        const entry = stop.schedule_entries as unknown as { time: string };
+        if (entry.time > maxPassedTime) maxPassedTime = entry.time;
+      }
+    }
+
+    // Collect IDs of pending stops with time < maxPassedTime that weren't already matched
+    const backfillIds: string[] = [];
+    for (const stop of pendingStops) {
+      if (newlyPassedIds.includes(stop.schedule_entry_id)) continue;
+      const entry = stop.schedule_entries as unknown as { time: string };
+      if (entry.time < maxPassedTime) {
+        backfillIds.push(stop.schedule_entry_id);
+      }
+    }
+
+    if (backfillIds.length > 0) {
+      await supabase
+        .from("route_run_stops")
+        .update({ status: "passed", passed_at: new Date().toISOString() })
+        .eq("run_id", run.id)
+        .in("schedule_entry_id", backfillIds);
     }
   }
 
