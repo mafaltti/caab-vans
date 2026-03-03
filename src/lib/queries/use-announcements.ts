@@ -19,6 +19,6 @@ export function useAnnouncements() {
   return useQuery({
     queryKey: ["announcements"],
     queryFn: fetchAnnouncements,
-    refetchInterval: 60_000,
+    refetchInterval: 30_000,
   });
 }

@@ -20,6 +20,6 @@ export function useRoutes() {
   return useQuery({
     queryKey: ["routes"],
     queryFn: ({ signal }) => fetchRoutes(signal),
-    refetchInterval: 15_000,
+    refetchInterval: 5_000,
   });
 }
