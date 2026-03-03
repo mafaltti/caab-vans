@@ -19,6 +19,8 @@ export type Van = {
   last_accuracy_m: number | null;
   last_speed_mps: number | null;
   last_heading_deg: number | null;
+  snapped_lat: number | null;
+  snapped_lng: number | null;
   created_at: string;
   updated_at: string;
 };

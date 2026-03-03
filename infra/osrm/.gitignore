@@ -1,0 +1,8 @@
+# OSRM processed map data (large binary files)
+data/*
+!data/.gitkeep
+data-tmp/
+data-old/
+
+# Environment file (copy from .env.example)
+.env
