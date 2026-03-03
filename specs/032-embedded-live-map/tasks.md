@@ -3,7 +3,7 @@
 **Input**: Design documents from `/specs/032-embedded-live-map/`
 **Prerequisites**: plan.md (required), spec.md (required), research.md, data-model.md, contracts/
 
-**Tests**: Not explicitly requested in the feature specification. Test tasks omitted.
+**Tests**: Automated unit tests are not mandated by the feature spec. Quality-gate and manual validation tasks (T017, T018) verify implementation correctness.
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
@@ -129,7 +129,7 @@
 
 ### Parallel Opportunities
 
-```
+```text
 Phase 1:  T001 ──┐
           T002 ──┤ (all parallel)
           T003 ──┘

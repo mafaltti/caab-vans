@@ -23,7 +23,8 @@
 ### Route Detail Response — Schedule Item Extension
 
 **Current shape** (per item in `schedule[]`):
-```
+
+```json
 {
   id: string
   stopName: string
@@ -32,7 +33,8 @@
 ```
 
 **New shape** (additive, non-breaking):
-```
+
+```json
 {
   id: string
   stopName: string
@@ -44,7 +46,7 @@
 
 ### Van Data (already in response, no changes)
 
-```
+```json
 van: {
   id: string
   locationUrl: string | null      // deprecated, to be removed later
@@ -57,7 +59,7 @@ van: {
 
 ### Progress Data (already in response, no changes)
 
-```
+```json
 progress: {
   nextStopId: string | null
   passedStopIds: string[]

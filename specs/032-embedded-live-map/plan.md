@@ -115,7 +115,7 @@ Import the map component via `next/dynamic` with `ssr: false` and render it betw
 
 **Changes**:
 - Dynamic import with skeleton loading placeholder
-- Conditional render: only when `isRunning && van.lastLat && van.lastLng`
+- Conditional render: only when `isRunning && van.lastLat != null && van.lastLng != null`
 - Props: van position, schedule with coordinates, progress (nextStopId, passedStopIds)
 
 **Risk**: Low — straightforward integration with existing data flow.

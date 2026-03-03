@@ -21,12 +21,16 @@ type VanTrackingMapProps = {
   passedStopIds: string[];
 };
 
+const TILE_URL =
+  process.env.NEXT_PUBLIC_TILE_URL ||
+  "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+
 const MAP_STYLE = {
   version: 8 as const,
   sources: {
     osm: {
       type: "raster" as const,
-      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+      tiles: [TILE_URL],
       tileSize: 256,
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
@@ -299,7 +303,7 @@ export function VanTrackingMap({
             type="button"
             onClick={handleRecenter}
             className="absolute bottom-3 right-3 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-md"
-            aria-label="Re-center map"
+            aria-label="Recentrar mapa"
           >
             <LocateFixed className="size-5 text-slate-700" />
           </button>
