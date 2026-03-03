@@ -137,7 +137,7 @@ export function VanTrackingMap({
       }
     });
 
-    const validStops = stops.filter((s) => s.stopLat !== 0 && s.stopLng !== 0);
+    const validStops = stops.filter((s) => s.stopLat != null && s.stopLng != null);
     if (validStops.length === 0) {
       map.flyTo({ center: [vanLng, vanLat], zoom: 14, duration: 0 });
       return;
@@ -250,7 +250,7 @@ export function VanTrackingMap({
 
           {/* Stop markers */}
           {stops
-            .filter((s) => s.stopLat !== 0 && s.stopLng !== 0)
+            .filter((s) => s.stopLat != null && s.stopLng != null)
             .map((stop) => {
               const isNext = stop.id === nextStopId;
               const isPassed = passedStopIds.includes(stop.id);
