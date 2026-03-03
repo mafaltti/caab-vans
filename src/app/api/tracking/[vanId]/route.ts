@@ -5,6 +5,7 @@ import { apiError, validationError } from "@/lib/api/errors";
 import { createRateLimiter } from "@/lib/api/rate-limit";
 import { createServiceClient } from "@/lib/supabase/server";
 import { inferStopProgress } from "@/lib/tracking/infer-stop-progress";
+import { snapToRoad } from "@/lib/tracking/osrm";
 import { trackingSchema } from "@/lib/validators/tracking";
 
 const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 25 });
@@ -101,6 +102,34 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     DateTime.fromISO(deviceTs) >= DateTime.fromISO(latest.device_ts);
 
   if (isNewest) {
+    let snappedLat: number | null = null;
+    let snappedLng: number | null = null;
+
+    const osrmBaseUrl = process.env.OSRM_BASE_URL;
+    if (osrmBaseUrl) {
+      const { data: recentPings } = await supabase
+        .from("van_location_pings")
+        .select("lat, lng, device_ts, accuracy_m")
+        .eq("van_id", vanId)
+        .order("device_ts", { ascending: false })
+        .limit(5);
+
+      const trajectory = (recentPings ?? [])
+        .map((p) => ({
+          lat: p.lat,
+          lng: p.lng,
+          ts: new Date(p.device_ts).getTime(),
+          accuracy: p.accuracy_m ?? undefined,
+        }))
+        .reverse();
+
+      const snapped = await snapToRoad(trajectory, osrmBaseUrl);
+      if (snapped) {
+        snappedLat = snapped.lat;
+        snappedLng = snapped.lng;
+      }
+    }
+
     const { error: updateError } = await supabase
       .from("vans")
       .update({
@@ -109,6 +138,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         last_accuracy_m: accuracy,
         last_speed_mps: speed,
         last_heading_deg: heading,
+        snapped_lat: snappedLat,
+        snapped_lng: snappedLng,
         location_updated_at: new Date().toISOString(),
       })
       .eq("id", vanId);

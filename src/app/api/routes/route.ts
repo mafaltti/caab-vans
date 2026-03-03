@@ -31,7 +31,9 @@ export async function GET() {
         location_updated_at,
         last_lat,
         last_lng,
-        last_speed_mps
+        last_speed_mps,
+        snapped_lat,
+        snapped_lng
       ),
       schedule_entries (
         id,
@@ -61,6 +63,8 @@ export async function GET() {
       last_lat: number | null;
       last_lng: number | null;
       last_speed_mps: number | null;
+      snapped_lat: number | null;
+      snapped_lng: number | null;
     };
     const entries = (route.schedule_entries ?? []) as {
       id: string;
@@ -112,14 +116,15 @@ export async function GET() {
         )
       : null;
 
+    const hasSnapped = van.snapped_lat != null && van.snapped_lng != null;
     const vanPosition: VanPosition | null =
       van.last_lat != null &&
       van.last_lng != null &&
       van.last_speed_mps != null &&
       van.location_updated_at != null
         ? {
-            lat: van.last_lat,
-            lng: van.last_lng,
+            lat: hasSnapped ? van.snapped_lat! : van.last_lat,
+            lng: hasSnapped ? van.snapped_lng! : van.last_lng,
             speedMps: van.last_speed_mps,
             locationUpdatedAt: DateTime.fromISO(van.location_updated_at),
           }
@@ -241,8 +246,8 @@ export async function GET() {
         locationUrl: van.location_url,
         locationUpdatedAt: van.location_updated_at,
         isLocationOutdated: !locationFresh,
-        lastLat: van.last_lat,
-        lastLng: van.last_lng,
+        lastLat: hasSnapped ? van.snapped_lat : van.last_lat,
+        lastLng: hasSnapped ? van.snapped_lng : van.last_lng,
       },
       progress,
     };
