@@ -209,7 +209,7 @@ export async function GET(
   }
 
   const isRunning = withinWindow && locationFresh &&
-    (progress?.runStatus === "in_progress" || progress?.runStatus === "idle");
+    progress?.runStatus === "in_progress";
 
   let nextStop = isRunning ? getNextStop(entryMapped, now) : null;
 
