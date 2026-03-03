@@ -112,19 +112,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         .select("lat, lng, device_ts, accuracy_m")
         .eq("van_id", vanId)
         .order("device_ts", { ascending: false })
-        .limit(4);
+        .limit(5);
 
-      const trajectory = [
-        ...(recentPings ?? [])
-          .map((p) => ({
-            lat: p.lat,
-            lng: p.lng,
-            ts: new Date(p.device_ts).getTime(),
-            accuracy: p.accuracy_m ?? undefined,
-          }))
-          .reverse(),
-        { lat, lng, ts: clampedTs, accuracy: accuracy ?? undefined },
-      ];
+      const trajectory = (recentPings ?? [])
+        .map((p) => ({
+          lat: p.lat,
+          lng: p.lng,
+          ts: new Date(p.device_ts).getTime(),
+          accuracy: p.accuracy_m ?? undefined,
+        }))
+        .reverse();
 
       const snapped = await snapToRoad(trajectory, osrmBaseUrl);
       if (snapped) {

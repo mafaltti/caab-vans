@@ -36,7 +36,7 @@ echo "    Temp dir: $TEMP_DIR"
 echo "==> Downloading Nordeste extract..."
 rm -rf "$TEMP_DIR"
 mkdir -p "$TEMP_DIR"
-curl -fSL -o "$TEMP_DIR/$PBF_FILE" "$DOWNLOAD_URL"
+curl -fSL --connect-timeout 30 --max-time 600 -o "$TEMP_DIR/$PBF_FILE" "$DOWNLOAD_URL"
 echo "    Download complete."
 
 # 2. Process with OSRM: extract → partition → customize
