@@ -1,14 +1,12 @@
 "use client";
 
-import { Navigation, Clock, MapPin, AlertTriangle } from "lucide-react";
+import { Navigation, Clock, AlertTriangle } from "lucide-react";
 import { useReducedMotion } from "motion/react";
-import { Button } from "@/components/ui/button";
 import type { NextStop, RunStatus, ScheduleStatus } from "@/types";
 
 type HeroCardProps = {
   nextStop: NextStop | null;
   scheduleStatus: ScheduleStatus;
-  locationUrl: string | null;
   locationUpdatedAt: string | null;
   isLocationOutdated: boolean;
   isRunning: boolean;
@@ -31,7 +29,6 @@ function formatTimestamp(isoDate: string): string {
 export function HeroCard({
   nextStop,
   scheduleStatus,
-  locationUrl,
   locationUpdatedAt,
   isLocationOutdated,
   isRunning,
@@ -166,38 +163,6 @@ export function HeroCard({
               (~{etaMinutes} min)
             </span>
           </div>
-        )}
-
-        {isRunning && locationUrl && (
-          <Button
-            asChild
-            className="w-full bg-white text-blue-700 hover:bg-blue-50 font-semibold py-6 rounded-xl shadow-sm"
-          >
-            <a
-              href={locationUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => {
-                try {
-                  const payload = JSON.stringify({
-                    event: "open_location_link_clicked",
-                    timestamp: new Date().toISOString(),
-                  });
-                  if (navigator.sendBeacon) {
-                    navigator.sendBeacon(
-                      "/api/track",
-                      new Blob([payload], { type: "application/json" }),
-                    );
-                  }
-                } catch {
-                  // tracking is best-effort
-                }
-              }}
-            >
-              <MapPin className="size-4" />
-              Abrir localização ao vivo
-            </a>
-          </Button>
         )}
 
         {(locationUpdatedAt || isLocationOutdated) && (
