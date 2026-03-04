@@ -132,6 +132,33 @@ describe("deriveTimelineStops", () => {
     expect(result[4].status).toBe("future");
   });
 
+  it("stops after current next stop are future even when time < serverTime", () => {
+    // Van is very late: only at 2nd stop, but serverTime is past several subsequent stops
+    const passedStopIds = ["caab-0000"];
+    const inferredNextStopId = "stop-0800";
+    const serverTime = "22:05";
+
+    const result = deriveTimelineStops(
+      schedule,
+      null,
+      true,
+      passedStopIds,
+      inferredNextStopId,
+      serverTime,
+    );
+
+    // CAAB @ 00:00 is GPS-confirmed -> past
+    expect(result[0].status).toBe("past");
+    // Stop A @ 08:00 is inferredNextStopId -> current
+    expect(result[1].status).toBe("current");
+    // Stop B @ 16:00 is AFTER current stop -> future (even though 16:00 < 22:05)
+    expect(result[2].status).toBe("future");
+    // Stop C @ 22:00 is AFTER current stop -> future (even though 22:00 < 22:05)
+    expect(result[3].status).toBe("future");
+    // Stop D @ 22:40 is AFTER current stop -> future
+    expect(result[4].status).toBe("future");
+  });
+
   it("returns all neutral when not running", () => {
     const result = deriveTimelineStops(
       schedule,

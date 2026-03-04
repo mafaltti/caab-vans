@@ -49,14 +49,24 @@ export function deriveTimelineStops(
 
   if (passedStopIds && passedStopIds.length > 0) {
     const passedSet = new Set(passedStopIds);
-    return schedule.map((entry) => ({
-      ...entry,
-      status: entry.id === inferredNextStopId
-        ? ("current" as TimelineStopStatus)
-        : passedSet.has(entry.id) || (serverTime && entry.time < serverTime)
+    const currentIdx = inferredNextStopId
+      ? schedule.findIndex((e) => e.id === inferredNextStopId)
+      : -1;
+
+    return schedule.map((entry, i) => {
+      if (entry.id === inferredNextStopId) return { ...entry, status: "current" as TimelineStopStatus };
+      if (passedSet.has(entry.id)) return { ...entry, status: "past" as TimelineStopStatus };
+      if (currentIdx >= 0) {
+        return { ...entry, status: i < currentIdx ? ("past" as TimelineStopStatus) : ("future" as TimelineStopStatus) };
+      }
+      // Fallback: no inferredNextStopId — use time-based
+      return {
+        ...entry,
+        status: serverTime && entry.time < serverTime
           ? ("past" as TimelineStopStatus)
           : ("future" as TimelineStopStatus),
-    }));
+      };
+    });
   }
 
   if (!nextStopId) {
