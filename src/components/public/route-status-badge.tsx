@@ -34,7 +34,7 @@ function resolveBadge(
   }
   // 4. All shifts done, past schedule → completed for the day
   if (runStatus === "completed") {
-    return { label: "Encerrada", className: "bg-emerald-50 text-emerald-600", pulse: false };
+    return { label: "Encerrada", className: "bg-blue-50 text-blue-600", pulse: false };
   }
   // 5. No route_run — use schedule window to decide
   if (scheduleStatus === "active") {
