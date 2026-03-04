@@ -41,8 +41,8 @@ export function HeroCard({
   // 1. Day completed — all shifts done, past schedule
   if (runStatus === "completed") {
     return (
-      <div className="rounded-3xl bg-emerald-50 p-6 text-center">
-        <p className="text-sm font-medium text-emerald-600">
+      <div className="rounded-3xl bg-blue-50 p-6 text-center">
+        <p className="text-sm font-medium text-blue-600">
           Rota encerrada por hoje
         </p>
       </div>

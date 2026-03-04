@@ -127,8 +127,9 @@ export function ScheduleTimeline({
     );
   }
 
+  const allPast = runStatus === "completed";
   const pastStops = stops.filter((s) => s.status === "past");
-  const visibleStops = showPast
+  const visibleStops = showPast || allPast
     ? stops
     : stops.filter((s) => s.status !== "past");
 
@@ -136,7 +137,7 @@ export function ScheduleTimeline({
     <div className="rounded-3xl bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-bold text-zinc-900">Horários</h3>
-        {pastStops.length > 0 && (
+        {!allPast && pastStops.length > 0 && (
           <Button
             variant="secondary"
             size="sm"
