@@ -51,10 +51,10 @@ export function deriveTimelineStops(
     const passedSet = new Set(passedStopIds);
     return schedule.map((entry) => ({
       ...entry,
-      status: passedSet.has(entry.id) || (serverTime && entry.time < serverTime)
-        ? ("past" as TimelineStopStatus)
-        : entry.id === inferredNextStopId
-          ? ("current" as TimelineStopStatus)
+      status: entry.id === inferredNextStopId
+        ? ("current" as TimelineStopStatus)
+        : passedSet.has(entry.id) || (serverTime && entry.time < serverTime)
+          ? ("past" as TimelineStopStatus)
           : ("future" as TimelineStopStatus),
     }));
   }
