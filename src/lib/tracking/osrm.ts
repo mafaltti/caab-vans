@@ -1,3 +1,39 @@
+export interface OsrmRouteResult {
+  distanceMeters: number;
+  durationSeconds: number;
+}
+
+/**
+ * Get road distance and duration between two points via OSRM /route.
+ * Returns null on any failure (timeout, network error, no route).
+ */
+export async function osrmRoute(
+  fromLat: number,
+  fromLng: number,
+  toLat: number,
+  toLng: number,
+  osrmBaseUrl: string,
+): Promise<OsrmRouteResult | null> {
+  const url = `${osrmBaseUrl}/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=false&annotations=false`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 100);
+
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.code !== "Ok" || !data.routes?.[0]) return null;
+    return {
+      distanceMeters: data.routes[0].distance,
+      durationSeconds: data.routes[0].duration,
+    };
+  } catch {
+    clearTimeout(timer);
+    return null;
+  }
+}
+
 type Coord = { lat: number; lng: number; ts: number; accuracy?: number };
 
 type Tracepoint = {
