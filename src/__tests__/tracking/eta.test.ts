@@ -451,6 +451,82 @@ describe("computeEta", () => {
       expect(result.etaNextStopMinutes).toBe(8);
     });
 
+    it("uses OSRM road distance when osrmBaseUrl is provided and OSRM responds", async () => {
+      const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+      const vanPosition = makeVanPosition();
+      const stops = makeStops();
+
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          code: "Ok",
+          routes: [{ distance: 8500, duration: 600 }],
+        }),
+      });
+      vi.stubGlobal("fetch", mockFetch);
+
+      const result = await computeEta({
+        stops,
+        now,
+        vanPosition,
+        osrmBaseUrl: "http://localhost:5000",
+      });
+
+      expect(result.etaSource).toBe("gps_osrm");
+      expect(result.nextStopId).toBe("b");
+      expect(result.etaNextStopMinutes).toBeGreaterThan(0);
+      expect(mockFetch).toHaveBeenCalledOnce();
+      expect(mockFetch.mock.calls[0][0]).toContain("/route/v1/driving/");
+
+      vi.unstubAllGlobals();
+    });
+
+    it("falls back to haversine when OSRM fails", async () => {
+      const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+      const vanPosition = makeVanPosition();
+      const stops = makeStops();
+
+      const mockFetch = vi.fn().mockRejectedValue(new Error("connection refused"));
+      vi.stubGlobal("fetch", mockFetch);
+
+      const result = await computeEta({
+        stops,
+        now,
+        vanPosition,
+        osrmBaseUrl: "http://localhost:5000",
+      });
+
+      expect(result.etaSource).toBe("gps");
+      expect(result.nextStopId).toBe("b");
+      expect(result.etaNextStopMinutes).toBeGreaterThan(0);
+
+      vi.unstubAllGlobals();
+    });
+
+    it("falls back to haversine when OSRM returns non-Ok", async () => {
+      const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+      const vanPosition = makeVanPosition();
+      const stops = makeStops();
+
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ code: "NoRoute", routes: [] }),
+      });
+      vi.stubGlobal("fetch", mockFetch);
+
+      const result = await computeEta({
+        stops,
+        now,
+        vanPosition,
+        osrmBaseUrl: "http://localhost:5000",
+      });
+
+      expect(result.etaSource).toBe("gps");
+      expect(result.nextStopId).toBe("b");
+
+      vi.unstubAllGlobals();
+    });
+
     it("uses GPS ETA for next pending occurrence after repeated stop partial progress", async () => {
       const now = DateTime.fromObject({ hour: 8, minute: 30 }, { zone: TZ });
       const vanPosition = makeVanPosition({

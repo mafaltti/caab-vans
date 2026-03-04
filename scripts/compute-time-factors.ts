@@ -11,7 +11,7 @@
 
 import { Pool } from "pg";
 import { DateTime } from "luxon";
-import { mkdirSync, writeFileSync } from "fs";
+import { mkdirSync, renameSync, writeFileSync } from "fs";
 import { join } from "path";
 
 // ---------------------------------------------------------------------------
@@ -24,12 +24,15 @@ if (!DATABASE_URL) {
   process.exit(1);
 }
 
+const OSRM_BASE_URL = process.env.OSRM_BASE_URL;
+
 const TZ = "America/Bahia";
 const OBSERVATION_DAYS = 30;
 const MIN_OBSERVATIONS = 20;
 const ROUTE_VARIANCE_THRESHOLD = 0.15; // 15%
 const DEFAULT_SPEED_MPS = 8.33; // ~30 km/h fallback
 const ROAD_FACTOR = 1.3; // haversine → road distance multiplier
+const OSRM_TIMEOUT_MS = 500; // more generous than runtime (batch job)
 
 // ---------------------------------------------------------------------------
 // Haversine (inline, standalone script)
@@ -49,6 +52,44 @@ function haversineMeters(
     Math.sin(dLat / 2) ** 2 +
     Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// ---------------------------------------------------------------------------
+// OSRM road distance (with haversine fallback)
+// ---------------------------------------------------------------------------
+
+async function osrmDistance(
+  fromLat: number,
+  fromLng: number,
+  toLat: number,
+  toLng: number,
+): Promise<number | null> {
+  if (!OSRM_BASE_URL) return null;
+  const url = `${OSRM_BASE_URL}/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=false&annotations=false`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), OSRM_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.code !== "Ok" || !data.routes?.[0]) return null;
+    return data.routes[0].distance as number;
+  } catch {
+    clearTimeout(timer);
+    return null;
+  }
+}
+
+async function roadDistance(
+  fromLat: number,
+  fromLng: number,
+  toLat: number,
+  toLng: number,
+): Promise<number> {
+  const osrm = await osrmDistance(fromLat, fromLng, toLat, toLng);
+  if (osrm != null) return osrm;
+  return haversineMeters(fromLat, fromLng, toLat, toLng) * ROAD_FACTOR;
 }
 
 // ---------------------------------------------------------------------------
@@ -109,6 +150,7 @@ async function main() {
       .minus({ days: OBSERVATION_DAYS })
       .toISO();
 
+    console.log(`Distance source: ${OSRM_BASE_URL ? `OSRM (${OSRM_BASE_URL})` : "haversine × 1.3 (OSRM_BASE_URL not set)"}`);
     console.log(`Querying route_run_stops passed in the last ${OBSERVATION_DAYS} days (since ${cutoff})...`);
 
     // Fetch all passed stops with their coordinates, run info, and route
@@ -196,15 +238,13 @@ async function main() {
         const actualSeconds = toDt.diff(fromDt, "seconds").seconds;
         if (actualSeconds <= 0 || actualSeconds > 7200) continue; // skip invalid or > 2h
 
-        const distMeters = haversineMeters(
+        const roadDist = await roadDistance(
           from.stop_lat,
           from.stop_lng,
           to.stop_lat,
           to.stop_lng,
         );
-        if (distMeters < 50) continue; // skip very short segments
-
-        const roadDist = distMeters * ROAD_FACTOR;
+        if (roadDist < 50) continue; // skip very short segments
 
         // Query average GPS speed for the van during this segment window
         const speedResult = await pool.query<{ avg_speed: number | null }>(
@@ -339,7 +379,9 @@ function writeOutput(data: FactorOutput) {
   const outDir = join(process.cwd(), "data");
   mkdirSync(outDir, { recursive: true });
   const outPath = join(outDir, "time-factors.json");
-  writeFileSync(outPath, JSON.stringify(data, null, 2) + "\n");
+  const tmpPath = join(outDir, "time-factors.json.tmp");
+  writeFileSync(tmpPath, JSON.stringify(data, null, 2) + "\n");
+  renameSync(tmpPath, outPath);
   console.log(`Wrote ${outPath}`);
 }
 

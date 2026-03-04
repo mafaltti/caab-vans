@@ -36,7 +36,7 @@ yarn-error.log*
 !infra/**/.env.example
 
 # generated data
-/data
+/data/time-factors.json
 
 # vercel
 .vercel
