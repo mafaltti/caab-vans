@@ -54,7 +54,11 @@ curl "http://localhost:5000/route/v1/driving/-38.4567,-12.9876;-38.4789,-12.9654
 ### Run nightly script manually:
 
 ```bash
-npx tsx scripts/compute-time-factors.ts
+# With OSRM (recommended — uses road distance for more accurate factors):
+DATABASE_URL="postgresql://..." OSRM_BASE_URL="http://localhost:5000" npx tsx scripts/compute-time-factors.ts
+
+# Without OSRM (falls back to haversine × 1.3):
+DATABASE_URL="postgresql://..." npx tsx scripts/compute-time-factors.ts
 ```
 
 ## Testing

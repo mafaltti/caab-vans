@@ -106,12 +106,20 @@ A standalone script that analyzes the last 30 days of trip data and generates re
 DATABASE_URL="postgresql://user:pass@host:5432/dbname" npx tsx scripts/compute-time-factors.ts
 ```
 
+Optionally, pass `OSRM_BASE_URL` so the script uses road distance (instead of haversine × 1.3) when computing predicted travel times. This produces more accurate correction factors:
+
+```bash
+DATABASE_URL="postgresql://..." OSRM_BASE_URL="http://localhost:5000" npx tsx scripts/compute-time-factors.ts
+```
+
+When `OSRM_BASE_URL` is not set, the script falls back to haversine × 1.3 for distance estimation — still functional, just less precise.
+
 ### How to automate
 
 Add a cron job to run nightly (e.g., 11:30 PM local time):
 
 ```cron
-30 23 * * * cd /path/to/caab-vans && DATABASE_URL="postgresql://..." npx tsx scripts/compute-time-factors.ts >> /var/log/compute-factors.log 2>&1
+30 23 * * * cd /path/to/caab-vans && DATABASE_URL="postgresql://..." OSRM_BASE_URL="http://localhost:5000" npx tsx scripts/compute-time-factors.ts >> /var/log/compute-factors.log 2>&1
 ```
 
 ### What it produces
@@ -138,7 +146,8 @@ The script writes `data/time-factors.json` with this structure:
 
 ### Requirements
 
-- `DATABASE_URL` environment variable pointing to the Supabase Postgres instance
+- `DATABASE_URL` environment variable pointing to the Supabase Postgres instance (required)
+- `OSRM_BASE_URL` environment variable pointing to an OSRM instance (optional — falls back to haversine × 1.3)
 - At least a few days of trip data (`route_run_stops` with `passed_at` timestamps)
 - The `data/` directory is created automatically if it doesn't exist
 
@@ -151,7 +160,7 @@ The script writes `data/time-factors.json` with this structure:
 
 ### Notes
 
-- The file is **gitignored** (`/data` in `.gitignore`) — it's environment-specific generated data.
+- The file is **gitignored** (`/data/time-factors.json` in `.gitignore`) — it's environment-specific generated data.
 - `loadFactors()` reads the file on each API request (no restart needed after updates).
 - If the file is deleted or corrupted, the system falls back to hardcoded defaults silently.
 
