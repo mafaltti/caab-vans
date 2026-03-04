@@ -35,6 +35,9 @@ yarn-error.log*
 !.env.local.example
 !infra/**/.env.example
 
+# generated data
+/data
+
 # vercel
 .vercel
 

@@ -7,7 +7,7 @@ import type { VanPosition } from "@/lib/tracking/eta";
 const TZ = "America/Bahia";
 
 describe("computeEta", () => {
-  it("computes ETA with 5-min delay", () => {
+  it("computes ETA with 5-min delay", async () => {
     const stops = [
       {
         scheduleEntryId: "a",
@@ -27,7 +27,7 @@ describe("computeEta", () => {
     ];
     const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
 
-    const result = computeEta({ stops, now });
+    const result = await computeEta({ stops, now });
 
     expect(result.nextStopId).toBe("b");
     expect(result.delayMinutes).toBe(5);
@@ -35,7 +35,7 @@ describe("computeEta", () => {
     expect(result.passedStopIds).toEqual(["a"]);
   });
 
-  it("returns scheduled time when no stops have been passed", () => {
+  it("returns scheduled time when no stops have been passed", async () => {
     const stops = [
       {
         scheduleEntryId: "a",
@@ -52,7 +52,7 @@ describe("computeEta", () => {
     ];
     const now = DateTime.fromObject({ hour: 8, minute: 50 }, { zone: TZ });
 
-    const result = computeEta({ stops, now });
+    const result = await computeEta({ stops, now });
 
     expect(result.nextStopId).toBe("a");
     expect(result.delayMinutes).toBeNull();
@@ -60,7 +60,7 @@ describe("computeEta", () => {
     expect(result.passedStopIds).toEqual([]);
   });
 
-  it("returns null ETA when all stops have been passed", () => {
+  it("returns null ETA when all stops have been passed", async () => {
     const stops = [
       {
         scheduleEntryId: "a",
@@ -77,7 +77,7 @@ describe("computeEta", () => {
     ];
     const now = DateTime.fromObject({ hour: 9, minute: 0 }, { zone: TZ });
 
-    const result = computeEta({ stops, now });
+    const result = await computeEta({ stops, now });
 
     expect(result.etaNextStopISO).toBeNull();
     expect(result.etaNextStopMinutes).toBeNull();
@@ -85,7 +85,7 @@ describe("computeEta", () => {
     expect(result.passedStopIds).toEqual(["a", "b"]);
   });
 
-  it("computes negative delay when van is ahead of schedule", () => {
+  it("computes negative delay when van is ahead of schedule", async () => {
     const stops = [
       {
         scheduleEntryId: "a",
@@ -105,7 +105,7 @@ describe("computeEta", () => {
     ];
     const now = DateTime.fromObject({ hour: 8, minute: 35 }, { zone: TZ });
 
-    const result = computeEta({ stops, now });
+    const result = await computeEta({ stops, now });
 
     expect(result.nextStopId).toBe("b");
     expect(result.delayMinutes).toBe(-5);
@@ -114,7 +114,7 @@ describe("computeEta", () => {
     expect(result.passedStopIds).toEqual(["a"]);
   });
 
-  it("computes zero delay when van is exactly on time", () => {
+  it("computes zero delay when van is exactly on time", async () => {
     const stops = [
       {
         scheduleEntryId: "a",
@@ -134,7 +134,7 @@ describe("computeEta", () => {
     ];
     const now = DateTime.fromObject({ hour: 8, minute: 40 }, { zone: TZ });
 
-    const result = computeEta({ stops, now });
+    const result = await computeEta({ stops, now });
 
     expect(result.nextStopId).toBe("b");
     expect(result.delayMinutes).toBe(0);
@@ -144,7 +144,7 @@ describe("computeEta", () => {
   });
 
   describe("time-aware filtering", () => {
-    it("picks the correct future stop when tracking starts mid-day", () => {
+    it("picks the correct future stop when tracking starts mid-day", async () => {
       const stops = [
         {
           scheduleEntryId: "caab-0000",
@@ -176,14 +176,14 @@ describe("computeEta", () => {
       ];
       const now = DateTime.fromObject({ hour: 22, minute: 35 }, { zone: TZ });
 
-      const result = computeEta({ stops, now });
+      const result = await computeEta({ stops, now });
 
       expect(result.nextStopId).toBe("stop-2240");
       expect(result.etaNextStopMinutes).toBeGreaterThan(0);
       expect(result.passedStopIds).toEqual(["stop-2200"]);
     });
 
-    it("returns null ETA when all pending stops are in the past", () => {
+    it("returns null ETA when all pending stops are in the past", async () => {
       const stops = [
         {
           scheduleEntryId: "caab-0000",
@@ -212,7 +212,7 @@ describe("computeEta", () => {
       ];
       const now = DateTime.fromObject({ hour: 23, minute: 0 }, { zone: TZ });
 
-      const result = computeEta({ stops, now });
+      const result = await computeEta({ stops, now });
 
       expect(result.nextStopId).toBeNull();
       expect(result.etaNextStopMinutes).toBeNull();
@@ -220,7 +220,7 @@ describe("computeEta", () => {
       expect(result.passedStopIds).toEqual(["stop-2200", "stop-2220"]);
     });
 
-    it("does not regress when all pending stops are in the future", () => {
+    it("does not regress when all pending stops are in the future", async () => {
       const stops = [
         {
           scheduleEntryId: "a",
@@ -237,13 +237,13 @@ describe("computeEta", () => {
       ];
       const now = DateTime.fromObject({ hour: 8, minute: 50 }, { zone: TZ });
 
-      const result = computeEta({ stops, now });
+      const result = await computeEta({ stops, now });
 
       expect(result.nextStopId).toBe("a");
       expect(result.etaNextStopMinutes).toBe(10);
     });
 
-    it("still counts passed stops correctly with time-aware filter", () => {
+    it("still counts passed stops correctly with time-aware filter", async () => {
       const stops = [
         {
           scheduleEntryId: "a",
@@ -272,7 +272,7 @@ describe("computeEta", () => {
       ];
       const now = DateTime.fromObject({ hour: 22, minute: 35 }, { zone: TZ });
 
-      const result = computeEta({ stops, now });
+      const result = await computeEta({ stops, now });
 
       expect(result.passedStopIds).toEqual(["a", "b"]);
       expect(result.nextStopId).toBe("d");
@@ -327,12 +327,12 @@ describe("computeEta", () => {
       ];
     }
 
-    it("uses GPS when van is moving + fresh location + stop has coords", () => {
+    it("uses GPS when van is moving + fresh location + stop has coords", async () => {
       const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
       const vanPosition = makeVanPosition();
       const stops = makeStops();
 
-      const result = computeEta({ stops, now, vanPosition });
+      const result = await computeEta({ stops, now, vanPosition });
 
       expect(result.etaSource).toBe("gps");
       expect(result.nextStopId).toBe("b");
@@ -340,27 +340,27 @@ describe("computeEta", () => {
       expect(result.etaNextStopISO).not.toBeNull();
     });
 
-    it("falls back when speed = 0", () => {
+    it("falls back when speed = 0", async () => {
       const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
       const vanPosition = makeVanPosition({ speedMps: 0 });
       const stops = makeStops();
 
-      const result = computeEta({ stops, now, vanPosition });
+      const result = await computeEta({ stops, now, vanPosition });
 
       expect(result.etaSource).toBe("schedule");
     });
 
-    it("falls back when speed < MIN_SPEED_MPS", () => {
+    it("falls back when speed < MIN_SPEED_MPS", async () => {
       const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
       const vanPosition = makeVanPosition({ speedMps: 0.5 });
       const stops = makeStops();
 
-      const result = computeEta({ stops, now, vanPosition });
+      const result = await computeEta({ stops, now, vanPosition });
 
       expect(result.etaSource).toBe("schedule");
     });
 
-    it("falls back when location is stale (>10 min)", () => {
+    it("falls back when location is stale (>10 min)", async () => {
       const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
       const vanPosition = makeVanPosition({
         locationUpdatedAt: DateTime.fromObject(
@@ -370,31 +370,31 @@ describe("computeEta", () => {
       });
       const stops = makeStops();
 
-      const result = computeEta({ stops, now, vanPosition });
+      const result = await computeEta({ stops, now, vanPosition });
 
       expect(result.etaSource).toBe("schedule");
     });
 
-    it("falls back when stop has no coords", () => {
+    it("falls back when stop has no coords", async () => {
       const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
       const vanPosition = makeVanPosition();
       const stops = makeStops({ stopLat: null, stopLng: null });
 
-      const result = computeEta({ stops, now, vanPosition });
+      const result = await computeEta({ stops, now, vanPosition });
 
       expect(result.etaSource).toBe("schedule");
     });
 
-    it("falls back when vanPosition is null", () => {
+    it("falls back when vanPosition is null", async () => {
       const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
       const stops = makeStops();
 
-      const result = computeEta({ stops, now, vanPosition: null });
+      const result = await computeEta({ stops, now, vanPosition: null });
 
       expect(result.etaSource).toBe("schedule");
     });
 
-    it("returns ~0 min ETA when van is at the stop", () => {
+    it("returns ~0 min ETA when van is at the stop", async () => {
       const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
       const vanPosition = makeVanPosition({
         lat: STOP_LAT,
@@ -402,13 +402,13 @@ describe("computeEta", () => {
       });
       const stops = makeStops();
 
-      const result = computeEta({ stops, now, vanPosition });
+      const result = await computeEta({ stops, now, vanPosition });
 
       expect(result.etaSource).toBe("gps");
       expect(result.etaNextStopMinutes).toBe(0);
     });
 
-    it("falls back when locationUpdatedAt is in the future (clock skew)", () => {
+    it("falls back when locationUpdatedAt is in the future (clock skew)", async () => {
       const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
       const vanPosition = makeVanPosition({
         locationUpdatedAt: DateTime.fromObject(
@@ -418,12 +418,12 @@ describe("computeEta", () => {
       });
       const stops = makeStops();
 
-      const result = computeEta({ stops, now, vanPosition });
+      const result = await computeEta({ stops, now, vanPosition });
 
       expect(result.etaSource).toBe("schedule");
     });
 
-    it("backward compat: existing tests work with vanPosition not provided", () => {
+    it("backward compat: existing tests work with vanPosition not provided", async () => {
       const stops = [
         {
           scheduleEntryId: "a",
@@ -443,7 +443,7 @@ describe("computeEta", () => {
       ];
       const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
 
-      const result = computeEta({ stops, now });
+      const result = await computeEta({ stops, now });
 
       expect(result.etaSource).toBe("schedule");
       expect(result.nextStopId).toBe("b");
@@ -451,7 +451,7 @@ describe("computeEta", () => {
       expect(result.etaNextStopMinutes).toBe(8);
     });
 
-    it("uses GPS ETA for next pending occurrence after repeated stop partial progress", () => {
+    it("uses GPS ETA for next pending occurrence after repeated stop partial progress", async () => {
       const now = DateTime.fromObject({ hour: 8, minute: 30 }, { zone: TZ });
       const vanPosition = makeVanPosition({
         locationUpdatedAt: DateTime.fromObject(
@@ -481,7 +481,7 @@ describe("computeEta", () => {
         },
       ];
 
-      const result = computeEta({ stops, now, vanPosition });
+      const result = await computeEta({ stops, now, vanPosition });
 
       expect(result.etaSource).toBe("gps");
       expect(result.nextStopId).toBe("caab-0900");

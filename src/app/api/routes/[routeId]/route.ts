@@ -9,9 +9,11 @@ import {
   getNextStop,
   isLocationFresh,
 } from "@/lib/time";
-import { computeEta, resolveNextStop, type VanPosition } from "@/lib/tracking/eta";
+import { computeEta, ROAD_FACTOR, resolveNextStop, type VanPosition } from "@/lib/tracking/eta";
+import { haversineDistanceMeters } from "@/lib/tracking/haversine";
 import { deriveRunStatus } from "@/lib/tracking/run-status";
 import { apiError } from "@/lib/api/errors";
+import type { RecentRun } from "@/lib/tracking/time-factors";
 import { DateTime } from "luxon";
 import type { ScheduleStatus } from "@/types";
 
@@ -170,7 +172,35 @@ export async function GET(
         .eq("run_id", runData.id);
 
       if (runStops && runStops.length > 0) {
-        const etaResult = computeEta({
+        // Build recentRuns from today's passed stops
+        const passedStops = runStops
+          .filter((rs) => rs.status === "passed" && rs.passed_at != null)
+          .map((rs) => {
+            const coords = stopCoordsMap.get(rs.schedule_entry_id);
+            return {
+              passedAt: rs.passed_at!,
+              stopLat: coords?.stopLat ?? null,
+              stopLng: coords?.stopLng ?? null,
+            };
+          })
+          .sort((a, b) => a.passedAt.localeCompare(b.passedAt));
+
+        const recentRuns: RecentRun[] = [];
+        for (let i = 0; i < passedStops.length - 1; i++) {
+          const curr = passedStops[i];
+          const next = passedStops[i + 1];
+          if (curr.stopLat == null || curr.stopLng == null || next.stopLat == null || next.stopLng == null) continue;
+          const actualMinutes = DateTime.fromISO(next.passedAt).diff(DateTime.fromISO(curr.passedAt), "minutes").minutes;
+          const dist = haversineDistanceMeters(curr.stopLat, curr.stopLng, next.stopLat, next.stopLng);
+          const speedMps = vanPosition?.speedMps ?? 0;
+          if (speedMps <= 0) continue;
+          const predictedMinutes = (dist * ROAD_FACTOR) / speedMps / 60;
+          if (predictedMinutes > 0) {
+            recentRuns.push({ actualMinutes, predictedMinutes });
+          }
+        }
+
+        const etaResult = await computeEta({
           stops: runStops.map((rs) => {
             const coords = stopCoordsMap.get(rs.schedule_entry_id);
             return {
@@ -185,6 +215,9 @@ export async function GET(
           now,
           vanPosition,
           startedAt: activeShift?.started_at,
+          osrmBaseUrl: process.env.OSRM_BASE_URL,
+          routeId: route.id,
+          recentRuns,
         });
         progress = {
           serviceDate,
