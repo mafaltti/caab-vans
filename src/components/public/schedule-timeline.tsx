@@ -15,6 +15,7 @@ type ScheduleTimelineProps = {
   etaMinutes?: number | null;
   serverTime?: string;
   runStatus?: RunStatus;
+  variant?: "card" | "inline";
 };
 
 export function deriveTimelineStops(
@@ -124,6 +125,7 @@ export function ScheduleTimeline({
   etaMinutes,
   serverTime,
   runStatus,
+  variant = "card",
 }: ScheduleTimelineProps) {
   const prefersReducedMotion = useReducedMotion();
   const [showPast, setShowPast] = useState(false);
@@ -131,7 +133,7 @@ export function ScheduleTimeline({
 
   if (stops.length === 0) {
     return (
-      <div className="rounded-3xl bg-white p-6">
+      <div className={variant === "card" ? "rounded-3xl bg-white p-6" : "pt-2"}>
         <p className="text-sm text-zinc-500">Nenhum horário disponível</p>
       </div>
     );
@@ -144,8 +146,8 @@ export function ScheduleTimeline({
     : stops.filter((s) => s.status !== "past");
 
   return (
-    <div className="rounded-3xl bg-white p-5 shadow-sm">
-      <div className="flex items-center justify-between mb-4">
+    <div className={variant === "card" ? "rounded-3xl bg-white p-5 shadow-sm" : "pt-2"}>
+      <div className={`flex items-center justify-between mb-4${variant === "inline" ? " sticky top-0 z-20 bg-white pb-2 -mx-5 px-5 pt-3 -mt-2" : ""}`}>
         <h3 className="text-lg font-bold text-zinc-900">Horários</h3>
         {!allPast && pastStops.length > 0 && (
           <Button
