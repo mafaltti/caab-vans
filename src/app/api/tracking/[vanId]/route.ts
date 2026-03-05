@@ -69,25 +69,45 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const clampedTs = ts > now + MAX_FUTURE_MS ? now : ts;
   const deviceTs = DateTime.fromMillis(clampedTs).toISO()!;
 
-  const { error: insertError } = await supabase
-    .from("van_location_pings")
-    .insert({
-      van_id: vanId,
-      device_id: deviceId,
-      lat,
-      lng,
-      accuracy_m: accuracy,
-      speed_mps: speed,
-      heading_deg: heading,
-      device_ts: deviceTs,
-    });
+  // Staleness guard — reject pings older than 24 hours
+  if (clampedTs < now - 24 * 60 * 60 * 1000) {
+    return apiError("VALIDATION_ERROR", "Ping too old", 400);
+  }
 
-  if (insertError) {
+  // Upsert with unique constraint on (van_id, device_ts) — silently skip duplicates
+  const { data: upsertedPing, error: upsertError } = await supabase
+    .from("van_location_pings")
+    .upsert(
+      {
+        van_id: vanId,
+        device_id: deviceId,
+        lat,
+        lng,
+        accuracy_m: accuracy,
+        speed_mps: speed,
+        heading_deg: heading,
+        device_ts: deviceTs,
+      },
+      { onConflict: "van_id,device_ts", ignoreDuplicates: true },
+    )
+    .select("id")
+    .single();
+
+  // PGRST116 = no rows returned → duplicate was silently skipped
+  if (upsertError?.code === "PGRST116") {
+    return NextResponse.json({ received: true, duplicate: true, ts: Date.now() });
+  }
+
+  if (upsertError) {
     return apiError("INTERNAL_ERROR", "Failed to store ping", 500);
   }
 
-  // Update van position only if this ping is newer than (or equal to) the
-  // latest known ping for this van. Combined with the 5-min future clamp above,
+  if (!upsertedPing) {
+    return NextResponse.json({ received: true, duplicate: true, ts: Date.now() });
+  }
+
+  // Update van position only if this ping is strictly newer than the latest
+  // known ping for this van. Combined with the 5-min future clamp above,
   // this prevents both out-of-order regressions and timestamp poisoning.
   const { data: latest } = await supabase
     .from("van_location_pings")
@@ -99,7 +119,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   const isNewest =
     !latest ||
-    DateTime.fromISO(deviceTs) >= DateTime.fromISO(latest.device_ts);
+    DateTime.fromISO(deviceTs) > DateTime.fromISO(latest.device_ts);
 
   if (isNewest) {
     let snappedLat: number | null = null;
@@ -147,12 +167,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (updateError) {
       return apiError("INTERNAL_ERROR", "Failed to update van position", 500);
     }
-  }
 
-  try {
-    await inferStopProgress(supabase, vanId, lat, lng);
-  } catch (error) {
-    console.error("Stop inference failed:", error);
+    try {
+      await inferStopProgress(supabase, vanId, lat, lng);
+    } catch (error) {
+      console.error("Stop inference failed:", error);
+    }
   }
 
   return NextResponse.json({ received: true, ts: Date.now() });

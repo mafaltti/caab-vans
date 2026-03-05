@@ -3,7 +3,7 @@ import NetInfo from "@react-native-community/netinfo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getSettings } from "@/storage/settings";
 import { getOrCreateDeviceId } from "@/storage/device-id";
-import { setLastSentAt } from "@/storage/tracking-state";
+import { getLastSentAt, setLastSentAt } from "@/storage/tracking-state";
 import { sendLocationPing, NetworkError } from "@/api/client";
 import { getBuffer, addToBuffer, removeFromBuffer } from "@/storage/buffer";
 import { haversineDistance } from "@/lib/haversine";
@@ -15,10 +15,12 @@ export const BACKGROUND_LOCATION_TASK = "background-location-task";
 let lastSentLat: number | null = null;
 let lastSentLng: number | null = null;
 let lastSentTime = 0;
+let lastSentTs = 0;
 
 const ACCURACY_THRESHOLD = 50; // meters
 const MIN_DISTANCE = 5; // meters
 const MIN_INTERVAL = 3000; // milliseconds
+const STATIONARY_MAX_INTERVAL = 60_000; // 1 ping/min when stationary
 
 async function persistError(message: string | null): Promise<void> {
   if (message) {
@@ -95,8 +97,34 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
     ts: latest.timestamp,
   };
 
+  // Cold-start hydration — restore throttle state from AsyncStorage on first callback
+  if (lastSentLat === null) {
+    const [storedLat, storedLng, storedTime] = await Promise.all([
+      AsyncStorage.getItem("@lastLat"),
+      AsyncStorage.getItem("@lastLng"),
+      getLastSentAt(),
+    ]);
+    if (storedLat !== null && storedLng !== null) {
+      lastSentLat = Number(storedLat);
+      lastSentLng = Number(storedLng);
+    }
+    if (storedTime !== null) {
+      lastSentTime = storedTime;
+    }
+  }
+
   // T018: Accuracy filter — drop inaccurate points
   if (point.accuracy !== null && point.accuracy > ACCURACY_THRESHOLD) {
+    return;
+  }
+
+  // Duplicate GPS timestamp guard — Android returns cached fixes with same ts
+  if (point.ts > 0 && point.ts === lastSentTs) {
+    return;
+  }
+
+  // Stale fix guard — reject GPS fixes older than 60 seconds
+  if (Date.now() - point.ts > 60_000) {
     return;
   }
 
@@ -110,6 +138,9 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
       point.lng,
     );
     const elapsed = now - lastSentTime;
+    if (distance === 0 && elapsed < STATIONARY_MAX_INTERVAL) {
+      return;
+    }
     if (distance < MIN_DISTANCE && elapsed < MIN_INTERVAL) {
       return;
     }
@@ -139,6 +170,7 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
       lastSentLat = point.lat;
       lastSentLng = point.lng;
       lastSentTime = now;
+      lastSentTs = point.ts;
       await setLastSentAt(now);
       await persistCoords(point.lat, point.lng);
       await persistError(null);

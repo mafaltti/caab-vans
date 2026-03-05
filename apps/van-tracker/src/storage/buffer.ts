@@ -18,6 +18,13 @@ export async function getBuffer(): Promise<LocationPoint[]> {
 
 export async function addToBuffer(point: LocationPoint): Promise<void> {
   const buffer = await getBuffer();
+  // Consecutive dedup — skip if identical to last buffered point
+  if (buffer.length > 0) {
+    const last = buffer[buffer.length - 1];
+    if (last.lat === point.lat && last.lng === point.lng && last.ts === point.ts) {
+      return;
+    }
+  }
   buffer.push(point);
 
   if (buffer.length > MAX_BUFFER_SIZE) {
