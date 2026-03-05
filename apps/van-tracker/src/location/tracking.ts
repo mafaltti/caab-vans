@@ -34,8 +34,8 @@ export async function startTracking(): Promise<void> {
 
   await Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK, {
     accuracy: Location.Accuracy.High,
-    timeInterval: 3000,
-    distanceInterval: 5,
+    timeInterval: 5000,
+    distanceInterval: 10,
     foregroundService: {
       notificationTitle: "CAAB Tracker",
       notificationBody: "Sharing location",
