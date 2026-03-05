@@ -6,6 +6,7 @@ import type { MapRef } from "react-map-gl/maplibre";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { LocateFixed } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 type VanTrackingMapProps = {
   vanLat: number;
@@ -19,6 +20,9 @@ type VanTrackingMapProps = {
   }>;
   nextStopId: string | null;
   passedStopIds: string[];
+  className?: string;
+  fitBoundsPadding?: maplibregl.PaddingOptions | { padding: number };
+  recenterBottomOffset?: number | null;
 };
 
 const TILE_URL =
@@ -51,6 +55,10 @@ function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
 
+const DEFAULT_MAP_CLASS =
+  "h-[250px] rounded-2xl overflow-hidden shadow-sm bg-white";
+const DEFAULT_FIT_BOUNDS_PADDING = { padding: 40 };
+
 export function VanTrackingMap({
   vanLat,
   vanLng,
@@ -58,6 +66,9 @@ export function VanTrackingMap({
   stops,
   nextStopId,
   passedStopIds,
+  className = DEFAULT_MAP_CLASS,
+  fitBoundsPadding = DEFAULT_FIT_BOUNDS_PADDING,
+  recenterBottomOffset,
 }: VanTrackingMapProps) {
   const mapRef = useRef<MapRef>(null);
   const prevPositionRef = useRef<{ lat: number; lng: number } | null>(null);
@@ -125,8 +136,9 @@ export function VanTrackingMap({
     mapRef.current.easeTo({
       center: [vanLng, vanLat],
       duration: ANIMATION_DURATION_MS,
+      padding: "padding" in fitBoundsPadding ? fitBoundsPadding.padding : fitBoundsPadding,
     });
-  }, [vanLat, vanLng]);
+  }, [vanLat, vanLng, fitBoundsPadding]);
 
   // Auto-fit viewport on initial load
   const handleMapLoad = useCallback(() => {
@@ -160,8 +172,11 @@ export function VanTrackingMap({
       bounds.extend([p.lng, p.lat]);
     }
 
-    map.fitBounds(bounds, { padding: 40, duration: 0 });
-  }, [vanLat, vanLng, stops]);
+    map.fitBounds(bounds, {
+      padding: "padding" in fitBoundsPadding ? fitBoundsPadding.padding : fitBoundsPadding,
+      duration: 0,
+    });
+  }, [vanLat, vanLng, stops, fitBoundsPadding]);
 
   // Track user interaction
   const handleMoveStart = useCallback(
@@ -180,12 +195,12 @@ export function VanTrackingMap({
     if (!map) return;
     userInteractedRef.current = false;
     setShowRecenter(false);
-    map.flyTo({ center: [vanLng, vanLat], zoom: 14 });
-  }, [vanLat, vanLng]);
+    map.flyTo({ center: [vanLng, vanLat], zoom: 14, padding: "padding" in fitBoundsPadding ? fitBoundsPadding.padding : fitBoundsPadding });
+  }, [vanLat, vanLng, fitBoundsPadding]);
 
   return (
-    <div className="relative">
-      <div className="h-[250px] rounded-2xl overflow-hidden shadow-sm bg-white">
+    <div className={cn("relative", className)}>
+      <div className="h-full w-full overflow-hidden">
         {tileError && (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-slate-100 text-slate-400 rounded-2xl">
             Mapa indisponível
@@ -297,12 +312,25 @@ export function VanTrackingMap({
             })}
         </Map>
 
-        {/* Re-center button */}
-        {showRecenter && (
+        {/* Re-center button — hidden when recenterBottomOffset is null */}
+        {showRecenter && recenterBottomOffset !== null && (
           <button
             type="button"
             onClick={handleRecenter}
-            className="absolute bottom-3 right-3 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-md"
+            className={
+              recenterBottomOffset != null
+                ? "absolute z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-md"
+                : "absolute bottom-3 right-3 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-md"
+            }
+            style={
+              recenterBottomOffset != null
+                ? {
+                    bottom: recenterBottomOffset,
+                    right: 12,
+                    transition: "bottom 0.3s ease",
+                  }
+                : { transition: "bottom 0.3s ease" }
+            }
             aria-label="Recentrar mapa"
           >
             <LocateFixed className="size-5 text-slate-700" />

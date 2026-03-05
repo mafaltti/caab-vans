@@ -18,6 +18,9 @@ export function BottomNav() {
 
   const showUnreadBadge = hasUnread(data?.announcements ?? []);
 
+  // Hide BottomNav on route detail pages where the bottom sheet takes over (FR-013)
+  if (/^\/routes\/[^/]+$/.test(pathname)) return null;
+
   return (
     <nav className="fixed inset-x-0 bottom-0 z-50 border-t bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.05)] pb-[env(safe-area-inset-bottom)]">
       <div className="mx-auto flex max-w-lg justify-around">
