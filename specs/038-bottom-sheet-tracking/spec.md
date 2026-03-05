@@ -101,7 +101,7 @@ A passenger uses the app on various mobile browsers (iOS Safari, Android Chrome)
 ### Edge Cases
 
 - What happens when the route transitions from waiting to in_progress while the user is viewing the page? The layout should transition from card (Option A) to bottom sheet (Option B) when live GPS data becomes available on the next poll cycle.
-- What happens when GPS coordinates become null during an in_progress route (van goes offline)? The layout should remain in bottom sheet mode with the stale data overlay, not switch back to card layout mid-session.
+- What happens when GPS coordinates become null during an in_progress route (van goes offline)? **Precedence rule**: On initial page load, if GPS is missing (lastLat/lastLng are null), fall back to card layout per FR-011. Mid-session, if GPS was previously available and the van goes offline, remain in bottom sheet mode with the stale data overlay — do not switch back to card layout. This works because `lastLat`/`lastLng` persist in the database once set; `isLocationOutdated` handles the stale display.
 - What happens when the user navigates back from the route detail page? The back button in the header should work regardless of sheet state.
 - What happens on very small screens (320px width)? The peek section should still be legible with truncated stop names via text ellipsis.
 - What happens when the sheet is at full state and there are only 2 stops total? The sheet should still function correctly with minimal content, snapping normally.

@@ -36,7 +36,7 @@ Derived from the active snap point. Not stored — computed on each snap change.
 
 Derived from existing route data. Not stored — computed from `RouteDetail`.
 
-```
+```ts
 useBottomSheet = route.isRunning
   && route.van.lastLat != null
   && route.van.lastLng != null

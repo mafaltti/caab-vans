@@ -63,8 +63,8 @@ function getSheetPadding(snap: SnapPoint | null, innerHeight: number) {
   return PEEK_PADDING;
 }
 
-function getRecenterOffset(snap: SnapPoint | null, innerHeight: number): number | undefined {
-  if (snap === 0.92) return -9999; // push off-screen at full
+function getRecenterOffset(snap: SnapPoint | null, innerHeight: number): number | null {
+  if (snap === 0.92) return null; // hidden at full snap
   if (snap === 0.55) return Math.round(innerHeight * 0.55) + 16;
   return 216; // peek: 200px sheet + 16px spacing
 }
@@ -85,10 +85,19 @@ export default function RouteDetailPage() {
         )?.id ?? null)
       : null);
 
-  // Show bottom sheet layout when route is running with GPS coordinates.
-  // lastLat/lastLng persist in the database once set, so this stays true even
-  // when GPS signal is temporarily lost (isLocationOutdated handles the stale display).
-  const useBottomSheet = route?.isRunning === true && route.van.lastLat != null && route.van.lastLng != null;
+  // Show bottom sheet when route is running with GPS. Once the sheet has been
+  // shown, keep it active even if isRunning flips to false mid-session (e.g.
+  // GPS goes stale). This prevents jarring layout switches while the user is
+  // viewing the map. The stale-data overlay handles the visual feedback.
+  const hasCoords = route?.van.lastLat != null && route?.van.lastLng != null;
+  const shouldShowSheet = route?.isRunning === true && hasCoords;
+  const [sheetLatched, setSheetLatched] = useState(false);
+
+  if (shouldShowSheet && !sheetLatched) {
+    setSheetLatched(true);
+  }
+
+  const useBottomSheet = (shouldShowSheet || sheetLatched) && hasCoords;
 
   // Sheet snap point state
   const [activeSnapPoint, setActiveSnapPoint] = useState<SnapPoint | null>(0.25);

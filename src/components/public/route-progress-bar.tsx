@@ -13,11 +13,14 @@ export function RouteProgressBar({
   firstStopLabel,
   lastStopLabel,
 }: RouteProgressBarProps) {
+  const safeTotalStops = Math.max(0, totalStops);
+  const safePassedCount = Math.min(Math.max(0, passedCount), safeTotalStops);
+
   return (
     <div>
       <div className="flex items-center gap-1">
-        {Array.from({ length: totalStops }, (_, i) => {
-          if (i < passedCount) {
+        {Array.from({ length: safeTotalStops }, (_, i) => {
+          if (i < safePassedCount) {
             return (
               <div
                 key={i}
@@ -25,7 +28,7 @@ export function RouteProgressBar({
               />
             );
           }
-          if (i === passedCount) {
+          if (i === safePassedCount) {
             return (
               <div
                 key={i}

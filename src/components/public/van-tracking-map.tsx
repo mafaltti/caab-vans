@@ -22,7 +22,7 @@ type VanTrackingMapProps = {
   passedStopIds: string[];
   className?: string;
   fitBoundsPadding?: maplibregl.PaddingOptions | { padding: number };
-  recenterBottomOffset?: number;
+  recenterBottomOffset?: number | null;
 };
 
 const TILE_URL =
@@ -172,7 +172,10 @@ export function VanTrackingMap({
       bounds.extend([p.lng, p.lat]);
     }
 
-    map.fitBounds(bounds, { ...fitBoundsPadding, duration: 0 });
+    map.fitBounds(bounds, {
+      padding: "padding" in fitBoundsPadding ? fitBoundsPadding.padding : fitBoundsPadding,
+      duration: 0,
+    });
   }, [vanLat, vanLng, stops, fitBoundsPadding]);
 
   // Track user interaction
@@ -309,8 +312,8 @@ export function VanTrackingMap({
             })}
         </Map>
 
-        {/* Re-center button */}
-        {showRecenter && (
+        {/* Re-center button — hidden when recenterBottomOffset is null */}
+        {showRecenter && recenterBottomOffset !== null && (
           <button
             type="button"
             onClick={handleRecenter}

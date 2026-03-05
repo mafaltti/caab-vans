@@ -11,7 +11,7 @@
 - Vaul is the drawer primitive behind shadcn/ui's Drawer component — already in the design system ecosystem.
 - Supports `snapPoints`, `activeSnapPoint` (controlled), `modal={false}`, `dismissible={false}` — exactly our persistent sheet pattern.
 - Handles iOS Safari rubber-banding, scroll/drag coordination, and focus trapping (via Radix Dialog).
-- ~5 KB gzip. No extra animation dependency needed.
+- ~8 KB gzip. No extra animation dependency needed.
 - Already used in the `apps/van-tracker` Expo app (`vaul@^1.1.2`).
 
 **Alternatives considered**:

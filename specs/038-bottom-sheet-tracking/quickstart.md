@@ -15,7 +15,7 @@
 pnpm dlx shadcn@latest add drawer
 ```
 
-This installs Vaul (~5 KB gzip) and generates `src/components/ui/drawer.tsx`.
+This installs Vaul (~8 KB gzip) and generates `src/components/ui/drawer.tsx`.
 
 ## Step 2: Key Files to Modify
 
