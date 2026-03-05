@@ -74,6 +74,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return apiError("VALIDATION_ERROR", "Ping too old", 400);
   }
 
+  // Query latest ping BEFORE upsert so isNewest compares against the previous state
+  const { data: previousLatest } = await supabase
+    .from("van_location_pings")
+    .select("device_ts")
+    .eq("van_id", vanId)
+    .order("device_ts", { ascending: false })
+    .limit(1)
+    .single();
+
   // Upsert with unique constraint on (van_id, device_ts) — silently skip duplicates
   const { data: upsertedPing, error: upsertError } = await supabase
     .from("van_location_pings")
@@ -106,20 +115,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ received: true, duplicate: true, ts: Date.now() });
   }
 
-  // Update van position only if this ping is strictly newer than the latest
-  // known ping for this van. Combined with the 5-min future clamp above,
-  // this prevents both out-of-order regressions and timestamp poisoning.
-  const { data: latest } = await supabase
-    .from("van_location_pings")
-    .select("device_ts")
-    .eq("van_id", vanId)
-    .order("device_ts", { ascending: false })
-    .limit(1)
-    .single();
-
+  // Update van position only if this ping is strictly newer than the previous
+  // latest ping. Combined with the 5-min future clamp above, this prevents
+  // both out-of-order regressions and timestamp poisoning.
   const isNewest =
-    !latest ||
-    DateTime.fromISO(deviceTs) > DateTime.fromISO(latest.device_ts);
+    !previousLatest ||
+    DateTime.fromISO(deviceTs) > DateTime.fromISO(previousLatest.device_ts);
 
   if (isNewest) {
     let snappedLat: number | null = null;

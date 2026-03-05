@@ -99,10 +99,11 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
 
   // Cold-start hydration — restore throttle state from AsyncStorage on first callback
   if (lastSentLat === null) {
-    const [storedLat, storedLng, storedTime] = await Promise.all([
+    const [storedLat, storedLng, storedTime, storedTs] = await Promise.all([
       AsyncStorage.getItem("@lastLat"),
       AsyncStorage.getItem("@lastLng"),
       getLastSentAt(),
+      AsyncStorage.getItem("@lastSentTs"),
     ]);
     if (storedLat !== null && storedLng !== null) {
       lastSentLat = Number(storedLat);
@@ -110,6 +111,9 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
     }
     if (storedTime !== null) {
       lastSentTime = storedTime;
+    }
+    if (storedTs !== null) {
+      lastSentTs = Number(storedTs);
     }
   }
 
@@ -172,6 +176,7 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
       lastSentTime = now;
       lastSentTs = point.ts;
       await setLastSentAt(now);
+      await AsyncStorage.setItem("@lastSentTs", String(point.ts));
       await persistCoords(point.lat, point.lng);
       await persistError(null);
     } else {
