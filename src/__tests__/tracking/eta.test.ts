@@ -1,7 +1,7 @@
 /// <reference types="vitest/globals" />
 import { DateTime } from "luxon";
 
-import { computeEta } from "@/lib/tracking/eta";
+import { computeEta, computeSmoothedSpeed, PROXIMITY_THRESHOLD_M } from "@/lib/tracking/eta";
 import type { VanPosition } from "@/lib/tracking/eta";
 
 const TZ = "America/Bahia";
@@ -527,6 +527,107 @@ describe("computeEta", () => {
       vi.unstubAllGlobals();
     });
 
+    it("uses OSRM duration instead of distance/speed for base ETA", async () => {
+      const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+      const vanPosition = makeVanPosition({ speedMps: 10 });
+      const stops = makeStops();
+
+      // OSRM returns 180s (3 min) duration but 8500m distance
+      // distance/speed would give ~8500/10/60 ≈ 14 min, but OSRM duration gives 3 min
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          code: "Ok",
+          routes: [{ distance: 8500, duration: 180 }],
+        }),
+      });
+      vi.stubGlobal("fetch", mockFetch);
+
+      const result = await computeEta({
+        stops,
+        now,
+        vanPosition,
+        osrmBaseUrl: "http://localhost:5000",
+      });
+
+      expect(result.etaSource).toBe("gps_osrm");
+      // 180s = 3 min * timeFactor(1.4 at hour 8) = 4.2 min → ceil = 5
+      expect(result.etaNextStopMinutes).toBe(5);
+
+      vi.unstubAllGlobals();
+    });
+
+    it("OSRM duration is speed-independent", async () => {
+      const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+      const stops = makeStops();
+
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          code: "Ok",
+          routes: [{ distance: 8500, duration: 180 }],
+        }),
+      });
+      vi.stubGlobal("fetch", mockFetch);
+
+      const resultSlow = await computeEta({
+        stops,
+        now,
+        vanPosition: makeVanPosition({ speedMps: 5 }),
+        osrmBaseUrl: "http://localhost:5000",
+      });
+
+      const resultFast = await computeEta({
+        stops,
+        now,
+        vanPosition: makeVanPosition({ speedMps: 15 }),
+        osrmBaseUrl: "http://localhost:5000",
+      });
+
+      expect(resultSlow.etaNextStopMinutes).toBe(resultFast.etaNextStopMinutes);
+
+      vi.unstubAllGlobals();
+    });
+
+    it("uses GPS via proximity fallback when speed=0 and stop is near", async () => {
+      // Close stop: ~200m from van
+      const CLOSE_STOP_LAT = -12.9720;
+      const CLOSE_STOP_LNG = -38.5110;
+
+      const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+      const vanPosition = makeVanPosition({ speedMps: 0 });
+      const stops = makeStops({ stopLat: CLOSE_STOP_LAT, stopLng: CLOSE_STOP_LNG });
+
+      const result = await computeEta({ stops, now, vanPosition });
+
+      expect(result.etaSource).toBe("gps");
+      expect(result.etaNextStopMinutes).toBeLessThanOrEqual(3);
+    });
+
+    it("falls back to schedule when speed=0 and stop is far", async () => {
+      const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+      const vanPosition = makeVanPosition({ speedMps: 0 });
+      const stops = makeStops(); // default STOP_LAT/LNG ~6.6km away
+
+      const result = await computeEta({ stops, now, vanPosition });
+
+      expect(result.etaSource).toBe("schedule");
+    });
+
+    it("uses proximity fallback at ~500m boundary", async () => {
+      // ~490m north of van (approx 0.0044 degrees latitude)
+      const BOUNDARY_STOP_LAT = VAN_LAT + 0.0044;
+      const BOUNDARY_STOP_LNG = VAN_LNG;
+
+      const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+      const vanPosition = makeVanPosition({ speedMps: 0 });
+      const stops = makeStops({ stopLat: BOUNDARY_STOP_LAT, stopLng: BOUNDARY_STOP_LNG });
+
+      const result = await computeEta({ stops, now, vanPosition });
+
+      expect(result.etaSource).toBe("gps");
+    });
+
     it("uses GPS ETA for next pending occurrence after repeated stop partial progress", async () => {
       const now = DateTime.fromObject({ hour: 8, minute: 30 }, { zone: TZ });
       const vanPosition = makeVanPosition({
@@ -562,6 +663,57 @@ describe("computeEta", () => {
       expect(result.etaSource).toBe("gps");
       expect(result.nextStopId).toBe("caab-0900");
       expect(result.etaNextStopMinutes).toBeGreaterThan(0);
+    });
+
+    describe("smoothed speed", () => {
+      it("computeSmoothedSpeed returns mean of non-zero values", () => {
+        expect(computeSmoothedSpeed([5, 3, 7, 0, 4, 6, 0, 5, 3, 4])).toBeCloseTo(4.625);
+      });
+
+      it("brief speed drop does not cause ETA spike > 50%", async () => {
+        const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+        const vanPosition = makeVanPosition({ speedMps: 10 });
+        const stops = makeStops();
+
+        const resultWithDip = await computeEta({
+          stops,
+          now,
+          vanPosition,
+          recentSpeeds: [10, 10, 10, 10, 2, 10, 10, 10, 10, 10],
+        });
+
+        const resultSteady = await computeEta({
+          stops,
+          now,
+          vanPosition,
+          recentSpeeds: [10, 10, 10, 10, 10, 10, 10, 10, 10, 10],
+        });
+
+        const ratio = resultWithDip.etaNextStopMinutes! / resultSteady.etaNextStopMinutes!;
+        expect(ratio).toBeLessThanOrEqual(1.5);
+      });
+
+      it("all speeds zero within 500m uses proximity fallback", async () => {
+        const CLOSE_STOP_LAT = -12.9720;
+        const CLOSE_STOP_LNG = -38.5110;
+
+        const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+        const vanPosition = makeVanPosition({ speedMps: 0 });
+        const stops = makeStops({ stopLat: CLOSE_STOP_LAT, stopLng: CLOSE_STOP_LNG });
+
+        const result = await computeEta({
+          stops,
+          now,
+          vanPosition,
+          recentSpeeds: [0, 0, 0, 0, 0],
+        });
+
+        expect(result.etaSource).toBe("gps");
+      });
+
+      it("computeSmoothedSpeed handles partial window (2 readings)", () => {
+        expect(computeSmoothedSpeed([8, 4])).toBeCloseTo(6);
+      });
     });
   });
 });
