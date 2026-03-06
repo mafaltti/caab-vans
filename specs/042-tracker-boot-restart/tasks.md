@@ -27,9 +27,9 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [x] T002 Implement manifest modifications in `apps/van-tracker/plugins/withBootRestart.ts`: add `RECEIVE_BOOT_COMPLETED` permission via `AndroidConfig.Permissions.withPermissions`, and register `BootRestartReceiver` in the manifest with `android:directBootAware="true"`, `android:exported="true"`, and intent filters for `LOCKED_BOOT_COMPLETED`, `BOOT_COMPLETED`, and `MY_PACKAGE_REPLACED`
-- [x] T003 Add `DeviceProtectedStorage` native module generation to `apps/van-tracker/plugins/withBootRestart.ts` via `withDangerousMod`: generate `DeviceProtectedStorage.kt` (Kotlin native module with `setTracking(Boolean)`, `getTracking()`, and `consumeBootTrigger()` methods using `createDeviceProtectedStorageContext().getSharedPreferences`) and `DeviceProtectedStoragePackage.kt` (React Native package registration). `consumeBootTrigger()` reads and clears the `boot_trigger` key (written by the receiver as "boot" or "app_update"), returning null if no trigger pending. Use the app's package name from the Expo config.
-- [x] T004 Add `BootRestartReceiver` native code generation to `apps/van-tracker/plugins/withBootRestart.ts` via `withDangerousMod`: generate `BootRestartReceiver.kt` that handles `LOCKED_BOOT_COMPLETED`, `BOOT_COMPLETED`, and `MY_PACKAGE_REPLACED` intents. Receiver must: (1) read `tracking_enabled` from device-protected SharedPreferences, (2) implement boot-loop guard using `last_boot_attempt` timestamp with 60-second threshold, (3) write trigger source ("boot" or "app_update") to `boot_trigger` key in device-protected SharedPreferences, (4) launch `MainActivity` with `FLAG_ACTIVITY_NEW_TASK` if tracking was enabled, (5) handle Direct Boot fallback for Android < 7.0
+- [x] T002 Implement manifest modifications in `apps/van-tracker/plugins/withBootRestart.js`: add `RECEIVE_BOOT_COMPLETED` permission via `AndroidConfig.Permissions.withPermissions`, and register `BootRestartReceiver` in the manifest with `android:directBootAware="true"`, `android:exported="true"`, and intent filters for `LOCKED_BOOT_COMPLETED`, `BOOT_COMPLETED`, and `MY_PACKAGE_REPLACED`
+- [x] T003 Add `DeviceProtectedStorage` native module generation to `apps/van-tracker/plugins/withBootRestart.js` via `withDangerousMod`: generate `DeviceProtectedStorage.kt` (Kotlin native module with `setTracking(Boolean)`, `getTracking()`, and `consumeBootTrigger()` methods using `createDeviceProtectedStorageContext().getSharedPreferences`) and `DeviceProtectedStoragePackage.kt` (React Native package registration). `consumeBootTrigger()` reads and clears the `boot_trigger` key (written by the receiver as "boot" or "app_update"), returning null if no trigger pending. Use the app's package name from the Expo config.
+- [x] T004 Add `BootRestartReceiver` native code generation to `apps/van-tracker/plugins/withBootRestart.js` via `withDangerousMod`: generate `BootRestartReceiver.kt` that handles `LOCKED_BOOT_COMPLETED`, `BOOT_COMPLETED`, and `MY_PACKAGE_REPLACED` intents. Receiver must: (1) read `tracking_enabled` from device-protected SharedPreferences, (2) implement boot-loop guard using `last_boot_attempt` timestamp with 60-second threshold, (3) write trigger source ("boot" or "app_update") to `boot_trigger` key in device-protected SharedPreferences, (4) launch `MainActivity` with `FLAG_ACTIVITY_NEW_TASK` if tracking was enabled, (5) handle Direct Boot fallback for Android < 7.0
 - [x] T005 Register the `withBootRestart` plugin in `apps/van-tracker/app.json` by adding `"./plugins/withBootRestart"` to the `plugins` array
 
 **Checkpoint**: Config plugin complete — `npx expo prebuild --platform android` should generate the native files without errors
@@ -94,7 +94,7 @@
 
 ### Within Each Phase
 
-- T002, T003, T004 are sequential within the same file (`withBootRestart.ts`) — cannot parallelize
+- T002, T003, T004 are sequential within the same file (`withBootRestart.js`) — cannot parallelize
 - T006 can run in parallel with T005 (different files)
 - T007 depends on T006 (imports from device-protected-state.ts)
 - T008 depends on T007 (needs dual-write in place for full integration)
@@ -112,9 +112,9 @@
 
 ```bash
 # T002–T004 are sequential (same file), but T005 can follow immediately after:
-Task: T002 "Implement manifest modifications in plugins/withBootRestart.ts"
-Task: T003 "Add DeviceProtectedStorage native module generation to plugins/withBootRestart.ts"
-Task: T004 "Add BootRestartReceiver native code generation to plugins/withBootRestart.ts"
+Task: T002 "Implement manifest modifications in plugins/withBootRestart.js"
+Task: T003 "Add DeviceProtectedStorage native module generation to plugins/withBootRestart.js"
+Task: T004 "Add BootRestartReceiver native code generation to plugins/withBootRestart.js"
 Task: T005 "Register plugin in app.json"
 ```
 

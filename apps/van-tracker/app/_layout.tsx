@@ -5,7 +5,10 @@ import { Stack } from "expo-router";
 import { isSettingsComplete } from "@/storage/settings";
 import { getTrackingEnabled } from "@/storage/tracking-state";
 import { startTracking } from "@/location/tracking";
-import { consumeBootTrigger } from "@/storage/device-protected-state";
+import {
+  consumeBootTrigger,
+  syncTrackingStateToDeviceProtected,
+} from "@/storage/device-protected-state";
 import { logEvent, flushLog } from "@/storage/diag-log";
 
 Sentry.init({
@@ -22,6 +25,8 @@ function RootLayout() {
       try {
         bootTrigger = await consumeBootTrigger();
         const wasTracking = await getTrackingEnabled();
+        // Migrate pre-existing tracking state to device-protected storage
+        await syncTrackingStateToDeviceProtected(wasTracking);
         const settingsOk = await isSettingsComplete();
         if (wasTracking && settingsOk) {
           await startTracking();

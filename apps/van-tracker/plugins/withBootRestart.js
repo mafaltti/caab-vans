@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const {
   withAndroidManifest,
   withDangerousMod,
@@ -189,7 +190,6 @@ class BootRestartReceiver : BroadcastReceiver() {
             Log.w(TAG, "Boot-loop guard: skipping (last attempt \${now - lastAttempt}ms ago)")
             return
         }
-        prefs.edit().putLong("last_boot_attempt", now).apply()
 
         // Write trigger source for JS layer to consume
         val triggerSource = when (action) {
@@ -198,11 +198,12 @@ class BootRestartReceiver : BroadcastReceiver() {
         }
         prefs.edit().putString("boot_trigger", triggerSource).apply()
 
-        // Launch MainActivity
+        // Launch MainActivity — record boot attempt only on success
         try {
             val launchIntent = Intent(context, Class.forName("\${context.packageName}.MainActivity"))
             launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(launchIntent)
+            prefs.edit().putLong("last_boot_attempt", now).apply()
             Log.d(TAG, "Launched MainActivity with trigger: \$triggerSource")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to launch MainActivity", e)
@@ -312,6 +313,11 @@ function withBootRestartPackageRegistration(config) {
           `${oldArchMarker}\n            packages.${registrationLine}`,
         );
         fs.writeFileSync(mainAppPath, content);
+      } else {
+        throw new Error(
+          `[withBootRestart] Could not find package registration markers in ${mainAppPath}. ` +
+            `React Native template may have changed; plugin needs update.`,
+        );
       }
 
       return modConfig;

@@ -22,6 +22,16 @@ export async function getTrackingEnabledDeviceProtected(): Promise<boolean> {
   }
 }
 
+let migrated = false;
+
+export async function syncTrackingStateToDeviceProtected(
+  wasTracking: boolean,
+): Promise<void> {
+  if (migrated) return;
+  migrated = true;
+  await setTrackingEnabledDeviceProtected(wasTracking);
+}
+
 export async function consumeBootTrigger(): Promise<string | null> {
   if (Platform.OS !== "android" || !DeviceProtectedStorage) return null;
   try {
