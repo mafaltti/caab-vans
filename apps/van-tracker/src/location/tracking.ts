@@ -1,9 +1,39 @@
+import * as Battery from "expo-battery";
 import * as Location from "expo-location";
 import * as Notifications from "expo-notifications";
 import * as TaskManager from "expo-task-manager";
 import { Platform } from "react-native";
 import { setTrackingEnabled } from "@/storage/tracking-state";
 import { BACKGROUND_LOCATION_TASK } from "./task";
+
+let batterySubscription: Battery.Subscription | null = null;
+let isLowBattery = false;
+
+async function updateLocationAccuracy(highAccuracy: boolean): Promise<void> {
+  const isRegistered = await TaskManager.isTaskRegisteredAsync(
+    BACKGROUND_LOCATION_TASK,
+  );
+  if (!isRegistered) return;
+
+  await Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
+  await Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK, {
+    accuracy: highAccuracy
+      ? Location.Accuracy.High
+      : Location.Accuracy.Balanced,
+    timeInterval: highAccuracy ? 5000 : 10000,
+    distanceInterval: 10,
+    foregroundService: {
+      notificationTitle: "CAAB Tracker",
+      notificationBody: highAccuracy
+        ? "Sharing location"
+        : "Sharing location (battery saver)",
+      notificationColor: "#2563eb",
+      killServiceOnDestroy: false,
+    },
+    pausesUpdatesAutomatically: false,
+    showsBackgroundLocationIndicator: true,
+  });
+}
 
 export async function startTracking(): Promise<void> {
   const { status: fgStatus } =
@@ -47,9 +77,31 @@ export async function startTracking(): Promise<void> {
   });
 
   await setTrackingEnabled(true);
+
+  const level = await Battery.getBatteryLevelAsync();
+  isLowBattery = level < 0.2;
+  if (isLowBattery) {
+    await updateLocationAccuracy(false);
+  }
+
+  batterySubscription = Battery.addBatteryLevelListener(async ({ batteryLevel }) => {
+    if (batteryLevel < 0.2 && !isLowBattery) {
+      isLowBattery = true;
+      await updateLocationAccuracy(false);
+    } else if (batteryLevel > 0.25 && isLowBattery) {
+      isLowBattery = false;
+      await updateLocationAccuracy(true);
+    }
+  });
 }
 
 export async function stopTracking(): Promise<void> {
+  if (batterySubscription) {
+    batterySubscription.remove();
+    batterySubscription = null;
+  }
+  isLowBattery = false;
+
   const isRegistered = await TaskManager.isTaskRegisteredAsync(
     BACKGROUND_LOCATION_TASK,
   );

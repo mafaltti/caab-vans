@@ -1,7 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
 import type { Settings } from "@/types";
 
 const SETTINGS_KEY = "@settings";
+const TOKEN_SECURE_KEY = "ingestionToken";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -10,7 +12,27 @@ export async function getSettings(): Promise<Settings | null> {
   const json = await AsyncStorage.getItem(SETTINGS_KEY);
   if (!json) return null;
   try {
-    return JSON.parse(json) as Settings;
+    const stored = JSON.parse(json) as Partial<Settings>;
+
+    // Read token from SecureStore
+    let token = await SecureStore.getItemAsync(TOKEN_SECURE_KEY);
+
+    // Migration: if token in AsyncStorage but not in SecureStore
+    if (!token && stored.ingestionToken) {
+      await SecureStore.setItemAsync(TOKEN_SECURE_KEY, stored.ingestionToken);
+      token = stored.ingestionToken;
+      // Remove token from AsyncStorage
+      const { ingestionToken: _token, ...rest } = stored;
+      await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(rest));
+    }
+
+    if (!stored.apiBaseUrl || !stored.vanId || !token) return null;
+
+    return {
+      apiBaseUrl: stored.apiBaseUrl,
+      vanId: stored.vanId,
+      ingestionToken: token,
+    };
   } catch {
     await AsyncStorage.removeItem(SETTINGS_KEY);
     return null;
@@ -21,7 +43,11 @@ export async function saveSettings(settings: Settings): Promise<void> {
   if (!UUID_REGEX.test(settings.vanId)) {
     throw new Error(`Invalid vanId: must be UUID format`);
   }
-  await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  // Store token in SecureStore
+  await SecureStore.setItemAsync(TOKEN_SECURE_KEY, settings.ingestionToken);
+  // Store non-sensitive fields in AsyncStorage (without token)
+  const { ingestionToken: _token, ...rest } = settings;
+  await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(rest));
 }
 
 export async function isSettingsComplete(): Promise<boolean> {

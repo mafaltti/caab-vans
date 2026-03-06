@@ -8,4 +8,13 @@ export const trackingSchema = z.object({
   speed: z.number().nonnegative().nullable(),
   heading: z.number().min(0).max(360).nullable(),
   ts: z.int().positive(),
+  seq: z.int().positive().nullable().optional(),
+  bufferSize: z.int().nonnegative().nullable().optional(),
+  failureCount: z.int().nonnegative().nullable().optional(),
+  batteryLevel: z.number().min(0).max(1).nullable().optional(),
+  networkType: z.enum(["wifi", "cellular", "none"]).nullable().optional(),
+});
+
+export const batchTrackingSchema = z.object({
+  points: z.array(trackingSchema).min(1).max(100),
 });
