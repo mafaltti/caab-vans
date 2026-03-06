@@ -5,6 +5,8 @@ const MAX_LOG_SIZE = 1100;
 
 // --- Types ---
 
+export type FilterReason = "acc" | "dup" | "stale";
+
 export interface MinuteSummary {
   type: "summary";
   t: number;
@@ -13,6 +15,9 @@ export interface MinuteSummary {
   buf: number;
   thr: number;
   flt: number;
+  flt_acc: number;
+  flt_dup: number;
+  flt_stale: number;
   cb: number;
 }
 
@@ -68,6 +73,9 @@ function ensureCurrentMinute(): MinuteSummary {
       buf: 0,
       thr: 0,
       flt: 0,
+      flt_acc: 0,
+      flt_dup: 0,
+      flt_stale: 0,
       cb: 0,
     };
   }
@@ -88,8 +96,12 @@ export function logBuffered(): void {
 export function logThrottled(): void {
   ensureCurrentMinute().thr++;
 }
-export function logFiltered(): void {
-  ensureCurrentMinute().flt++;
+export function logFiltered(reason: FilterReason): void {
+  const m = ensureCurrentMinute();
+  m.flt++;
+  if (reason === "acc") m.flt_acc++;
+  else if (reason === "dup") m.flt_dup++;
+  else m.flt_stale++;
 }
 export function logCallback(): void {
   ensureCurrentMinute().cb++;

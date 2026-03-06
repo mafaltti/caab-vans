@@ -65,8 +65,11 @@ function SummaryBar({ entries }: { entries: LogEntry[] }) {
       buf: acc.buf + s.buf,
       thr: acc.thr + s.thr,
       flt: acc.flt + s.flt,
+      flt_acc: acc.flt_acc + (s.flt_acc ?? 0),
+      flt_dup: acc.flt_dup + (s.flt_dup ?? 0),
+      flt_stale: acc.flt_stale + (s.flt_stale ?? 0),
     }),
-    { ok: 0, fail: 0, buf: 0, thr: 0, flt: 0 },
+    { ok: 0, fail: 0, buf: 0, thr: 0, flt: 0, flt_acc: 0, flt_dup: 0, flt_stale: 0 },
   );
 
   return (
@@ -86,7 +89,7 @@ function SummaryBar({ entries }: { entries: LogEntry[] }) {
           Thr {totals.thr}
         </Text>
         <Text style={[styles.summaryItem, styles.summaryFlt]}>
-          Flt {totals.flt}
+          Flt {totals.flt} [a:{totals.flt_acc} d:{totals.flt_dup} s:{totals.flt_stale}]
         </Text>
       </View>
     </View>
@@ -98,8 +101,9 @@ function MinuteRow({ item }: { item: MinuteSummary }) {
     <View style={[styles.row, { backgroundColor: getMinuteColor(item) }]}>
       <Text style={styles.rowTime}>{formatTime(item.t)}</Text>
       <Text style={styles.rowDetail}>
-        ok:{item.ok} fail:{item.fail} buf:{item.buf} thr:{item.thr} flt:
-        {item.flt} cb:{item.cb}
+        ok:{item.ok} fail:{item.fail} buf:{item.buf} thr:{item.thr} flt:{item.flt}
+        {item.flt > 0 ? ` [a:${item.flt_acc ?? 0} d:${item.flt_dup ?? 0} s:${item.flt_stale ?? 0}]` : ""}{" "}
+        cb:{item.cb}
       </Text>
     </View>
   );
