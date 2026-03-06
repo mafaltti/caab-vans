@@ -130,7 +130,7 @@
 
 ### Implementation for User Story 6
 
-- [ ] T025 [P] [US6] Install `sentry-expo` and configure in app entry point with DSN, source maps, and breadcrumbs in `apps/van-tracker/app/_layout.tsx` and `apps/van-tracker/app.json` — **DEFERRED: requires Sentry project setup and DSN**
+- [x] T025 [P] [US6] Install `@sentry/react-native` and configure in app entry point with DSN, source maps, and breadcrumbs in `apps/van-tracker/app/_layout.tsx` and `apps/van-tracker/app.json`
 - [x] T026 [P] [US6] Install `expo-secure-store` and migrate ingestion token: on app launch, read token from AsyncStorage, write to SecureStore, remove from AsyncStorage; update `getSettings()`/`saveSettings()` to use SecureStore for token in `apps/van-tracker/src/storage/settings.ts`
 - [x] T027 [US6] Add in-memory mutex for buffer operations: wrap `addToBuffer()` and `removeFromBuffer()` read-modify-write cycles with a simple async lock to prevent concurrent corruption in `apps/van-tracker/src/storage/buffer.ts`
 
