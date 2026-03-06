@@ -259,6 +259,11 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
   }
 
   // Stale fix guard — gap-based relaxation
+  // speed === null is treated as stationary: Android often returns null speed on
+  // cold start while parked (the exact scenario that caused the original bug).
+  // Excluding null would re-break the fix for those devices. Risk of a moving
+  // van with null speed + stale fix is low and self-corrects on the next callback.
+  // See research decision R2 in specs/043-fix-stale-gps-guard/research.md.
   const isColdGap = (Date.now() - lastSentTime) > 120_000;
   const isStationary = point.speed === null || point.speed <= 1;
   const staleThreshold = isColdGap && isStationary ? 120_000 : 60_000;

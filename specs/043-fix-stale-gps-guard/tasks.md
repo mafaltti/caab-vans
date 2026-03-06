@@ -84,7 +84,7 @@
 ### User Story Dependencies
 
 - **User Story 1 (P1)**: Depends on Foundational only. No dependency on US2.
-- **User Story 2 (P2)**: Depends on Foundational only. No dependency on US1. Can be implemented in parallel with US1.
+- **User Story 2 (P2)**: Depends on Foundational only. No dependency on US1. US2 can be implemented in parallel with US1.
 
 ### Parallel Opportunities
 
