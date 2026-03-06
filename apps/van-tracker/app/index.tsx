@@ -118,6 +118,7 @@ export default function HomeScreen() {
 
   const handleRestart = async () => {
     setLoading(true);
+    setActionError(null);
     setShowTaskKillModal(false);
     try {
       await stopTracking();

@@ -117,8 +117,11 @@ async function flushBuffer(
     if (result.success) {
       await removeFromBuffer(validPoints.length);
       await onSendSuccess();
+    } else if (result.status === 429) {
+      // Rate limited — keep points in buffer, retry later
+      await onSendFailure();
     } else if (result.status && result.status >= 400 && result.status < 500) {
-      // Client error — drop points
+      // Client error (400/401/404) — drop points, retries won't help
       await removeFromBuffer(validPoints.length);
       if (result.status === 401) {
         await on401Failure();
@@ -298,7 +301,7 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
     } catch {
       // expo-battery may not be available on all devices
     }
-    point.seq = currentSeq > 0 ? currentSeq : null;
+    point.seq = currentSeq;
     point.bufferSize = bufferSize;
     point.failureCount = consecutiveFailures;
     point.batteryLevel = batteryLevel;

@@ -67,7 +67,17 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   // Sort points chronologically by device timestamp
   const sorted = [...points].sort((a, b) => a.ts - b.ts);
 
+  // Query latest ping BEFORE upserts so isNewest compares against previous state
+  const { data: previousLatest } = await supabase
+    .from("van_location_pings")
+    .select("device_ts")
+    .eq("van_id", vanId)
+    .order("device_ts", { ascending: false })
+    .limit(1)
+    .single();
+
   let duplicates = 0;
+  let skipped = 0;
   let newestUpserted: { lat: number; lng: number; accuracy: number | null; speed: number | null; heading: number | null; deviceTs: string } | null = null;
 
   for (const point of sorted) {
@@ -76,6 +86,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Staleness guard — skip pings older than 24 hours silently
     if (clampedTs < now - 24 * 60 * 60 * 1000) {
+      skipped++;
       continue;
     }
 
@@ -153,15 +164,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   // Update van position + OSRM snap + stop inference for the newest upserted point only
   if (newestUpserted) {
-    // Check if this point is actually newer than the existing latest ping
-    const { data: previousLatest } = await supabase
-      .from("van_location_pings")
-      .select("device_ts")
-      .eq("van_id", vanId)
-      .order("device_ts", { ascending: false })
-      .limit(1)
-      .single();
-
     const isNewest =
       !previousLatest ||
       DateTime.fromISO(newestUpserted.deviceTs) >=
@@ -228,7 +230,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 
   return NextResponse.json({
-    received: sorted.length,
+    received: sorted.length - skipped,
     duplicates,
     ts: Date.now(),
   });

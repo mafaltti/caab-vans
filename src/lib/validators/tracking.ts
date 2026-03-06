@@ -8,7 +8,7 @@ export const trackingSchema = z.object({
   speed: z.number().nonnegative().nullable(),
   heading: z.number().min(0).max(360).nullable(),
   ts: z.int().positive(),
-  seq: z.int().positive().nullable().optional(),
+  seq: z.int().nonnegative().nullable().optional(),
   bufferSize: z.int().nonnegative().nullable().optional(),
   failureCount: z.int().nonnegative().nullable().optional(),
   batteryLevel: z.number().min(0).max(1).nullable().optional(),

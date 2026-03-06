@@ -19,11 +19,15 @@ export async function getSettings(): Promise<Settings | null> {
 
     // Migration: if token in AsyncStorage but not in SecureStore
     if (!token && stored.ingestionToken) {
-      await SecureStore.setItemAsync(TOKEN_SECURE_KEY, stored.ingestionToken);
+      try {
+        await SecureStore.setItemAsync(TOKEN_SECURE_KEY, stored.ingestionToken);
+        // Only remove from AsyncStorage after successful SecureStore write
+        const { ingestionToken: _token, ...rest } = stored;
+        await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(rest));
+      } catch {
+        // SecureStore failed — keep token in AsyncStorage as fallback
+      }
       token = stored.ingestionToken;
-      // Remove token from AsyncStorage
-      const { ingestionToken: _token, ...rest } = stored;
-      await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(rest));
     }
 
     if (!stored.apiBaseUrl || !stored.vanId || !token) return null;

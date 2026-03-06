@@ -84,14 +84,20 @@ export async function startTracking(): Promise<void> {
     await updateLocationAccuracy(false);
   }
 
-  batterySubscription = Battery.addBatteryLevelListener(async ({ batteryLevel }) => {
-    if (batteryLevel < 0.2 && !isLowBattery) {
-      isLowBattery = true;
-      await updateLocationAccuracy(false);
-    } else if (batteryLevel > 0.25 && isLowBattery) {
-      isLowBattery = false;
-      await updateLocationAccuracy(true);
-    }
+  batterySubscription = Battery.addBatteryLevelListener(({ batteryLevel }) => {
+    (async () => {
+      try {
+        if (batteryLevel < 0.2 && !isLowBattery) {
+          isLowBattery = true;
+          await updateLocationAccuracy(false);
+        } else if (batteryLevel > 0.25 && isLowBattery) {
+          isLowBattery = false;
+          await updateLocationAccuracy(true);
+        }
+      } catch {
+        // Location accuracy switch failed — non-fatal, keep current mode
+      }
+    })();
   });
 }
 
