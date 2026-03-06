@@ -124,7 +124,7 @@ export async function computeEta(args: {
       effectiveSpeed = FALLBACK_SPEED_MPS;
     } else if (args.recentSpeeds && args.recentSpeeds.length > 0) {
       const smoothed = computeSmoothedSpeed(args.recentSpeeds);
-      effectiveSpeed = smoothed > 0 ? smoothed : vanPosition.speedMps;
+      effectiveSpeed = smoothed >= MIN_SPEED_MPS ? smoothed : vanPosition.speedMps;
     } else {
       effectiveSpeed = vanPosition.speedMps;
     }

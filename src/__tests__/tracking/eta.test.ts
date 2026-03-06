@@ -1,7 +1,7 @@
 /// <reference types="vitest/globals" />
 import { DateTime } from "luxon";
 
-import { computeEta, computeSmoothedSpeed, PROXIMITY_THRESHOLD_M } from "@/lib/tracking/eta";
+import { computeEta, computeSmoothedSpeed } from "@/lib/tracking/eta";
 import type { VanPosition } from "@/lib/tracking/eta";
 
 const TZ = "America/Bahia";
@@ -713,6 +713,21 @@ describe("computeEta", () => {
 
       it("computeSmoothedSpeed handles partial window (2 readings)", () => {
         expect(computeSmoothedSpeed([8, 4])).toBeCloseTo(6);
+      });
+
+      it("speed=0 with non-zero recentSpeeds and far stop falls back to schedule", async () => {
+        const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+        const vanPosition = makeVanPosition({ speedMps: 0 });
+        const stops = makeStops(); // default ~6.6km away
+
+        const result = await computeEta({
+          stops,
+          now,
+          vanPosition,
+          recentSpeeds: [10, 10, 10, 10, 10],
+        });
+
+        expect(result.etaSource).toBe("schedule");
       });
     });
   });

@@ -118,22 +118,6 @@ export async function GET() {
           }
         : null;
 
-    // Query recent speed readings for smoothed ETA
-    const recentSpeeds: number[] = [];
-    if (van.id) {
-      const { data: recentPings } = await supabase
-        .from("van_location_pings")
-        .select("speed_mps")
-        .eq("van_id", van.id)
-        .not("speed_mps", "is", null)
-        .order("device_ts", { ascending: false })
-        .limit(10);
-
-      if (recentPings) {
-        recentSpeeds.push(...recentPings.map((p) => p.speed_mps as number));
-      }
-    }
-
     const stopCoordsMap = new Map(
       entries.map((e) => [e.id, { stopLat: e.stop_lat, stopLng: e.stop_lng }]),
     );
@@ -180,6 +164,22 @@ export async function GET() {
           .eq("run_id", runData.id);
 
         if (runStops && runStops.length > 0) {
+          // Query recent speed readings for smoothed ETA
+          const recentSpeeds: number[] = [];
+          if (van.id) {
+            const { data: recentPings } = await supabase
+              .from("van_location_pings")
+              .select("speed_mps")
+              .eq("van_id", van.id)
+              .not("speed_mps", "is", null)
+              .order("device_ts", { ascending: false })
+              .limit(10);
+
+            if (recentPings) {
+              recentSpeeds.push(...recentPings.map((p) => p.speed_mps as number));
+            }
+          }
+
           // Build recentRuns from today's passed stops
           const passedStops = runStops
             .filter((rs) => rs.status === "passed" && rs.passed_at != null)
