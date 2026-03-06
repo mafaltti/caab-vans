@@ -248,19 +248,22 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
 
   // Accuracy filter — drop inaccurate points
   if (point.accuracy !== null && point.accuracy > ACCURACY_THRESHOLD) {
-    logFiltered();
+    logFiltered("acc");
     return;
   }
 
   // Duplicate GPS timestamp guard — Android returns cached fixes with same ts
   if (point.ts > 0 && point.ts === lastSentTs) {
-    logFiltered();
+    logFiltered("dup");
     return;
   }
 
-  // Stale fix guard — reject GPS fixes older than 60 seconds
-  if (Date.now() - point.ts > 60_000) {
-    logFiltered();
+  // Stale fix guard — gap-based relaxation
+  const isColdGap = (Date.now() - lastSentTime) > 120_000;
+  const isStationary = point.speed === null || point.speed <= 1;
+  const staleThreshold = isColdGap && isStationary ? 120_000 : 60_000;
+  if (Date.now() - point.ts > staleThreshold) {
+    logFiltered("stale");
     return;
   }
 
