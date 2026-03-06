@@ -4,6 +4,7 @@ import * as Notifications from "expo-notifications";
 import * as TaskManager from "expo-task-manager";
 import { Platform } from "react-native";
 import { setTrackingEnabled } from "@/storage/tracking-state";
+import { logEvent, flushLog } from "@/storage/diag-log";
 import { BACKGROUND_LOCATION_TASK } from "./task";
 
 let batterySubscription: Battery.Subscription | null = null;
@@ -76,6 +77,8 @@ export async function startTracking(): Promise<void> {
     showsBackgroundLocationIndicator: true,
   });
 
+  logEvent("tracking_start");
+  await flushLog();
   await setTrackingEnabled(true);
 
   const level = await Battery.getBatteryLevelAsync();
@@ -114,6 +117,8 @@ export async function stopTracking(): Promise<void> {
   if (isRegistered) {
     await Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
   }
+  logEvent("tracking_stop");
+  await flushLog();
   await setTrackingEnabled(false);
 }
 
