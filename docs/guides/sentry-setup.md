@@ -1,171 +1,113 @@
 # Sentry Setup Guide — CAAB Tracker App
 
-This guide covers integrating Sentry crash reporting into the van-tracker Expo app (task T025 from spec 040-tracker-resilience).
+Sentry provides crash reporting and error tracking for the van-tracker Expo app. The integration is already wired into the codebase — this guide covers what's done and what a new deployment needs to configure.
 
-## Prerequisites
+## What's Already Configured
 
-- A Sentry account (https://sentry.io or self-hosted instance)
-- Expo EAS CLI configured (`npx eas-cli`)
+These files are committed and don't need changes:
 
-## 1. Create Sentry Project
+- **`apps/van-tracker/package.json`** — `@sentry/react-native` dependency installed
+- **`apps/van-tracker/app.json`** — Sentry Expo plugin configured with org/project slugs
+- **`apps/van-tracker/app/_layout.tsx`** — `Sentry.init()` with DSN, `Sentry.wrap()` on root component
+
+### Current Configuration
+
+| Setting | Value | File |
+|---------|-------|------|
+| Package | `@sentry/react-native ~7.11.0` | `package.json` |
+| DSN | Hardcoded in `Sentry.init()` | `_layout.tsx` |
+| Organization | `carneiro` | `app.json` |
+| Project | `caab-tracker` | `app.json` |
+| Session tracking | Enabled | `_layout.tsx` |
+| Traces sample rate | 20% | `_layout.tsx` |
+| Native crash handling | Enabled | `_layout.tsx` |
+
+## What a New Deployment Needs
+
+If you're deploying this repo to a new Sentry project (different org or project), update these values:
+
+### 1. Create a Sentry Project
 
 1. Log in to Sentry and create a new project
 2. Select platform: **React Native**
-3. Note down:
-   - **DSN** — looks like `https://abc123@o123456.ingest.sentry.io/789`
-   - **Organization slug** — e.g. `caab`
-   - **Project slug** — e.g. `van-tracker`
+3. Note down your **DSN**, **organization slug**, and **project slug**
 
-## 2. Generate Auth Token
+### 2. Update the DSN
 
-1. Go to Sentry > Settings > Auth Tokens
-2. Create a token with scopes: `project:releases`, `org:read`
-3. Save the token — you'll need it for source map uploads
+Edit `apps/van-tracker/app/_layout.tsx` — replace the DSN string in `Sentry.init()`:
 
-## 3. Install Dependencies
+```typescript
+Sentry.init({
+  dsn: "YOUR_NEW_DSN",
+  // ... rest stays the same
+});
+```
+
+### 3. Update org/project slugs
+
+Edit `apps/van-tracker/app.json` — update the plugin config:
+
+```json
+[
+  "@sentry/react-native/expo",
+  {
+    "organization": "YOUR_ORG_SLUG",
+    "project": "YOUR_PROJECT_SLUG"
+  }
+]
+```
+
+### 4. Set the Auth Token for Source Map Uploads
+
+Source maps let Sentry show readable stack traces instead of minified code. The auth token is **not** committed to the repo — each deployment must set it.
+
+#### Generate a token
+
+1. Go to your Sentry instance > **Settings > Auth Tokens** (direct URL: `https://sentry.io/settings/auth-tokens/`)
+2. Create a token with **Release** (Admin) and **Organization** (Read) permissions
+3. If you can't find Auth Tokens, try **Settings > Developer Settings > Internal Integrations** — create an integration and copy its token
+
+#### Store the token in EAS
 
 ```bash
 cd apps/van-tracker
-npx expo install @sentry/react-native
+npx eas env:create --name SENTRY_AUTH_TOKEN --value "your-token" --environment production --visibility secret
 ```
 
-> Note: `sentry-expo` was the legacy package. The current recommended package for Expo SDK 55+ is `@sentry/react-native` with the Expo plugin.
+This makes the token available during EAS builds without committing it to code.
 
-## 4. Configure app.json
+### 5. Build the App
 
-Add the Sentry plugin to the `plugins` array in `apps/van-tracker/app.json`:
-
-```json
-{
-  "expo": {
-    "plugins": [
-      "expo-router",
-      [
-        "expo-location",
-        {
-          "isAndroidBackgroundLocationEnabled": true,
-          "isAndroidForegroundServiceEnabled": true
-        }
-      ],
-      [
-        "@sentry/react-native/expo",
-        {
-          "organization": "YOUR_ORG_SLUG",
-          "project": "YOUR_PROJECT_SLUG"
-        }
-      ]
-    ]
-  }
-}
-```
-
-## 5. Configure _layout.tsx
-
-Edit `apps/van-tracker/app/_layout.tsx`:
-
-```typescript
-import "@/location/task";
-import * as Sentry from "@sentry/react-native";
-import { useEffect } from "react";
-import { Stack } from "expo-router";
-import { isSettingsComplete } from "@/storage/settings";
-import { getTrackingEnabled } from "@/storage/tracking-state";
-import { startTracking } from "@/location/tracking";
-
-Sentry.init({
-  dsn: "YOUR_SENTRY_DSN",
-  enableAutoSessionTracking: true,
-  tracesSampleRate: 0.2,
-  attachScreenshot: true,
-  enableNativeCrashHandling: true,
-});
-
-function RootLayout() {
-  useEffect(() => {
-    (async () => {
-      try {
-        const wasTracking = await getTrackingEnabled();
-        const settingsOk = await isSettingsComplete();
-        if (wasTracking && settingsOk) {
-          await startTracking();
-        }
-      } catch {
-        // Permission issues on resume are non-fatal — user can manually restart
-      }
-    })();
-  }, []);
-
-  return (
-    <Stack>
-      <Stack.Screen name="index" options={{ title: "CAAB Tracker" }} />
-      <Stack.Screen name="settings" options={{ title: "Settings" }} />
-    </Stack>
-  );
-}
-
-export default Sentry.wrap(RootLayout);
-```
-
-Key points:
-- `Sentry.init()` must run before the component renders (top-level)
-- `Sentry.wrap()` captures uncaught JS errors and navigation breadcrumbs
-- `tracesSampleRate: 0.2` — adjust based on volume (20% of transactions traced)
-
-## 6. Set Auth Token for Source Maps
-
-Source maps allow Sentry to show readable stack traces instead of minified code.
-
-### Option A: Environment variable (recommended for CI)
-
-```bash
-export SENTRY_AUTH_TOKEN="your-auth-token"
-```
-
-EAS Build automatically picks this up if set in your EAS secrets:
-
-```bash
-npx eas secret:create --name SENTRY_AUTH_TOKEN --value "your-auth-token"
-```
-
-### Option B: .env file (local development)
-
-Create `apps/van-tracker/.env` (already in .gitignore):
-
-```
-SENTRY_AUTH_TOKEN=your-auth-token
-```
-
-## 7. Rebuild the App
-
-After adding the Sentry plugin, a new native build is required:
+A native build is required after any Sentry config changes:
 
 ```bash
 cd apps/van-tracker
 npx eas build --platform android --profile preview
 ```
 
-Source maps are uploaded automatically during the EAS build process when the auth token is configured.
+Source maps are uploaded automatically during the build when the auth token is configured.
 
-## 8. Verify Integration
+## Verifying the Integration
 
-### Quick test (development)
+### Quick test
 
-Add a test button temporarily or run from the console:
+Add this temporarily anywhere in the app:
 
 ```typescript
+import * as Sentry from "@sentry/react-native";
 Sentry.captureException(new Error("Test error from CAAB Tracker"));
 ```
 
-### What to verify
+### What to check
 
-1. Open Sentry dashboard > Issues — confirm the test error appears
+1. Open Sentry dashboard > **Issues** — confirm the test error appears
 2. Check the stack trace shows readable file names (source maps working)
 3. Check breadcrumbs include navigation events
-4. Force-kill and reopen the app — confirm native crash appears in Sentry
+4. Force-kill and reopen the app — confirm native crash appears
 
-## 9. Optional: Add Context to Errors
+## Optional: Add Tracker Context to Errors
 
-Enrich Sentry events with tracker context for easier debugging:
+Enrich Sentry events with tracker state for easier debugging:
 
 ```typescript
 // In task.ts, after settings are loaded:
@@ -178,14 +120,14 @@ Sentry.setContext("tracker", {
 });
 ```
 
-This helps operations correlate Sentry errors with specific vans and tracker states.
+This helps correlate Sentry errors with specific vans and degraded tracker states.
 
-## Checklist
+## Reference
 
-- [ ] Sentry project created
-- [ ] DSN added to `_layout.tsx`
-- [ ] Org/project slugs added to `app.json` plugin config
-- [ ] Auth token set in EAS secrets
-- [ ] New native build completed
-- [ ] Test error visible in Sentry dashboard
-- [ ] Source maps showing readable stack traces
+| What | Where |
+|------|-------|
+| Sentry init + DSN | `apps/van-tracker/app/_layout.tsx` |
+| Expo plugin config | `apps/van-tracker/app.json` (plugins array) |
+| Package version | `apps/van-tracker/package.json` |
+| Auth token | EAS secret `SENTRY_AUTH_TOKEN` (not in repo) |
+| Sentry dashboard | https://sentry.io |
