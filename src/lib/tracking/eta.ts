@@ -31,6 +31,14 @@ interface EtaResult {
 
 export const ROAD_FACTOR = 1.3;
 export const MIN_SPEED_MPS = 1.0;
+export const PROXIMITY_THRESHOLD_M = 500;
+export const FALLBACK_SPEED_MPS = 4.2;
+
+export function computeSmoothedSpeed(recentSpeeds: number[]): number {
+  const nonZero = recentSpeeds.filter((s) => s > 0);
+  if (nonZero.length === 0) return 0;
+  return nonZero.reduce((sum, s) => sum + s, 0) / nonZero.length;
+}
 
 export async function computeEta(args: {
   stops: Stop[];
@@ -40,6 +48,7 @@ export async function computeEta(args: {
   osrmBaseUrl?: string;
   routeId?: string;
   recentRuns?: RecentRun[];
+  recentSpeeds?: number[];
 }): Promise<EtaResult> {
   const { stops, now, vanPosition, startedAt, osrmBaseUrl, routeId, recentRuns } = args;
 
@@ -74,13 +83,14 @@ export async function computeEta(args: {
   const locationAgeMinutes = vanPosition
     ? now.diff(vanPosition.locationUpdatedAt, "minutes").minutes
     : Infinity;
-  const gpsConditionsMet =
-    vanPosition != null &&
-    nextStop.stopLat != null &&
-    nextStop.stopLng != null &&
-    vanPosition.speedMps >= MIN_SPEED_MPS &&
-    locationAgeMinutes >= 0 &&
-    locationAgeMinutes < STALENESS_THRESHOLD_MINUTES;
+  const hasCoords = vanPosition != null && nextStop.stopLat != null && nextStop.stopLng != null;
+  const locationFresh = locationAgeMinutes >= 0 && locationAgeMinutes < STALENESS_THRESHOLD_MINUTES;
+  const isMoving = vanPosition != null && vanPosition.speedMps >= MIN_SPEED_MPS;
+  const isNearStop = hasCoords && vanPosition != null
+    ? haversineDistanceMeters(vanPosition.lat, vanPosition.lng, nextStop.stopLat!, nextStop.stopLng!) <= PROXIMITY_THRESHOLD_M
+    : false;
+
+  const gpsConditionsMet = hasCoords && locationFresh && (isMoving || isNearStop);
 
   if (gpsConditionsMet) {
     let distanceMeters: number;
@@ -109,7 +119,22 @@ export async function computeEta(args: {
         ) * ROAD_FACTOR;
     }
 
-    const baseTravelMinutes = distanceMeters / vanPosition.speedMps / 60;
+    let effectiveSpeed: number;
+    if (vanPosition.speedMps < MIN_SPEED_MPS) {
+      effectiveSpeed = FALLBACK_SPEED_MPS;
+    } else if (args.recentSpeeds && args.recentSpeeds.length > 0) {
+      const smoothed = computeSmoothedSpeed(args.recentSpeeds);
+      effectiveSpeed = smoothed >= MIN_SPEED_MPS ? smoothed : vanPosition.speedMps;
+    } else {
+      effectiveSpeed = vanPosition.speedMps;
+    }
+
+    let baseTravelMinutes: number;
+    if (osrmResult) {
+      baseTravelMinutes = osrmResult.durationSeconds / 60;
+    } else {
+      baseTravelMinutes = distanceMeters / effectiveSpeed / 60;
+    }
     const timeFactor = getTimeFactor(now.hour, now.weekday, routeId, recentRuns);
     const travelMinutes = baseTravelMinutes * timeFactor;
 
@@ -117,7 +142,7 @@ export async function computeEta(args: {
       vanPosition.lat, vanPosition.lng,
       nextStop.stopLat!, nextStop.stopLng!,
     );
-    const haversineTravelMin = (haversineDistance * ROAD_FACTOR) / vanPosition.speedMps / 60;
+    const haversineTravelMin = (haversineDistance * ROAD_FACTOR) / effectiveSpeed / 60;
 
     console.log(JSON.stringify({
       event: "eta_comparison",
@@ -125,6 +150,7 @@ export async function computeEta(args: {
       stopId: nextStop.scheduleEntryId,
       haversine: { distanceM: haversineDistance * ROAD_FACTOR, travelMinutes: haversineTravelMin },
       osrm: osrmResult ? { distanceM: osrmResult.distanceMeters, durationS: osrmResult.durationSeconds } : null,
+      baseTravelSource: osrmResult ? "osrm_duration" : "distance_speed",
       timeFactor,
       finalTravelMinutes: travelMinutes,
       gpsSpeedMps: vanPosition.speedMps,
