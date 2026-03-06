@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { setTrackingEnabledDeviceProtected } from "./device-protected-state";
 
 export async function getTrackingEnabled(): Promise<boolean> {
   const value = await AsyncStorage.getItem("@trackingEnabled");
@@ -6,7 +7,14 @@ export async function getTrackingEnabled(): Promise<boolean> {
 }
 
 export async function setTrackingEnabled(flag: boolean): Promise<void> {
-  await AsyncStorage.setItem("@trackingEnabled", String(flag));
+  const [primary] = await Promise.allSettled([
+    AsyncStorage.setItem("@trackingEnabled", String(flag)),
+    setTrackingEnabledDeviceProtected(flag),
+  ]);
+
+  if (primary.status === "rejected") {
+    throw primary.reason;
+  }
 }
 
 export async function getLastSentAt(): Promise<number | null> {

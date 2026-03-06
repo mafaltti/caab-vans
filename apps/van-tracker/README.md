@@ -48,6 +48,22 @@ adb install path/to/app.apk
 5. Unlock → Verify coordinates still updating
 6. Stop Tracking
 
+## Boot Restart
+
+After device reboot, battery death, or app update, tracking resumes automatically without user interaction. Implemented via an Expo config plugin that injects a native Android BroadcastReceiver (Direct Boot-aware).
+
+**Requirements**: EAS Build (config plugins don't work with Expo Go).
+
+**OEM Battery Optimization Whitelisting** — required for boot restart to work reliably:
+
+| Manufacturer | Path |
+|---|---|
+| Samsung | Settings > Battery > App Power Management > disable for CAAB Tracker |
+| Xiaomi | Settings > Battery > App battery saver > CAAB Tracker > No restrictions |
+| Huawei | Settings > Battery > App launch > CAAB Tracker > Manual > enable all toggles |
+
+If boot restart does not work after whitelisting, the existing app-launch auto-resume serves as fallback (open the app manually).
+
 ## Troubleshooting
 
 - No location after screen lock: Disable battery optimization for the app
