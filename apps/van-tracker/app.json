@@ -50,7 +50,8 @@
           "organization": "carneiro",
           "project": "caab-tracker"
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "scheme": "van-tracker",
     "extra": {

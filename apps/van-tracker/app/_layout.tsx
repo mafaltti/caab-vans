@@ -32,6 +32,7 @@ function RootLayout() {
     <Stack>
       <Stack.Screen name="index" options={{ title: "CAAB Tracker" }} />
       <Stack.Screen name="settings" options={{ title: "Settings" }} />
+      <Stack.Screen name="diagnostics" options={{ title: "Diagnostics" }} />
     </Stack>
   );
 }

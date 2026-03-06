@@ -8,9 +8,11 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useState, useEffect } from "react";
+import { useRouter } from "expo-router";
 import { getSettings, saveSettings } from "@/storage/settings";
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const [apiBaseUrl, setApiBaseUrl] = useState("");
   const [vanId, setVanId] = useState("");
   const [ingestionToken, setIngestionToken] = useState("");
@@ -141,6 +143,14 @@ export default function SettingsScreen() {
           <Text style={styles.buttonText}>Save</Text>
         )}
       </TouchableOpacity>
+
+      {/* Diagnostics Link */}
+      <TouchableOpacity
+        style={styles.diagButton}
+        onPress={() => router.push("/diagnostics")}
+      >
+        <Text style={styles.diagButtonText}>Diagnostics</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -215,5 +225,19 @@ const styles = StyleSheet.create({
     color: "#15803d",
     fontSize: 14,
     fontWeight: "500",
+  },
+  diagButton: {
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    marginTop: 16,
+  },
+  diagButtonText: {
+    color: "#475569",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });

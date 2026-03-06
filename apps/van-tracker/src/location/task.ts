@@ -14,6 +14,17 @@ import {
   filterExpiredPoints,
 } from "@/storage/buffer";
 import { haversineDistance } from "@/lib/haversine";
+import {
+  logCallback,
+  logEvent,
+  logFiltered,
+  logThrottled,
+  logNetworkState,
+  logBuffered,
+  logOk,
+  logFail,
+  flushLog,
+} from "@/storage/diag-log";
 import type { LocationPoint } from "@/types";
 
 export const BACKGROUND_LOCATION_TASK = "background-location-task";
@@ -113,10 +124,12 @@ async function flushBuffer(
 
   // Batch flush — single request for all buffered points
   try {
+    logEvent("flush", "start n=" + validPoints.length);
     const result = await sendBatchPing(settings, deviceId, validPoints);
     if (result.success) {
       await removeFromBuffer(validPoints.length);
       await onSendSuccess();
+      logEvent("flush", "done sent=" + validPoints.length);
     } else if (result.status === 429) {
       // Rate limited — keep points in buffer, retry later
       await onSendFailure();
@@ -149,7 +162,9 @@ async function getNetworkType(): Promise<string | null> {
 }
 
 TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
+  logCallback();
   if (error) {
+    logEvent("task_error", error.message);
     console.error("[CAAB Tracker] Task error:", error.message);
     return;
   }
@@ -228,20 +243,24 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
       authPaused = true;
       consecutive401s = 3;
     }
+    logEvent("cold_start");
   }
 
   // Accuracy filter — drop inaccurate points
   if (point.accuracy !== null && point.accuracy > ACCURACY_THRESHOLD) {
+    logFiltered();
     return;
   }
 
   // Duplicate GPS timestamp guard — Android returns cached fixes with same ts
   if (point.ts > 0 && point.ts === lastSentTs) {
+    logFiltered();
     return;
   }
 
   // Stale fix guard — reject GPS fixes older than 60 seconds
   if (Date.now() - point.ts > 60_000) {
+    logFiltered();
     return;
   }
 
@@ -256,9 +275,11 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
     );
     const elapsed = now - lastSentTime;
     if (distance === 0 && elapsed < STATIONARY_MAX_INTERVAL) {
+      logThrottled();
       return;
     }
     if (distance < MIN_DISTANCE && elapsed < MIN_INTERVAL) {
+      logThrottled();
       return;
     }
   }
@@ -271,12 +292,14 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
 
     // US2: Check auth pause — buffer point, don't send
     if (authPaused) {
+      logBuffered();
       await addToBuffer(point);
       return;
     }
 
     // US2: Backoff check — if in backoff period, buffer current point
     if (backoffUntil > 0 && now < backoffUntil) {
+      logBuffered();
       await addToBuffer(point);
       await persistError(
         `Backing off — retry in ${Math.ceil((backoffUntil - now) / 1000)}s`,
@@ -286,7 +309,9 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
 
     // Check connectivity before attempting sends
     const netState = await NetInfo.fetch();
+    logNetworkState(netState.isConnected ?? false);
     if (!netState.isConnected) {
+      logBuffered();
       await addToBuffer(point);
       await persistError("No network — point buffered");
       return;
@@ -325,25 +350,31 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
       await persistCoords(point.lat, point.lng);
       await persistError(null);
       await onSendSuccess();
+      logOk();
 
       // US1: Then flush buffer (batch)
       await flushBuffer(settings, deviceId);
     } else {
       if (result.status === 429) {
+        logFail();
         // Rate limited — skip, don't buffer
         await persistError("Rate limited — skipping");
       } else if (result.status === 400) {
+        logEvent("error", "400: " + (result.message ?? "validation"));
         // Validation error — log, don't buffer
         console.warn("[CAAB Tracker] Validation error:", result.message);
         await persistError(`Validation: ${result.message}`);
       } else if (result.status === 401) {
+        logEvent("error", "401: " + (result.message ?? "auth"));
         // US2: 401 escalation
         await on401Failure();
         await addToBuffer(point);
         await persistError(`Auth error: ${result.message}`);
       } else if (result.status === 404) {
+        logEvent("error", "404: " + (result.message ?? "not found"));
         await persistError(`${result.code}: ${result.message}`);
       } else {
+        logFail();
         // US1: 5xx — buffer current point
         await addToBuffer(point);
         await onSendFailure();
@@ -352,17 +383,20 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
     }
   } catch (err) {
     if (err instanceof NetworkError) {
+      logBuffered();
       // Buffer on network error
       await addToBuffer(point);
       await onSendFailure();
       await persistError("Network error — point buffered");
     } else {
+      logEvent("error", err instanceof Error ? err.message : "unexpected");
       console.error("[CAAB Tracker] Unexpected error:", err);
       await persistError(
         err instanceof Error ? err.message : "Unexpected error",
       );
     }
   }
+  await flushLog();
 });
 
 // US5: Reset sequence counter (called on route start)
