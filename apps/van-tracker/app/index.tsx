@@ -6,10 +6,17 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Modal,
+  AppState,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { isSettingsComplete } from "@/storage/settings";
-import { getLastSentAt } from "@/storage/tracking-state";
+import {
+  getLastSentAt,
+  getTrackingEnabled,
+  getLastTaskInvocationAt,
+  getAuthPaused,
+} from "@/storage/tracking-state";
 import { startTracking, stopTracking, isTracking } from "@/location/tracking";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -23,6 +30,8 @@ export default function HomeScreen() {
   const [lastError, setLastError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showTaskKillModal, setShowTaskKillModal] = useState(false);
+  const [isAuthPaused, setIsAuthPaused] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const checkSettings = useCallback(async () => {
@@ -45,8 +54,29 @@ export default function HomeScreen() {
       setLastLat(lat ? Number(lat) : null);
       setLastLng(lng ? Number(lng) : null);
       setLastError(err);
+
+      const paused = await getAuthPaused();
+      setIsAuthPaused(paused);
     } catch {
       // Silently handle read errors
+    }
+  }, []);
+
+  // US3: Task kill detection on app foreground resume
+  const checkTaskKill = useCallback(async () => {
+    try {
+      const trackingEnabled = await getTrackingEnabled();
+      if (!trackingEnabled) return;
+
+      const lastInvocation = await getLastTaskInvocationAt();
+      if (lastInvocation === null) return;
+
+      const staleThreshold = 5 * 60 * 1000; // 5 minutes
+      if (Date.now() - lastInvocation > staleThreshold) {
+        setShowTaskKillModal(true);
+      }
+    } catch {
+      // Silently handle
     }
   }, []);
 
@@ -54,12 +84,21 @@ export default function HomeScreen() {
     useCallback(() => {
       checkSettings();
       refreshStatus();
+      checkTaskKill();
 
       intervalRef.current = setInterval(refreshStatus, 2000);
+
+      const subscription = AppState.addEventListener("change", (state) => {
+        if (state === "active") {
+          checkTaskKill();
+        }
+      });
+
       return () => {
         if (intervalRef.current) clearInterval(intervalRef.current);
+        subscription.remove();
       };
-    }, [checkSettings, refreshStatus]),
+    }, [checkSettings, refreshStatus, checkTaskKill]),
   );
 
   const handleStart = async () => {
@@ -71,6 +110,23 @@ export default function HomeScreen() {
     } catch (err) {
       setActionError(
         err instanceof Error ? err.message : "Failed to start tracking",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRestart = async () => {
+    setLoading(true);
+    setActionError(null);
+    setShowTaskKillModal(false);
+    try {
+      await stopTracking();
+      await startTracking();
+      setTracking(true);
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : "Failed to restart tracking",
       );
     } finally {
       setLoading(false);
@@ -163,11 +219,55 @@ export default function HomeScreen() {
         )}
       </View>
 
+      {isAuthPaused && (
+        <View style={styles.authBanner}>
+          <Text style={styles.authBannerText}>
+            Authentication failed. Check your token in Settings.
+          </Text>
+          <TouchableOpacity
+            style={styles.authBannerButton}
+            onPress={() => router.push("/settings")}
+          >
+            <Text style={styles.authBannerButtonText}>Go to Settings</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {actionError && (
         <View style={styles.errorBanner}>
           <Text style={styles.errorBannerText}>{actionError}</Text>
         </View>
       )}
+
+      <Modal
+        visible={showTaskKillModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowTaskKillModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Tracking May Have Stopped</Text>
+            <Text style={styles.modalMessage}>
+              {"The background task hasn't run recently. Android may have stopped"}
+              it to save battery.
+            </Text>
+            <TouchableOpacity
+              style={[styles.primaryButton, styles.startButton]}
+              onPress={handleRestart}
+              disabled={loading}
+            >
+              <Text style={styles.buttonText}>Restart Tracking</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.secondaryButton}
+              onPress={() => setShowTaskKillModal(false)}
+            >
+              <Text style={styles.secondaryButtonText}>Dismiss</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <TouchableOpacity
         style={[
@@ -308,5 +408,54 @@ const styles = StyleSheet.create({
     color: "#64748b",
     fontSize: 14,
     fontWeight: "500",
+  },
+  authBanner: {
+    backgroundColor: "#fef3c7",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  authBannerText: {
+    color: "#92400e",
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  authBannerButton: {
+    alignSelf: "flex-start",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: "#f59e0b",
+    borderRadius: 6,
+  },
+  authBannerButtonText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 24,
+    width: "100%",
+    maxWidth: 340,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#0f172a",
+    marginBottom: 8,
+  },
+  modalMessage: {
+    fontSize: 14,
+    color: "#64748b",
+    marginBottom: 20,
+    lineHeight: 20,
   },
 });

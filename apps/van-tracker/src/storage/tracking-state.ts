@@ -19,3 +19,15 @@ export async function getLastSentAt(): Promise<number | null> {
 export async function setLastSentAt(ts: number): Promise<void> {
   await AsyncStorage.setItem("@lastSentAt", String(ts));
 }
+
+export async function getLastTaskInvocationAt(): Promise<number | null> {
+  const value = await AsyncStorage.getItem("@lastTaskInvocationAt");
+  if (value === null) return null;
+  const parsed = Number(value);
+  return isNaN(parsed) ? null : parsed;
+}
+
+export async function getAuthPaused(): Promise<boolean> {
+  const value = await AsyncStorage.getItem("@authPaused");
+  return value === "true";
+}

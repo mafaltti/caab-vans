@@ -61,7 +61,20 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return validationError(parsed.error);
   }
 
-  const { deviceId, lat, lng, accuracy, speed, heading, ts } = parsed.data;
+  const {
+    deviceId,
+    lat,
+    lng,
+    accuracy,
+    speed,
+    heading,
+    ts,
+    seq,
+    bufferSize,
+    failureCount,
+    batteryLevel,
+    networkType,
+  } = parsed.data;
 
   // Clamp device timestamp: if >5 min in the future, use server time instead.
   // This prevents a single bad client clock from poisoning the out-of-order guard.
@@ -96,6 +109,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         speed_mps: speed,
         heading_deg: heading,
         device_ts: deviceTs,
+        seq: seq ?? null,
+        buffer_size: bufferSize ?? null,
+        failure_count: failureCount ?? null,
+        battery_level: batteryLevel ?? null,
+        network_type: networkType ?? null,
       },
       { onConflict: "van_id,device_ts", ignoreDuplicates: true },
     )
@@ -113,6 +131,26 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   if (!upsertedPing) {
     return NextResponse.json({ received: true, duplicate: true, ts: Date.now() });
+  }
+
+  // Sequence gap detection
+  if (seq != null) {
+    const { data: lastSeqPing } = await supabase
+      .from("van_location_pings")
+      .select("seq")
+      .eq("van_id", vanId)
+      .not("seq", "is", null)
+      .order("device_ts", { ascending: false })
+      .limit(2);
+
+    if (lastSeqPing && lastSeqPing.length === 2) {
+      const [newest, previous] = lastSeqPing;
+      if (newest.seq !== null && previous.seq !== null && newest.seq > previous.seq + 1) {
+        console.warn(
+          `[Tracking] Sequence gap for van ${vanId}: expected ${previous.seq + 1}, got ${newest.seq}`,
+        );
+      }
+    }
   }
 
   // Update van position only if this ping is strictly newer than the previous

@@ -1,11 +1,19 @@
 import "@/location/task";
+import * as Sentry from "@sentry/react-native";
 import { useEffect } from "react";
 import { Stack } from "expo-router";
 import { isSettingsComplete } from "@/storage/settings";
 import { getTrackingEnabled } from "@/storage/tracking-state";
 import { startTracking } from "@/location/tracking";
 
-export default function RootLayout() {
+Sentry.init({
+  dsn: "https://b223f5cc68a43affcb6a932af31b4350@o4510995190972416.ingest.us.sentry.io/4510995205128192",
+  enableAutoSessionTracking: true,
+  tracesSampleRate: 0.2,
+  enableNativeCrashHandling: true,
+});
+
+function RootLayout() {
   useEffect(() => {
     (async () => {
       try {
@@ -27,3 +35,5 @@ export default function RootLayout() {
     </Stack>
   );
 }
+
+export default Sentry.wrap(RootLayout);

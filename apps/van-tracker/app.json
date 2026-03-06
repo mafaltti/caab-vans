@@ -43,6 +43,13 @@
           "isAndroidBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true
         }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "organization": "carneiro",
+          "project": "caab-tracker"
+        }
       ]
     ],
     "scheme": "van-tracker",
