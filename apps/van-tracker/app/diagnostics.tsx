@@ -122,7 +122,18 @@ export default function DiagnosticsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      getLog().then(setEntries);
+      let active = true;
+      (async () => {
+        try {
+          const next = await getLog();
+          if (active) setEntries(next);
+        } catch {
+          // Non-critical — screen shows stale or empty data
+        }
+      })();
+      return () => {
+        active = false;
+      };
     }, []),
   );
 
@@ -133,10 +144,19 @@ export default function DiagnosticsScreen() {
       Alert.alert("No data", "No diagnostic data to share.");
       return;
     }
-    const date = new Date().toISOString().slice(0, 10);
-    const file = new File(Paths.cache, `caab-tracker-log-${date}.json`);
-    file.write(JSON.stringify(entries, null, 2));
-    await Sharing.shareAsync(file.uri, { mimeType: "application/json" });
+    try {
+      const canShare = await Sharing.isAvailableAsync();
+      if (!canShare) {
+        Alert.alert("Share unavailable", "Sharing is not available on this device.");
+        return;
+      }
+      const date = new Date().toISOString().slice(0, 10);
+      const file = new File(Paths.cache, `caab-tracker-log-${date}.json`);
+      file.write(JSON.stringify(entries, null, 2));
+      await Sharing.shareAsync(file.uri, { mimeType: "application/json" });
+    } catch {
+      Alert.alert("Share failed", "Could not export diagnostic log.");
+    }
   };
 
   const handleClear = () => {

@@ -29,7 +29,7 @@ Add a lightweight diagnostic log to the van-tracker Expo app that records tracke
 | II. Explicit Trade-offs | PASS | Trade-off documented: ~1 minute of data loss on crash vs. zero disk I/O in hot path. |
 | III. Branch & Merge Discipline | PASS | Feature branch `041-tracker-diag-log` targets `dev`. |
 | IV. Quality Gates | PASS | Will run lint + typecheck before PR. No existing test suite in van-tracker. |
-| V. Stack Constraints | PASS | Uses existing stack (Expo, AsyncStorage, Expo Router). No new native modules. expo-file-system and expo-sharing are Expo managed packages. |
+| V. Stack Constraints | PASS | Uses existing stack (Expo, AsyncStorage, Expo Router). No new native modules. expo-file-system and expo-sharing are Expo-managed packages. |
 | Security Constraints | PASS | No server communication, no credentials in logs. Log data is device-local. |
 | Timezone | N/A | Timestamps are Unix epoch (Date.now()), displayed in device local time on the diagnostics screen. |
 

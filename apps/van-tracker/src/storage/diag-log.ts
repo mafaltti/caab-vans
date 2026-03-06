@@ -118,31 +118,37 @@ export function logNetworkState(connected: boolean): void {
 
 // --- Disk persistence (async, call periodically) ---
 
+let flushChain: Promise<void> = Promise.resolve();
+
+async function ensureDiskLogLoaded(): Promise<void> {
+  if (diskLog !== null) return;
+  try {
+    const raw = await AsyncStorage.getItem(LOG_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    diskLog = Array.isArray(parsed) ? parsed : [];
+  } catch {
+    diskLog = [];
+  }
+}
+
 export async function flushLog(): Promise<void> {
-  const toFlush = [...pendingEvents];
-  pendingEvents = [];
+  flushChain = flushChain.then(async () => {
+    await ensureDiskLogLoaded();
+    const toFlush = [...pendingEvents];
+    pendingEvents = [];
+    if (toFlush.length === 0) return;
 
-  if (toFlush.length === 0) return;
-
-  if (diskLog === null) {
-    try {
-      const raw = await AsyncStorage.getItem(LOG_KEY);
-      diskLog = raw ? JSON.parse(raw) : [];
-    } catch {
-      diskLog = [];
+    diskLog!.push(...toFlush);
+    if (diskLog!.length > MAX_LOG_SIZE) {
+      diskLog!.splice(0, diskLog!.length - MAX_LOG_SIZE);
     }
-  }
-
-  diskLog!.push(...toFlush);
-
-  if (diskLog!.length > MAX_LOG_SIZE) {
-    diskLog!.splice(0, diskLog!.length - MAX_LOG_SIZE);
-  }
-
-  await AsyncStorage.setItem(LOG_KEY, JSON.stringify(diskLog));
+    await AsyncStorage.setItem(LOG_KEY, JSON.stringify(diskLog));
+  });
+  return flushChain;
 }
 
 export async function getLog(): Promise<LogEntry[]> {
+  await ensureDiskLogLoaded();
   await flushLog();
   const result = [...(diskLog ?? [])];
   if (currentMinute && countOf(currentMinute) > 0) {

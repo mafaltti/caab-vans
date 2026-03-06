@@ -11,7 +11,7 @@
 
 ## Project Location
 
-```
+```text
 apps/van-tracker/
 ```
 
