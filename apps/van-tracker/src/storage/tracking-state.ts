@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { setTrackingEnabledDeviceProtected } from "./device-protected-state";
 
 export async function getTrackingEnabled(): Promise<boolean> {
   const value = await AsyncStorage.getItem("@trackingEnabled");
@@ -7,6 +8,7 @@ export async function getTrackingEnabled(): Promise<boolean> {
 
 export async function setTrackingEnabled(flag: boolean): Promise<void> {
   await AsyncStorage.setItem("@trackingEnabled", String(flag));
+  await setTrackingEnabledDeviceProtected(flag);
 }
 
 export async function getLastSentAt(): Promise<number | null> {

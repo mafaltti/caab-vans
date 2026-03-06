@@ -5,6 +5,8 @@ import { Stack } from "expo-router";
 import { isSettingsComplete } from "@/storage/settings";
 import { getTrackingEnabled } from "@/storage/tracking-state";
 import { startTracking } from "@/location/tracking";
+import { consumeBootTrigger } from "@/storage/device-protected-state";
+import { logEvent, flushLog } from "@/storage/diag-log";
 
 Sentry.init({
   dsn: "https://b223f5cc68a43affcb6a932af31b4350@o4510995190972416.ingest.us.sentry.io/4510995205128192",
@@ -16,13 +18,35 @@ Sentry.init({
 function RootLayout() {
   useEffect(() => {
     (async () => {
+      let bootTrigger: string | null = null;
       try {
+        bootTrigger = await consumeBootTrigger();
         const wasTracking = await getTrackingEnabled();
         const settingsOk = await isSettingsComplete();
         if (wasTracking && settingsOk) {
           await startTracking();
+          if (bootTrigger) {
+            logEvent("boot_restart", bootTrigger);
+            await flushLog();
+          }
+        } else if (bootTrigger) {
+          const reason = !wasTracking
+            ? "tracking_not_enabled"
+            : "settings_incomplete";
+          logEvent("boot_restart", `error: ${reason}`);
+          await flushLog();
         }
-      } catch {
+      } catch (err) {
+        if (bootTrigger) {
+          const msg =
+            err instanceof Error ? err.message : "unknown_error";
+          logEvent("boot_restart", `error: ${msg}`);
+          try {
+            await flushLog();
+          } catch {
+            // Diagnostics should never block error handling
+          }
+        }
         // Permission issues on resume are non-fatal — user can manually restart
       }
     })();

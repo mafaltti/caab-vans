@@ -51,7 +51,8 @@
           "project": "caab-tracker"
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      "./plugins/withBootRestart"
     ],
     "scheme": "van-tracker",
     "extra": {

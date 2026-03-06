@@ -26,7 +26,8 @@ export type EventType =
   | "network_down"
   | "network_up"
   | "error"
-  | "state_change";
+  | "state_change"
+  | "boot_restart";
 
 export interface EventEntry {
   type: "event";
