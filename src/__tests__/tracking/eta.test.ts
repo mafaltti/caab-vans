@@ -3,6 +3,7 @@ import { DateTime } from "luxon";
 
 import { computeEta, computeSmoothedSpeed } from "@/lib/tracking/eta";
 import type { VanPosition } from "@/lib/tracking/eta";
+import { getTimeFactor } from "@/lib/tracking/time-factors";
 
 const TZ = "America/Bahia";
 
@@ -281,8 +282,8 @@ describe("computeEta", () => {
 
   describe("GPS-based ETA", () => {
     // Salvador, Bahia area coordinates
-    // Van position: ~12.9714° S, 38.5124° W (Pituba)
-    // Stop position: ~12.9814° S, 38.4524° W (Itapuã) — ~6.6 km apart
+    // Van position: ~12.9714 S, 38.5124 W (Pituba)
+    // Stop position: ~12.9814 S, 38.4524 W (Itapua) — ~6.6 km apart
     const VAN_LAT = -12.9714;
     const VAN_LNG = -38.5124;
     const STOP_LAT = -12.9814;
@@ -528,12 +529,16 @@ describe("computeEta", () => {
     });
 
     it("uses OSRM duration instead of distance/speed for base ETA", async () => {
-      const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
-      const vanPosition = makeVanPosition({ speedMps: 10 });
+      // Use a known weekday (Monday) so timeFactor is deterministic (1.4 at hour 8)
+      const now = DateTime.fromObject({ year: 2026, month: 3, day: 2, hour: 8, minute: 42 }, { zone: TZ });
+      const vanPosition = makeVanPosition({
+        speedMps: 10,
+        locationUpdatedAt: DateTime.fromObject({ year: 2026, month: 3, day: 2, hour: 8, minute: 40 }, { zone: TZ }),
+      });
       const stops = makeStops();
 
       // OSRM returns 180s (3 min) duration but 8500m distance
-      // distance/speed would give ~8500/10/60 ≈ 14 min, but OSRM duration gives 3 min
+      // distance/speed would give ~8500/10/60 ~ 14 min, but OSRM duration gives 3 min
       const mockFetch = vi.fn().mockResolvedValue({
         ok: true,
         json: async () => ({
@@ -551,7 +556,7 @@ describe("computeEta", () => {
       });
 
       expect(result.etaSource).toBe("gps_osrm");
-      // 180s = 3 min * timeFactor(1.4 at hour 8) = 4.2 min → ceil = 5
+      // 180s = 3 min * timeFactor(1.4 at hour 8 weekday) = 4.2 min -> ceil = 5
       expect(result.etaNextStopMinutes).toBe(5);
 
       vi.unstubAllGlobals();
@@ -666,8 +671,14 @@ describe("computeEta", () => {
     });
 
     describe("smoothed speed", () => {
-      it("computeSmoothedSpeed returns mean of non-zero values", () => {
-        expect(computeSmoothedSpeed([5, 3, 7, 0, 4, 6, 0, 5, 3, 4])).toBeCloseTo(4.625);
+      it("computeSmoothedSpeed returns median of non-zero values", () => {
+        // [3,4,4,5,5,5,6,7] sorted non-zero, median of 8 = avg(5,5) = 5
+        expect(computeSmoothedSpeed([5, 3, 7, 0, 4, 6, 0, 5, 3, 4])).toBeCloseTo(4.5);
+      });
+
+      it("computeSmoothedSpeed resists GPS spike", () => {
+        // [4,5,5,5,5,5,6,6,6,40] sorted non-zero, median of 10 = avg(5,6) = 5.5
+        expect(computeSmoothedSpeed([5, 6, 5, 40, 6, 5, 4, 6, 5, 6])).toBeCloseTo(5.5);
       });
 
       it("brief speed drop does not cause ETA spike > 50%", async () => {
@@ -675,18 +686,25 @@ describe("computeEta", () => {
         const vanPosition = makeVanPosition({ speedMps: 10 });
         const stops = makeStops();
 
+        const recentSpeedsWithDip = [10, 10, 10, 10, 2, 10, 10, 10, 10, 10].map(
+          (s, i) => ({ speedMps: s, deviceTs: now.minus({ seconds: i * 15 }).toISO()! }),
+        );
+        const recentSpeedsSteady = [10, 10, 10, 10, 10, 10, 10, 10, 10, 10].map(
+          (s, i) => ({ speedMps: s, deviceTs: now.minus({ seconds: i * 15 }).toISO()! }),
+        );
+
         const resultWithDip = await computeEta({
           stops,
           now,
           vanPosition,
-          recentSpeeds: [10, 10, 10, 10, 2, 10, 10, 10, 10, 10],
+          recentSpeeds: recentSpeedsWithDip,
         });
 
         const resultSteady = await computeEta({
           stops,
           now,
           vanPosition,
-          recentSpeeds: [10, 10, 10, 10, 10, 10, 10, 10, 10, 10],
+          recentSpeeds: recentSpeedsSteady,
         });
 
         const ratio = resultWithDip.etaNextStopMinutes! / resultSteady.etaNextStopMinutes!;
@@ -701,34 +719,215 @@ describe("computeEta", () => {
         const vanPosition = makeVanPosition({ speedMps: 0 });
         const stops = makeStops({ stopLat: CLOSE_STOP_LAT, stopLng: CLOSE_STOP_LNG });
 
+        const recentSpeeds = [0, 0, 0, 0, 0].map(
+          (s, i) => ({ speedMps: s, deviceTs: now.minus({ seconds: i * 15 }).toISO()! }),
+        );
+
         const result = await computeEta({
           stops,
           now,
           vanPosition,
-          recentSpeeds: [0, 0, 0, 0, 0],
+          recentSpeeds,
         });
 
         expect(result.etaSource).toBe("gps");
       });
 
       it("computeSmoothedSpeed handles partial window (2 readings)", () => {
+        // [4, 8] sorted, median of 2 = avg(4, 8) = 6
         expect(computeSmoothedSpeed([8, 4])).toBeCloseTo(6);
       });
 
-      it("speed=0 with non-zero recentSpeeds and far stop falls back to schedule", async () => {
+      it("speed=0 with non-zero recentSpeeds and far stop falls back to schedule without hysteresis", async () => {
         const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
         const vanPosition = makeVanPosition({ speedMps: 0 });
         const stops = makeStops(); // default ~6.6km away
+
+        // All pings are old (>60s ago) so hysteresis does not activate
+        const recentSpeeds = [10, 10, 10, 10, 10].map(
+          (s, i) => ({ speedMps: s, deviceTs: now.minus({ seconds: 120 + i * 15 }).toISO()! }),
+        );
 
         const result = await computeEta({
           stops,
           now,
           vanPosition,
-          recentSpeeds: [10, 10, 10, 10, 10],
+          recentSpeeds,
         });
 
         expect(result.etaSource).toBe("schedule");
       });
     });
+
+    describe("hysteresis", () => {
+      it("keeps GPS ETA when van stops briefly at traffic light (recent pings within 60s)", async () => {
+        const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+        const vanPosition = makeVanPosition({ speedMps: 0 }); // currently stopped
+        const stops = makeStops(); // default ~6.6km away (> 500m)
+
+        // Recent pings: some within 60s had speed >= 1.0
+        const recentSpeeds = [
+          { speedMps: 0, deviceTs: now.minus({ seconds: 5 }).toISO()! },
+          { speedMps: 0, deviceTs: now.minus({ seconds: 15 }).toISO()! },
+          { speedMps: 8, deviceTs: now.minus({ seconds: 30 }).toISO()! },
+          { speedMps: 10, deviceTs: now.minus({ seconds: 45 }).toISO()! },
+          { speedMps: 10, deviceTs: now.minus({ seconds: 55 }).toISO()! },
+        ];
+
+        const result = await computeEta({
+          stops,
+          now,
+          vanPosition,
+          recentSpeeds,
+        });
+
+        expect(result.etaSource).toBe("gps");
+      });
+
+      it("falls back to schedule when all recent pings are older than 60s", async () => {
+        const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+        const vanPosition = makeVanPosition({ speedMps: 0 });
+        const stops = makeStops(); // > 500m away
+
+        // All pings older than 60s
+        const recentSpeeds = [
+          { speedMps: 10, deviceTs: now.minus({ seconds: 70 }).toISO()! },
+          { speedMps: 10, deviceTs: now.minus({ seconds: 80 }).toISO()! },
+          { speedMps: 10, deviceTs: now.minus({ seconds: 90 }).toISO()! },
+        ];
+
+        const result = await computeEta({
+          stops,
+          now,
+          vanPosition,
+          recentSpeeds,
+        });
+
+        expect(result.etaSource).toBe("schedule");
+      });
+
+      it("uses FALLBACK_SPEED when hysteresis is active and van is stopped", async () => {
+        const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+        const vanPosition = makeVanPosition({ speedMps: 0 });
+        const stops = makeStops();
+
+        const recentSpeeds = [
+          { speedMps: 0, deviceTs: now.minus({ seconds: 5 }).toISO()! },
+          { speedMps: 5, deviceTs: now.minus({ seconds: 30 }).toISO()! },
+        ];
+
+        const result = await computeEta({
+          stops,
+          now,
+          vanPosition,
+          recentSpeeds,
+        });
+
+        // Should use GPS with fallback speed, not schedule
+        expect(result.etaSource).toBe("gps");
+        expect(result.etaNextStopMinutes).toBeGreaterThan(0);
+      });
+    });
+
+    describe("direction detection", () => {
+      it("falls back to schedule when van heads away from stop (haversine path)", async () => {
+        const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+        // Stop is roughly east of van; heading 270 = west (opposite)
+        const vanPosition = makeVanPosition({ headingDeg: 270 });
+        const stops = makeStops();
+
+        // No OSRM so haversine path is used
+        const result = await computeEta({ stops, now, vanPosition });
+
+        expect(result.etaSource).toBe("schedule");
+      });
+
+      it("uses GPS when van heads toward stop (haversine path)", async () => {
+        const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+        // Stop is roughly east of van; heading ~90 = east (toward)
+        const vanPosition = makeVanPosition({ headingDeg: 90 });
+        const stops = makeStops();
+
+        const result = await computeEta({ stops, now, vanPosition });
+
+        expect(result.etaSource).toBe("gps");
+      });
+
+      it("direction check is skipped when OSRM is available", async () => {
+        const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+        // Heading away, but OSRM is available — should still use OSRM
+        const vanPosition = makeVanPosition({ headingDeg: 270 });
+        const stops = makeStops();
+
+        const mockFetch = vi.fn().mockResolvedValue({
+          ok: true,
+          json: async () => ({
+            code: "Ok",
+            routes: [{ distance: 8500, duration: 600 }],
+          }),
+        });
+        vi.stubGlobal("fetch", mockFetch);
+
+        const result = await computeEta({
+          stops,
+          now,
+          vanPosition,
+          osrmBaseUrl: "http://localhost:5000",
+        });
+
+        expect(result.etaSource).toBe("gps_osrm");
+
+        vi.unstubAllGlobals();
+      });
+
+      it("direction check is skipped when headingDeg is null", async () => {
+        const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+        const vanPosition = makeVanPosition({ headingDeg: null });
+        const stops = makeStops();
+
+        const result = await computeEta({ stops, now, vanPosition });
+
+        expect(result.etaSource).toBe("gps");
+      });
+    });
+  });
+});
+
+describe("getTimeFactor", () => {
+  it("returns historical factor only when recentRuns has 1 or 2 entries", () => {
+    const oneRun = [{ actualMinutes: 5, predictedMinutes: 4 }];
+    const twoRuns = [
+      { actualMinutes: 5, predictedMinutes: 4 },
+      { actualMinutes: 6, predictedMinutes: 5 },
+    ];
+
+    // Hour 8, weekday (day 1=Monday) — historical factor is 1.4
+    const resultOne = getTimeFactor(8, 1, undefined, oneRun);
+    const resultTwo = getTimeFactor(8, 1, undefined, twoRuns);
+    const resultNone = getTimeFactor(8, 1, undefined, undefined);
+
+    // With <3 runs, should return the same as no runs (historical only)
+    expect(resultOne).toBe(resultNone);
+    expect(resultTwo).toBe(resultNone);
+  });
+
+  it("blends 70/30 when recentRuns has 3+ entries", () => {
+    const threeRuns = [
+      { actualMinutes: 5, predictedMinutes: 5 },
+      { actualMinutes: 5, predictedMinutes: 5 },
+      { actualMinutes: 5, predictedMinutes: 5 },
+    ];
+
+    // All ratios = 1.0, so recent factor = 1.0
+    // historical for hour 8 weekday = 1.4
+    // blended = 0.7 * 1.4 + 0.3 * 1.0 = 1.28
+    const result = getTimeFactor(8, 1, undefined, threeRuns);
+    expect(result).toBeCloseTo(1.28);
+  });
+
+  it("returns 0.95 for Sunday operating hours", () => {
+    // Sunday = weekday 7
+    const result = getTimeFactor(8, 7, undefined, undefined);
+    expect(result).toBe(0.95);
   });
 });
