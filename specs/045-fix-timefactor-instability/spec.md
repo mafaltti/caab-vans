@@ -42,7 +42,7 @@ As a system computing ETAs, the timeFactor correction should still accurately re
 ### Edge Cases
 
 - What happens when a van has passed zero or one stop (no inter-stop pairs available)? The timeFactor should default to the historical factor only (no recent blending).
-- What happens when the haversine distance between two consecutive stops is extremely short (< 50 meters)? Very short segments may produce unreliable ratios and should be filtered out.
+- What happens when the haversine distance between two consecutive stops is extremely short (< 100 meters)? Very short segments may produce unreliable ratios and should be filtered out.
 - What happens when `actualMinutes` between two stops is near zero (e.g., two stops passed almost simultaneously due to geofence overlap)? These entries should be excluded to avoid division artifacts.
 
 ## Requirements *(mandatory)*
@@ -60,7 +60,7 @@ As a system computing ETAs, the timeFactor correction should still accurately re
 
 - **Recent Run (inter-stop segment)**: A pair of consecutively passed stops with measured actual travel time and a baseline-predicted travel time. Used to derive the traffic correction ratio.
 - **Time Factor**: A multiplier applied to the base ETA (from OSRM duration or distance/speed) that corrects for current traffic conditions. Derived from blending historical patterns (70%) with recent observed ratios (30%).
-- **Reference Speed**: A fixed constant speed value used solely for computing baseline predictions in the recentRuns ratio. Its absolute value is unimportant — only consistency across API calls matters.
+- **Reference Speed**: A fixed constant speed value used for computing baseline predictions in the recentRuns ratio. Acts as a calibration parameter — changing its value will shift all recent-factor ratios. Its primary role is ensuring consistency across API calls so that timeFactor only changes when new stops are passed.
 
 ## Success Criteria *(mandatory)*
 
@@ -73,6 +73,6 @@ As a system computing ETAs, the timeFactor correction should still accurately re
 
 ## Assumptions
 
-- A fixed reference speed of approximately 30 km/h (8.3 m/s) is a reasonable urban baseline for the routes served. The exact value does not affect correctness because it cancels out in the ratio — only its constancy matters.
+- A fixed reference speed of approximately 30 km/h (8.3 m/s) is a reasonable urban baseline for the routes served. Changing this value will shift all recent-factor ratios — it acts as a calibration parameter, not a neutral constant. Its constancy across API calls is what ensures timeFactor stability.
 - The existing 70/30 blend ratio between historical and recent factors is appropriate and does not need adjustment as part of this fix.
 - The ROAD_FACTOR constant (1.3) used in the prediction formula remains appropriate and does not need modification.

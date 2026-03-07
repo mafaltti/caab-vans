@@ -29,7 +29,7 @@
 
 - [x] T001 Add `REFERENCE_SPEED_MPS` (8.3), `MIN_SEGMENT_DIST_M` (100), and `MIN_SEGMENT_TIME_MIN` (0.5) constants to `src/lib/tracking/time-factors.ts`
 - [x] T002 Implement `buildRecentRuns()` helper function in `src/lib/tracking/time-factors.ts` that accepts an array of passed stops (with `passedAt`, `stopLat`, `stopLng`) and returns `RecentRun[]`, using `REFERENCE_SPEED_MPS` instead of instantaneous speed, `ROAD_FACTOR` from eta.ts for distance inflation, and filtering segments below `MIN_SEGMENT_DIST_M` or `MIN_SEGMENT_TIME_MIN`
-- [x] T003 Add unit tests for `buildRecentRuns()` in `src/lib/tracking/__tests__/time-factors.test.ts` verifying: (a) returns empty array for 0-1 stops, (b) computes stable predictedMinutes using fixed reference speed, (c) filters short-distance segments below MIN_SEGMENT_DIST_M, (d) filters short-time segments below MIN_SEGMENT_TIME_MIN, (e) produces identical output for same input regardless of call order
+- [x] T003 Add unit tests for `buildRecentRuns()` in `src/__tests__/tracking/time-factors.test.ts` verifying: (a) returns empty array for 0-1 stops, (b) computes stable predictedMinutes using fixed reference speed, (c) filters short-distance segments below MIN_SEGMENT_DIST_M, (d) filters short-time segments below MIN_SEGMENT_TIME_MIN, (e) produces identical output for same input regardless of call order
 
 **Checkpoint**: Foundation ready — `buildRecentRuns()` tested and exported. User story integration can begin.
 
@@ -43,8 +43,8 @@
 
 ### Implementation for User Story 1
 
-- [x] T004 [P] [US1] Replace inline `recentRuns` loop (lines 204-217) in `src/app/api/routes/[routeId]/route.ts` with a call to `buildRecentRuns(passedStops)`, removing the `vanPosition?.speedMps` dependency and the local `speedMps`/`predictedMinutes` computation
-- [x] T005 [P] [US1] Replace inline `recentRuns` loop (lines 196-209) in `src/app/api/routes/route.ts` with a call to `buildRecentRuns(passedStops)`, removing the `vanPosition?.speedMps` dependency and the local `speedMps`/`predictedMinutes` computation
+- [x] T004 [P] [US1] Replace inline `recentRuns` loop (lines 204-217) in `src/app/api/routes/[routeId]/route.ts` with a call to `buildRecentRuns(passedStops, ROAD_FACTOR)`, removing the `vanPosition?.speedMps` dependency and the local `speedMps`/`predictedMinutes` computation
+- [x] T005 [P] [US1] Replace inline `recentRuns` loop (lines 196-209) in `src/app/api/routes/route.ts` with a call to `buildRecentRuns(passedStops, ROAD_FACTOR)`, removing the `vanPosition?.speedMps` dependency and the local `speedMps`/`predictedMinutes` computation
 - [x] T006 [US1] Run quality gates: `npx tsc --noEmit`, `npx eslint .`, `npm run build`, `npx vitest`
 
 **Checkpoint**: US1 complete. timeFactor is now stable across consecutive API calls for the same stop set. ETA no longer swings wildly.

@@ -9,6 +9,8 @@
 - A fixed constant has zero computational overhead and zero network calls.
 - The reference speed cancels out in the ratio math: if all segments use the same constant, the median ratio purely reflects how actual segment times compare to each other scaled by distance.
 
+**Note**: The reference speed does not fully "cancel out" — it acts as a calibration parameter that scales all recent-factor ratios. Changing 8.3 to 11.1 would shift the ratios and the final blended timeFactor. The stability guarantee holds (ratios are constant across API calls for the same stop set), but the absolute value of REFERENCE_SPEED_MPS does affect ETA calibration.
+
 **Alternatives considered**:
 1. **OSRM duration per stop pair** — Most accurate but adds N OSRM calls per request (currently 0 for recentRuns). No caching exists. Each call has 100ms timeout. Rejected: violates KISS and SC-004 (zero additional network overhead).
 2. **Smoothed speed (last 10 pings)** — Better than instantaneous but still shifts between requests. Already computed in `computeSmoothedSpeed()` but would not fully eliminate the volatility. Rejected: doesn't solve the root problem.
@@ -49,5 +51,5 @@
 - Named constant `REFERENCE_SPEED_MPS` for clarity.
 
 **Alternatives considered**:
-- 11.1 m/s (40 km/h): also valid; no difference in outcome.
+- 11.1 m/s (40 km/h): also valid for stability, but would shift the calibration of all recent-factor ratios.
 - Configurable per route: YAGNI — the value doesn't affect results.

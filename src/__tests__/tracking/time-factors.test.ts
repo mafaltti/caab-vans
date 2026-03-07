@@ -79,6 +79,25 @@ describe("buildRecentRuns", () => {
     expect(r2).toEqual(r3);
   });
 
+  it("includes segments at exactly MIN_SEGMENT_DIST_M (100m boundary)", () => {
+    // Two stops ~105m apart (just above 100m threshold)
+    const stops = makeStops([
+      { lat: -12.97140, lng: -38.51240, passedAt: "2026-03-06T08:00:00-03:00" },
+      { lat: -12.97235, lng: -38.51240, passedAt: "2026-03-06T08:05:00-03:00" },
+    ]);
+    const result = buildRecentRuns(stops, ROAD_FACTOR);
+    expect(result).toHaveLength(1);
+  });
+
+  it("includes segments at exactly MIN_SEGMENT_TIME_MIN (0.5min boundary)", () => {
+    const stops = makeStops([
+      { ...STOP_A, passedAt: "2026-03-06T08:00:00-03:00" },
+      { ...STOP_B, passedAt: "2026-03-06T08:00:30-03:00" }, // exactly 30 seconds = 0.5 min
+    ]);
+    const result = buildRecentRuns(stops, ROAD_FACTOR);
+    expect(result).toHaveLength(1);
+  });
+
   it("skips segments with null coordinates", () => {
     const stops: PassedStop[] = [
       { passedAt: "2026-03-06T08:00:00-03:00", stopLat: STOP_A.lat, stopLng: STOP_A.lng },

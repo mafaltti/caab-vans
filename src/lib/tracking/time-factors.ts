@@ -54,6 +54,11 @@ export function loadFactors(): TimeFactorsFile {
   }
 }
 
+// Calibration constant for recentRuns baseline predictions. Changing this value
+// will shift all recent-factor ratios and thus all in-flight ETAs — it is NOT
+// neutral. The current value (~30 km/h) represents typical urban van speed.
+// Stability guarantee: the value is constant across API calls, so timeFactor
+// only changes when a new stop is actually passed.
 export const REFERENCE_SPEED_MPS = 8.3;
 export const MIN_SEGMENT_DIST_M = 100;
 export const MIN_SEGMENT_TIME_MIN = 0.5;
