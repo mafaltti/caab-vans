@@ -5,7 +5,6 @@ export interface LocationPoint {
   speed: number | null;
   heading: number | null;
   ts: number;
-  seq?: number | null;
   bufferSize?: number | null;
   failureCount?: number | null;
   batteryLevel?: number | null;

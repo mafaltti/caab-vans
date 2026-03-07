@@ -69,7 +69,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     speed,
     heading,
     ts,
-    seq,
     bufferSize,
     failureCount,
     batteryLevel,
@@ -100,7 +99,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         speed_mps: speed,
         heading_deg: heading,
         device_ts: deviceTs,
-        seq: seq ?? null,
         buffer_size: bufferSize ?? null,
         failure_count: failureCount ?? null,
         battery_level: batteryLevel ?? null,
@@ -122,26 +120,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   if (!upsertedPing) {
     return NextResponse.json({ received: true, duplicate: true, ts: Date.now() });
-  }
-
-  // Sequence gap detection
-  if (seq != null) {
-    const { data: lastSeqPing } = await supabase
-      .from("van_location_pings")
-      .select("seq")
-      .eq("van_id", vanId)
-      .not("seq", "is", null)
-      .order("device_ts", { ascending: false })
-      .limit(2);
-
-    if (lastSeqPing && lastSeqPing.length === 2) {
-      const [newest, previous] = lastSeqPing;
-      if (newest.seq !== null && previous.seq !== null && newest.seq > previous.seq + 1) {
-        console.warn(
-          `[Tracking] Sequence gap for van ${vanId}: expected ${previous.seq + 1}, got ${newest.seq}`,
-        );
-      }
-    }
   }
 
   // OSRM road-snapping (best-effort, before atomic position update)
