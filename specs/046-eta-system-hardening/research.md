@@ -82,9 +82,9 @@ All NEEDS CLARIFICATION items from the Technical Context have been resolved thro
 
 ## R6: REFERENCE_SPEED_MPS Unification
 
-**Decision**: Unify to 8.3 m/s. Import from `time-factors.ts` in the training script.
+**Decision**: Unify to 8.3 m/s. Duplicate the constant in `compute-time-factors.ts` with a synchronization comment.
 
-**Rationale**: `time-factors.ts:62` uses 8.3, `compute-time-factors.ts:33` uses 8.33. Both intend ~30 km/h. Since the runtime value (8.3) is already deployed and stable, the script should match it. However, `compute-time-factors.ts` is a standalone script using `pg` directly — it cannot import from the app's TypeScript paths. Instead, define the constant in both places with identical value 8.3 and a comment referencing the shared intent.
+**Rationale**: `time-factors.ts:62` uses `REFERENCE_SPEED_MPS = 8.3`, `compute-time-factors.ts:33` used 8.33. Both intend ~30 km/h. Since the runtime value (8.3) is already deployed and stable, the script must match it. `compute-time-factors.ts` is a standalone script using `pg` directly — it cannot import from the app's TypeScript paths (`@/lib/...`). The constant is duplicated with value 8.3 and a comment `// ~30 km/h — must match REFERENCE_SPEED_MPS in src/lib/tracking/time-factors.ts`.
 
 **Alternatives considered**:
 - Shared constants file importable by both — rejected: standalone script uses different module resolution, would need build step changes

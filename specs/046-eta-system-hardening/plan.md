@@ -81,7 +81,7 @@ scripts/
 └── precompute-stop-distances.ts  # New: one-time OSRM distance pre-computation
 
 supabase/migrations/
-└── XXXXX_add_osrm_distance.sql   # Add osrm_distance_m column
+└── 00008_add_osrm_distance.sql   # Add osrm_distance_m column
 ```
 
 **Structure Decision**: All changes fit within the existing Next.js App Router structure. No new directories needed. One new script (`precompute-stop-distances.ts`) follows the existing pattern of standalone scripts in `scripts/`.

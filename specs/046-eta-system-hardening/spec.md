@@ -131,7 +131,7 @@ When the road-network routing service is unavailable and the system uses straigh
 - What happens when the routing service returns 0-second duration? The system treats this as a failure and falls back to haversine.
 - What happens when all 10 recent speed readings are identical? Median and mean produce the same result -- no issue.
 - What happens when the grace period expires mid-API-call? The system checks conditions at computation time; no race condition exists.
-- What happens when the calibration script runs but no historical data exists? It produces no file and the system continues using defaults.
+- What happens when the calibration script runs but no historical data exists? It writes a default `data/time-factors.json` with empty factor buckets, and the system continues using built-in defaults.
 - What happens when a van's heading data is unavailable (null)? The direction check is skipped and the system behaves as it does today.
 - What happens when the routing service becomes unavailable after being available? The system falls back to haversine for that specific call; the next call retries routing.
 
@@ -145,7 +145,7 @@ When the road-network routing service is unavailable and the system uses straigh
 - **FR-004**: System MUST require a minimum of 3 recent-run segments before blending real-time observations into the congestion factor. With fewer than 3 segments, only the historical time-of-day factor is used.
 - **FR-005**: System MUST use road-network distances (when routing service is available) for real-time congestion factor calibration, falling back to straight-line distance with correction factor when unavailable. Road-network distances for fixed stop pairs MUST be pre-computed and cached (since stop locations do not change), adding zero latency to the route API hot path. This aligns runtime behavior with the training script.
 - **FR-006**: System MUST remove the dead variable assignment in the routing service code path where distance is assigned but never consumed.
-- **FR-007**: System MUST unify the reference speed constant to a single value (8.3 m/s) shared between runtime and the training script.
+- **FR-007**: System MUST align the reference speed constant to a single value (8.3 m/s) between runtime and the training script. The standalone script duplicates the value with a synchronization comment since it cannot import app code.
 - **FR-008**: System MUST document the fallback speed constant with a comment explaining its rationale (urban crawling speed, ~15 km/h).
 - **FR-009**: System MUST gate the verbose ETA comparison log behind an environment variable so it does not fire unconditionally on every computation in production.
 - **FR-010**: System MUST add a baseline Sunday congestion factor (default values for Sunday hours) rather than using no correction (1.0) for all Sunday hours.

@@ -103,7 +103,8 @@ export async function computeEta(args: {
   const recentlyMoving = args.recentSpeeds
     ? args.recentSpeeds.some((p) => {
         const pingMs = DateTime.fromISO(p.deviceTs).toMillis();
-        return (nowMs - pingMs) / 1000 <= HYSTERESIS_WINDOW_S && p.speedMps >= MIN_SPEED_MPS;
+        const ageSeconds = (nowMs - pingMs) / 1000;
+        return ageSeconds >= 0 && ageSeconds <= HYSTERESIS_WINDOW_S && p.speedMps >= MIN_SPEED_MPS;
       })
     : false;
 
@@ -136,7 +137,8 @@ export async function computeEta(args: {
         ) * ROAD_FACTOR;
 
       // Direction detection: if van is heading away from stop, fall through to schedule
-      if (vanPosition.headingDeg != null) {
+      // Only check when moving — at low speed, headingDeg is often stale
+      if (vanPosition.headingDeg != null && isMoving) {
         const bearingToStop = computeBearing(
           vanPosition.lat, vanPosition.lng,
           nextStop.stopLat!, nextStop.stopLng!,

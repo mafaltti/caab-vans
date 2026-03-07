@@ -50,6 +50,7 @@ async function main() {
   const pool = new Pool({ connectionString: DATABASE_URL });
 
   try {
+    // Query ALL schedule entries (including null coords) to pair by immediate successor
     const result = await pool.query<{
       id: string;
       route_id: string;
@@ -60,12 +61,11 @@ async function main() {
       `SELECT se.id, r.id as route_id, se.time, se.stop_lat, se.stop_lng
        FROM schedule_entries se
        JOIN routes r ON r.id = se.route_id
-       WHERE se.stop_lat IS NOT NULL AND se.stop_lng IS NOT NULL
        ORDER BY r.id, se.time`,
     );
 
     const rows = result.rows;
-    console.log(`Found ${rows.length} schedule entries with coordinates.`);
+    console.log(`Found ${rows.length} schedule entries.`);
 
     // Group by route
     const byRoute = new Map<string, typeof rows>();
@@ -76,20 +76,36 @@ async function main() {
     }
 
     let updated = 0;
+    let cleared = 0;
     let failed = 0;
 
     for (const [routeId, stops] of byRoute) {
+      // Clear all osrm_distance_m for this route before recomputing
+      await pool.query(
+        `UPDATE schedule_entries SET osrm_distance_m = NULL WHERE route_id = $1`,
+        [routeId],
+      );
+
       console.log(`Route ${routeId}: ${stops.length} stops`);
 
       for (let i = 0; i < stops.length - 1; i++) {
         const from = stops[i];
-        const to = stops[i + 1];
+        const to = stops[i + 1]; // immediate next stop
+
+        // Skip if either stop lacks coordinates
+        if (
+          from.stop_lat == null || from.stop_lng == null ||
+          to.stop_lat == null || to.stop_lng == null
+        ) {
+          cleared++;
+          continue;
+        }
 
         const dist = await osrmDistance(
-          from.stop_lat!,
-          from.stop_lng!,
-          to.stop_lat!,
-          to.stop_lng!,
+          from.stop_lat,
+          from.stop_lng,
+          to.stop_lat,
+          to.stop_lng,
         );
 
         if (dist != null) {
@@ -106,7 +122,7 @@ async function main() {
       }
     }
 
-    console.log(`\nDone! Updated: ${updated}, Failed: ${failed}`);
+    console.log(`\nDone! Updated: ${updated}, Cleared/skipped: ${cleared}, Failed: ${failed}`);
   } finally {
     await pool.end();
   }

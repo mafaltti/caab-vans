@@ -19,7 +19,7 @@
 
 **Purpose**: No new project initialization needed — all changes are within the existing codebase. This phase covers the one shared schema change.
 
-- [x] T001 Create migration file `supabase/migrations/XXXXX_add_osrm_distance.sql` adding nullable `osrm_distance_m double precision` column to `schedule_entries` table
+- [x] T001 Create migration file `supabase/migrations/00008_add_osrm_distance.sql` adding nullable `osrm_distance_m double precision` column to `schedule_entries` table
 - [x] T002 Apply migration to local Supabase instance and verify column exists
 
 **Checkpoint**: Schema ready for pre-computed distances
