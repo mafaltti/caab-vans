@@ -43,9 +43,6 @@ let backoffUntil = 0;
 let consecutive401s = 0;
 let authPaused = false;
 
-// Sequence state (US5)
-let currentSeq = 0;
-
 const ACCURACY_THRESHOLD = 50; // meters
 const MIN_DISTANCE = 5; // meters
 const MIN_INTERVAL = 3000; // milliseconds
@@ -208,7 +205,6 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
       storedTs,
       storedFailures,
       storedBackoff,
-      storedSeq,
       storedAuthPaused,
     ] = await Promise.all([
       AsyncStorage.getItem("@lastLat"),
@@ -217,7 +213,6 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
       AsyncStorage.getItem("@lastSentTs"),
       AsyncStorage.getItem("@consecutiveFailures"),
       AsyncStorage.getItem("@backoffUntil"),
-      AsyncStorage.getItem("@currentSeq"),
       AsyncStorage.getItem("@authPaused"),
     ]);
     if (storedLat !== null && storedLng !== null) {
@@ -235,9 +230,6 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
     }
     if (storedBackoff !== null) {
       backoffUntil = Number(storedBackoff);
-    }
-    if (storedSeq !== null) {
-      currentSeq = Number(storedSeq);
     }
     if (storedAuthPaused === "true") {
       authPaused = true;
@@ -334,7 +326,6 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
     } catch {
       // expo-battery may not be available on all devices
     }
-    point.seq = currentSeq;
     point.bufferSize = bufferSize;
     point.failureCount = consecutiveFailures;
     point.batteryLevel = batteryLevel;
@@ -348,10 +339,6 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
       lastSentLng = point.lng;
       lastSentTime = now;
       lastSentTs = point.ts;
-
-      // US5: Increment sequence counter
-      currentSeq++;
-      await AsyncStorage.setItem("@currentSeq", String(currentSeq));
 
       await setLastSentAt(now);
       await AsyncStorage.setItem("@lastSentTs", String(point.ts));
@@ -406,9 +393,3 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
   }
   await flushLog();
 });
-
-// US5: Reset sequence counter (called on route start)
-export async function resetSequence(): Promise<void> {
-  currentSeq = 0;
-  await AsyncStorage.setItem("@currentSeq", "0");
-}

@@ -95,7 +95,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           speed_mps: point.speed,
           heading_deg: point.heading,
           device_ts: deviceTs,
-          seq: point.seq ?? null,
           buffer_size: point.bufferSize ?? null,
           failure_count: point.failureCount ?? null,
           battery_level: point.batteryLevel ?? null,
