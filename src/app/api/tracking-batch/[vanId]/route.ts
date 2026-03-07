@@ -67,15 +67,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   // Sort points chronologically by device timestamp
   const sorted = [...points].sort((a, b) => a.ts - b.ts);
 
-  // Query latest ping BEFORE upserts so isNewest compares against previous state
-  const { data: previousLatest } = await supabase
-    .from("van_location_pings")
-    .select("device_ts")
-    .eq("van_id", vanId)
-    .order("device_ts", { ascending: false })
-    .limit(1)
-    .single();
-
   let duplicates = 0;
   let skipped = 0;
   let newestUpserted: { lat: number; lng: number; accuracy: number | null; speed: number | null; heading: number | null; deviceTs: string } | null = null;
@@ -141,81 +132,53 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
   }
 
-  // Sequence gap detection for batch
-  const seqPoints = sorted.filter((p) => p.seq != null);
-  if (seqPoints.length > 0) {
-    const minBatchSeq = Math.min(...seqPoints.map((p) => p.seq!));
-    const { data: lastSeqBefore } = await supabase
-      .from("van_location_pings")
-      .select("seq")
-      .eq("van_id", vanId)
-      .not("seq", "is", null)
-      .lt("seq", minBatchSeq)
-      .order("seq", { ascending: false })
-      .limit(1)
-      .single();
-
-    if (lastSeqBefore?.seq != null && minBatchSeq > lastSeqBefore.seq + 1) {
-      console.warn(
-        `[Tracking] Sequence gap for van ${vanId}: expected ${lastSeqBefore.seq + 1}, got ${minBatchSeq}`,
-      );
-    }
-  }
-
   // Update van position + OSRM snap + stop inference for the newest upserted point only
   if (newestUpserted) {
-    const isNewest =
-      !previousLatest ||
-      DateTime.fromISO(newestUpserted.deviceTs) >=
-        DateTime.fromISO(previousLatest.device_ts);
+    let snappedLat: number | null = null;
+    let snappedLng: number | null = null;
 
-    if (isNewest) {
-      let snappedLat: number | null = null;
-      let snappedLng: number | null = null;
+    const osrmBaseUrl = process.env.OSRM_BASE_URL;
+    if (osrmBaseUrl) {
+      const { data: recentPings } = await supabase
+        .from("van_location_pings")
+        .select("lat, lng, device_ts, accuracy_m")
+        .eq("van_id", vanId)
+        .order("device_ts", { ascending: false })
+        .limit(5);
 
-      const osrmBaseUrl = process.env.OSRM_BASE_URL;
-      if (osrmBaseUrl) {
-        const { data: recentPings } = await supabase
-          .from("van_location_pings")
-          .select("lat, lng, device_ts, accuracy_m")
-          .eq("van_id", vanId)
-          .order("device_ts", { ascending: false })
-          .limit(5);
+      const trajectory = (recentPings ?? [])
+        .map((p) => ({
+          lat: p.lat,
+          lng: p.lng,
+          ts: new Date(p.device_ts).getTime(),
+          accuracy: p.accuracy_m ?? undefined,
+        }))
+        .reverse();
 
-        const trajectory = (recentPings ?? [])
-          .map((p) => ({
-            lat: p.lat,
-            lng: p.lng,
-            ts: new Date(p.device_ts).getTime(),
-            accuracy: p.accuracy_m ?? undefined,
-          }))
-          .reverse();
-
-        const snapped = await snapToRoad(trajectory, osrmBaseUrl);
-        if (snapped) {
-          snappedLat = snapped.lat;
-          snappedLng = snapped.lng;
-        }
+      const snapped = await snapToRoad(trajectory, osrmBaseUrl);
+      if (snapped) {
+        snappedLat = snapped.lat;
+        snappedLng = snapped.lng;
       }
+    }
 
-      const { error: updateError } = await supabase
-        .from("vans")
-        .update({
-          last_lat: newestUpserted.lat,
-          last_lng: newestUpserted.lng,
-          last_accuracy_m: newestUpserted.accuracy,
-          last_speed_mps: newestUpserted.speed,
-          last_heading_deg: newestUpserted.heading,
-          snapped_lat: snappedLat,
-          snapped_lng: snappedLng,
-          location_updated_at: new Date().toISOString(),
-        })
-        .eq("id", vanId);
+    const { data: updated, error: updateError } = await supabase.rpc("update_van_position", {
+      p_van_id: vanId,
+      p_lat: newestUpserted.lat,
+      p_lng: newestUpserted.lng,
+      p_accuracy_m: newestUpserted.accuracy,
+      p_speed_mps: newestUpserted.speed,
+      p_heading_deg: newestUpserted.heading,
+      p_snapped_lat: snappedLat,
+      p_snapped_lng: snappedLng,
+      p_device_ts: newestUpserted.deviceTs,
+    });
 
-      if (updateError) {
-        return apiError("INTERNAL_ERROR", "Failed to update van position", 500);
-      }
+    if (updateError) {
+      return apiError("INTERNAL_ERROR", "Failed to update van position", 500);
+    }
 
+    if (updated) {
       try {
         await inferStopProgress(
           supabase,

@@ -7,7 +7,7 @@ import type { NextStop, RunStatus, ScheduleStatus } from "@/types";
 type HeroCardProps = {
   nextStop: NextStop | null;
   scheduleStatus: ScheduleStatus;
-  locationUpdatedAt: string | null;
+  lastGpsFixAt: string | null;
   isLocationOutdated: boolean;
   isRunning: boolean;
   etaMinutes?: number | null;
@@ -29,7 +29,7 @@ function formatTimestamp(isoDate: string): string {
 export function HeroCard({
   nextStop,
   scheduleStatus,
-  locationUpdatedAt,
+  lastGpsFixAt,
   isLocationOutdated,
   isRunning,
   etaMinutes,
@@ -165,12 +165,12 @@ export function HeroCard({
           </div>
         )}
 
-        {(locationUpdatedAt || isLocationOutdated) && (
+        {(lastGpsFixAt || isLocationOutdated) && (
           <p className="mt-3 text-center text-xs text-blue-200 opacity-80">
-            {locationUpdatedAt && (
-              <>Atualizado: {formatTimestamp(locationUpdatedAt)}</>
+            {lastGpsFixAt && (
+              <>Atualizado: {formatTimestamp(lastGpsFixAt)}</>
             )}
-            {locationUpdatedAt && isLocationOutdated && " "}
+            {lastGpsFixAt && isLocationOutdated && " "}
             {isLocationOutdated && (
               <span className="inline-flex items-center gap-1 text-amber-300">
                 <AlertTriangle className="size-3" />

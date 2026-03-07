@@ -35,6 +35,7 @@ export async function GET(
         id,
         location_url,
         location_updated_at,
+        last_gps_fix_at,
         last_lat,
         last_lng,
         last_speed_mps,
@@ -63,6 +64,7 @@ export async function GET(
     id: string;
     location_url: string | null;
     location_updated_at: string | null;
+    last_gps_fix_at: string | null;
     last_lat: number | null;
     last_lng: number | null;
     last_speed_mps: number | null;
@@ -85,8 +87,8 @@ export async function GET(
     time: formatTimeString(e.time),
   }));
 
-  const locationFresh = van.location_updated_at
-    ? isLocationFresh(DateTime.fromISO(van.location_updated_at))
+  const locationFresh = van.last_gps_fix_at
+    ? isLocationFresh(DateTime.fromISO(van.last_gps_fix_at))
     : false;
 
   const withinWindow = isWithinScheduleWindow(times, now);
@@ -120,12 +122,12 @@ export async function GET(
     van.last_lat != null &&
     van.last_lng != null &&
     van.last_speed_mps != null &&
-    van.location_updated_at != null
+    van.last_gps_fix_at != null
       ? {
           lat: hasSnapped ? van.snapped_lat! : van.last_lat,
           lng: hasSnapped ? van.snapped_lng! : van.last_lng,
           speedMps: van.last_speed_mps,
-          locationUpdatedAt: DateTime.fromISO(van.location_updated_at),
+          lastGpsFixAt: DateTime.fromISO(van.last_gps_fix_at),
           headingDeg: van.last_heading_deg,
         }
       : null;
@@ -308,7 +310,7 @@ export async function GET(
       van: {
         id: van.id,
         locationUrl: van.location_url,
-        locationUpdatedAt: van.location_updated_at,
+        lastGpsFixAt: van.last_gps_fix_at,
         isLocationOutdated: !locationFresh,
         lastLat: hasSnapped ? van.snapped_lat : van.last_lat,
         lastLng: hasSnapped ? van.snapped_lng : van.last_lng,

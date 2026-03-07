@@ -256,7 +256,7 @@ export default function RouteDetailPage() {
           <HeroCard
             nextStop={route!.nextStop}
             scheduleStatus={route!.scheduleStatus}
-            locationUpdatedAt={route!.van.locationUpdatedAt}
+            lastGpsFixAt={route!.van.lastGpsFixAt}
             isLocationOutdated={route!.van.isLocationOutdated}
             isRunning={route!.isRunning}
             etaMinutes={route!.nextStop?.id === route!.progress?.nextStopId ? route!.progress?.etaNextStopMinutes : undefined}

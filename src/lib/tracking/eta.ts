@@ -17,7 +17,7 @@ export interface VanPosition {
   lat: number;
   lng: number;
   speedMps: number;
-  locationUpdatedAt: DateTime;
+  lastGpsFixAt: DateTime;
   headingDeg?: number | null;
 }
 
@@ -89,7 +89,7 @@ export async function computeEta(args: {
 
   // GPS branch: use distance/speed when all conditions are met
   const locationAgeMinutes = vanPosition
-    ? now.diff(vanPosition.locationUpdatedAt, "minutes").minutes
+    ? now.diff(vanPosition.lastGpsFixAt, "minutes").minutes
     : Infinity;
   const hasCoords = vanPosition != null && nextStop.stopLat != null && nextStop.stopLng != null;
   const locationFresh = locationAgeMinutes >= 0 && locationAgeMinutes < STALENESS_THRESHOLD_MINUTES;

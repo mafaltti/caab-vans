@@ -3,8 +3,9 @@ import { DateTime } from "luxon";
 
 // Mock Supabase server client
 const mockFrom = vi.fn();
+const mockRpc = vi.fn().mockResolvedValue({ data: true, error: null });
 vi.mock("@/lib/supabase/server", () => ({
-  createServiceClient: () => ({ from: mockFrom }),
+  createServiceClient: () => ({ from: mockFrom, rpc: mockRpc }),
 }));
 
 // Mock inferStopProgress
@@ -111,16 +112,18 @@ function setupMocks(opts: {
         }),
         select: () => ({
           eq: () => ({
+            not: () => ({
+              order: () => ({
+                limit: () => ({
+                  data: [],
+                  error: null,
+                }),
+              }),
+            }),
             order: () => ({
               limit: () => ({
-                single: () => ({
-                  data: latestDeviceTs
-                    ? { device_ts: latestDeviceTs }
-                    : null,
-                  error: latestDeviceTs
-                    ? null
-                    : { code: "PGRST116", message: "No rows" },
-                }),
+                data: [],
+                error: null,
               }),
             }),
           }),
@@ -179,20 +182,21 @@ describe("tracking dedup — isNewest uses strict >", () => {
     vi.clearAllMocks();
   });
 
-  it("does not call inferStopProgress when device_ts equals latest (strict >)", async () => {
+  it("does not call inferStopProgress when RPC returns false (not newest)", async () => {
     const now = Date.now();
-    const deviceTs = DateTime.fromMillis(now).toISO()!;
 
     setupMocks({
       upsertData: { id: "ping-1" },
-      latestDeviceTs: deviceTs,
+      latestDeviceTs: null,
     });
+    // RPC returns false — ping was not newer than stored position
+    mockRpc.mockResolvedValueOnce({ data: false, error: null });
 
     const body = validBody({ ts: now });
     const req = createRequest(body);
     await POST(req as never, routeParams);
 
-    // With strict >, equal timestamps mean isNewest = false → no downstream
+    // RPC returned false → no downstream
     expect(mockInferStopProgress).not.toHaveBeenCalled();
   });
 });

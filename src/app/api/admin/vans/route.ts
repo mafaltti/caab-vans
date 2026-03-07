@@ -18,7 +18,7 @@ export async function GET() {
   const supabase = createServiceClient();
   const { data, error } = await supabase
     .from("vans")
-    .select("id, name, ingestion_token, location_url, location_updated_at, created_at")
+    .select("id, name, ingestion_token, location_url, location_updated_at, last_gps_fix_at, created_at")
     .order("name");
 
   if (error) {
@@ -48,6 +48,7 @@ export async function GET() {
     ingestionToken: v.ingestion_token,
     locationUrl: v.location_url,
     locationUpdatedAt: v.location_updated_at,
+    lastGpsFixAt: v.last_gps_fix_at,
     createdAt: v.created_at,
   }));
 
