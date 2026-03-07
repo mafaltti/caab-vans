@@ -103,7 +103,23 @@ caab-vans/
    npm run db:seed
    ```
 
-6. **Start dev server**
+6. **Pre-compute stop distances** *(optional, requires OSRM)*
+
+   Computes road-network distances between consecutive stops for more accurate ETA congestion factors. Falls back to straight-line estimation if skipped.
+
+   ```bash
+   OSRM_BASE_URL=http://localhost:5000 DATABASE_URL=postgresql://... npx tsx scripts/precompute-stop-distances.ts
+   ```
+
+7. **Calibrate time-of-day factors** *(optional, requires historical data)*
+
+   Generates data-driven congestion factors from past route runs. Falls back to built-in defaults if skipped. Re-run periodically (monthly recommended) as data accumulates.
+
+   ```bash
+   DATABASE_URL=postgresql://... OSRM_BASE_URL=http://localhost:5000 npx tsx scripts/compute-time-factors.ts
+   ```
+
+8. **Start dev server**
 
    ```bash
    npm run dev
@@ -148,6 +164,8 @@ See [apps/van-tracker/README.md](apps/van-tracker/README.md) for setup, build pr
 | `npm run test` | Run tests (Vitest) |
 | `npm run db:migrate` | Run database migrations |
 | `npm run db:seed` | Seed database with sample data |
+| `npx tsx scripts/precompute-stop-distances.ts` | Pre-compute OSRM road distances between stops (requires `DATABASE_URL`, `OSRM_BASE_URL`) |
+| `npx tsx scripts/compute-time-factors.ts` | Generate time-of-day congestion factors from historical data (requires `DATABASE_URL`, `OSRM_BASE_URL`) |
 
 ## License
 
