@@ -41,7 +41,7 @@ _(No foundational tasks.)_
 
 - [x] T001 [US1] Replace hardcoded route timeout (100ms) with env-configurable constant `OSRM_ROUTE_TIMEOUT_MS` (default 300) in `src/lib/tracking/osrm.ts` line 19. Parse via `parseInt(process.env.OSRM_ROUTE_TIMEOUT_MS ?? "300", 10)` with positive-integer validation; fall back to 300 if invalid (NaN, zero, negative).
 - [x] T002 [US1] Replace hardcoded match timeout (50ms) with env-configurable constant `OSRM_MATCH_TIMEOUT_MS` (default 200) in `src/lib/tracking/osrm.ts` line 69. Same parsing and validation pattern as T001.
-- [x] T003 [US1] Add unit test file `src/__tests__/tracking/osrm-timeouts.test.ts` covering: (a) valid integer env var is parsed correctly, (b) missing env var uses default, (c) non-numeric string falls back to default, (d) zero falls back to default, (e) negative number falls back to default. Mock `process.env` for each case.
+- [x] T003 [US1] Add unit test file `src/__tests__/tracking/osrm-timeouts.test.ts` exercising `parsePositiveInt` directly with representative inputs: (a) valid integer string is parsed correctly, (b) undefined uses fallback, (c) non-numeric string falls back to default, (d) zero falls back to default, (e) negative number falls back to default, (f) trailing non-numeric characters, (g) empty string.
 - [x] T004 [US1] Add `OSRM_ROUTE_TIMEOUT_MS` and `OSRM_MATCH_TIMEOUT_MS` to `.env.local.example` in the existing OSRM section (after `OSRM_BASE_URL`), commented out with defaults shown and brief description.
 
 **Checkpoint**: US1 complete. Operator can configure timeouts via env vars. Defaults are raised. Invalid values handled gracefully. All acceptance scenarios from spec verified by unit tests.
@@ -82,7 +82,7 @@ _(No additional implementation tasks — US2 is automatically satisfied by Phase
 
 ### Parallel Opportunities
 
-```
+```text
 T001 → T002 → T003    (sequential: same file, then test)
 T004                   (parallel: different file, no dependencies)
 ```

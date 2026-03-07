@@ -29,4 +29,8 @@ describe("parsePositiveInt", () => {
   it("returns fallback for empty string", () => {
     expect(parsePositiveInt("", 300)).toBe(300);
   });
+
+  it("returns fallback for value exceeding setTimeout max", () => {
+    expect(parsePositiveInt("2147483648", 300)).toBe(300);
+  });
 });
