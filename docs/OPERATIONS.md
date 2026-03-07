@@ -435,9 +435,34 @@ npm run build         # Next.js production build
 - `Promise.all` for driver email lookups fails entirely if one lookup fails (no partial results)
 - Active shift enforcement is application-level — no DB unique constraint preventing concurrent shifts
 
+### CI/CD
+
+- **No CI/CD pipeline** — quality gates (lint, typecheck, test, build) are manual
+- All checks must be run locally before merging PRs (see Quality Gates above)
+
+### Migrations
+
+- **No rollback procedures** — migrations are forward-only SQL files
+- To undo a migration, write a new migration that reverses the changes
+- `npm run db:migrate` applies all pending migrations in order via `scripts/migrate.ts`
+- `npm run db:migrate:docker` is a **legacy script** — it only applies the initial migration (`00001_initial.sql`) and should not be used for normal development
+
+### Data Retention
+
+- **No cleanup/retention policy** for `van_location_pings` — the table grows indefinitely
+- For long-running instances, consider periodically archiving or deleting old pings (e.g., older than 90 days)
+- `route_run_stops` and `route_runs` also accumulate without cleanup
+
+### Seed Data
+
+- `npm run db:seed` runs `scripts/seed-schedule.ts` — **destructive**: deletes all existing schedule entries before inserting
+- Seeds 19 hardcoded stops for demonstration routes
+- Safe for development; **never run in production** with real data
+
 ### Missing Features
 
 - No Postgres backup automation configured
 - No monitoring/alerting setup
 - No production Docker Compose for the Next.js app (`infra/caab-vans/` is empty)
 - `POST /api/track` endpoint exists but purpose is unclear (event logging?)
+- No OSRM infrastructure docs in README (update script at `infra/osrm/scripts/update-data.sh`)
