@@ -16,7 +16,7 @@ export const EARLY_ARRIVAL_WINDOW_MINUTES = 30;
 export function isLocationFresh(dt: DateTime): boolean {
   const now = nowBahia();
   const elapsed = now.diff(dt.setZone(TIMEZONE), "minutes").minutes;
-  return elapsed < STALENESS_THRESHOLD_MINUTES;
+  return elapsed >= 0 && elapsed < STALENESS_THRESHOLD_MINUTES;
 }
 
 export function formatTime(dt: DateTime): string {

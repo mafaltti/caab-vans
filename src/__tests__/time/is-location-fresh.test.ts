@@ -27,10 +27,10 @@ describe("isLocationFresh", () => {
     expect(isLocationFresh(ping)).toBe(false);
   });
 
-  it("returns true for a future timestamp (clock sync issue)", () => {
+  it("returns false for a future timestamp (device clock skew)", () => {
     const now = DateTime.now().setZone(TZ);
     const ping = now.plus({ minutes: 2 });
-    expect(isLocationFresh(ping)).toBe(true);
+    expect(isLocationFresh(ping)).toBe(false);
   });
 
   it("works correctly across midnight boundary", () => {

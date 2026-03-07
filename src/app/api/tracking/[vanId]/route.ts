@@ -174,7 +174,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 
   // Atomically update van position only if this ping is newer than what's stored.
-  // The RPC's WHERE guard (device_ts > location_updated_at) prevents out-of-order
+  // The RPC's WHERE guard (p_device_ts > last_gps_fix_at) prevents out-of-order
   // regressions without a separate SELECT query.
   const { data: updated, error: updateError } = await supabase.rpc("update_van_position", {
     p_van_id: vanId,
