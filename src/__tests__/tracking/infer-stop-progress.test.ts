@@ -108,10 +108,11 @@ function createMockSupabase(opts: {
     schedule_entries: { time: string };
   }>;
   stopCount?: number;
+  shifts?: Array<{ id: string; ended_at: string | null }>;
 }) {
   const updates: UpdateCall[] = [];
   const backfills: BackfillCall[] = [];
-  const { pendingStops, allStops, stopCount = 10 } = opts;
+  const { pendingStops, allStops, stopCount = 10, shifts = [] } = opts;
 
   // Helper: build a chainable mock that terminates with the given result
   function chain(result: unknown) {
@@ -137,6 +138,18 @@ function createMockSupabase(opts: {
       }
       if (table === "schedule_entries") {
         return chain([]);
+      }
+      if (table === "route_shifts") {
+        const activeShift = shifts.find(s => s.ended_at === null) ?? null;
+        const chainable: Record<string, unknown> = {};
+        const proxy = new Proxy(chainable, {
+          get(_target, prop) {
+            if (prop === "then") return undefined;
+            if (prop === "maybeSingle") return () => ({ data: activeShift, error: null });
+            return () => proxy;
+          },
+        });
+        return proxy;
       }
       if (table === "route_run_stops") {
         return {
@@ -249,7 +262,7 @@ describe("inferStopProgress geofence dedup", () => {
       },
     ];
 
-    const mock = createMockSupabase({ pendingStops, allStops });
+    const mock = createMockSupabase({ pendingStops, allStops, shifts: [{ id: "shift-1", ended_at: null }] });
     const result = await inferStopProgress(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mock as any,
@@ -313,7 +326,7 @@ describe("inferStopProgress geofence dedup", () => {
       },
     ];
 
-    const mock = createMockSupabase({ pendingStops, allStops });
+    const mock = createMockSupabase({ pendingStops, allStops, shifts: [{ id: "shift-1", ended_at: null }] });
     await inferStopProgress(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mock as any,
@@ -349,7 +362,7 @@ describe("inferStopProgress geofence dedup", () => {
       },
     ];
 
-    const mock = createMockSupabase({ pendingStops, allStops });
+    const mock = createMockSupabase({ pendingStops, allStops, shifts: [{ id: "shift-1", ended_at: null }] });
     await inferStopProgress(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mock as any,
@@ -404,7 +417,7 @@ describe("inferStopProgress geofence dedup", () => {
       },
     ];
 
-    const mock = createMockSupabase({ pendingStops, allStops });
+    const mock = createMockSupabase({ pendingStops, allStops, shifts: [{ id: "shift-1", ended_at: null }] });
     await inferStopProgress(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mock as any,
@@ -460,7 +473,7 @@ describe("inferStopProgress closest-in-time matching", () => {
       },
     ];
 
-    const mock = createMockSupabase({ pendingStops, allStops });
+    const mock = createMockSupabase({ pendingStops, allStops, shifts: [{ id: "shift-1", ended_at: null }] });
     await inferStopProgress(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mock as any,
@@ -509,7 +522,7 @@ describe("inferStopProgress closest-in-time matching", () => {
       },
     ];
 
-    const mock = createMockSupabase({ pendingStops, allStops });
+    const mock = createMockSupabase({ pendingStops, allStops, shifts: [{ id: "shift-1", ended_at: null }] });
     await inferStopProgress(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mock as any,
@@ -572,7 +585,7 @@ describe("inferStopProgress closest-in-time matching", () => {
       },
     ];
 
-    const mock = createMockSupabase({ pendingStops, allStops });
+    const mock = createMockSupabase({ pendingStops, allStops, shifts: [{ id: "shift-1", ended_at: null }] });
     await inferStopProgress(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mock as any,
@@ -615,7 +628,7 @@ describe("inferStopProgress backfill", () => {
       schedule_entries: { time: s.schedule_entries.time },
     }));
 
-    const mock = createMockSupabase({ pendingStops, allStops });
+    const mock = createMockSupabase({ pendingStops, allStops, shifts: [{ id: "shift-1", ended_at: null }] });
     await inferStopProgress(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mock as any,
@@ -686,7 +699,7 @@ describe("inferStopProgress backfill", () => {
       { schedule_entry_id: "stop-8", status: "passed", schedule_entries: { time: "08:30" } },
     ];
 
-    const mock = createMockSupabase({ pendingStops, allStops });
+    const mock = createMockSupabase({ pendingStops, allStops, shifts: [{ id: "shift-1", ended_at: null }] });
     await inferStopProgress(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mock as any,
@@ -727,7 +740,7 @@ describe("inferStopProgress backfill", () => {
       { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "06:00" } },
     ];
 
-    const mock = createMockSupabase({ pendingStops, allStops });
+    const mock = createMockSupabase({ pendingStops, allStops, shifts: [{ id: "shift-1", ended_at: null }] });
     await inferStopProgress(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mock as any,
@@ -785,7 +798,7 @@ describe("inferStopProgress backfill", () => {
       { schedule_entry_id: "stop-3", status: "passed", schedule_entries: { time: "10:00" } },
     ];
 
-    const mock = createMockSupabase({ pendingStops, allStops });
+    const mock = createMockSupabase({ pendingStops, allStops, shifts: [{ id: "shift-1", ended_at: null }] });
     await inferStopProgress(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mock as any,
@@ -851,7 +864,7 @@ describe("inferStopProgress edge cases", () => {
       { schedule_entry_id: "stop-3", status: "passed", schedule_entries: { time: "10:00" } },
     ];
 
-    const mock = createMockSupabase({ pendingStops, allStops });
+    const mock = createMockSupabase({ pendingStops, allStops, shifts: [{ id: "shift-1", ended_at: null }] });
     const result = await inferStopProgress(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mock as any,
@@ -918,7 +931,7 @@ describe("inferStopProgress edge cases", () => {
       { schedule_entry_id: "stop-3", status: "pending", schedule_entries: { time: "10:00" } },
     ];
 
-    const mock = createMockSupabase({ pendingStops, allStops });
+    const mock = createMockSupabase({ pendingStops, allStops, shifts: [{ id: "shift-1", ended_at: null }] });
     const result = await inferStopProgress(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mock as any,
@@ -953,7 +966,7 @@ describe("inferStopProgress edge cases", () => {
       { schedule_entry_id: "stop-1", status: "pending", schedule_entries: { time: "09:00" } },
     ];
 
-    const mock = createMockSupabase({ pendingStops, allStops });
+    const mock = createMockSupabase({ pendingStops, allStops, shifts: [{ id: "shift-1", ended_at: null }] });
     await inferStopProgress(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mock as any,
@@ -987,7 +1000,7 @@ describe("inferStopProgress edge cases", () => {
       { schedule_entry_id: "stop-3", status: "passed", schedule_entries: { time: "10:00" } },
     ];
 
-    const mock = createMockSupabase({ pendingStops, allStops });
+    const mock = createMockSupabase({ pendingStops, allStops, shifts: [{ id: "shift-1", ended_at: null }] });
     const result = await inferStopProgress(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mock as any,
@@ -1003,5 +1016,161 @@ describe("inferStopProgress edge cases", () => {
     expect(result.passedStopIds).toContain("stop-2");
     expect(result.passedStopIds).toContain("stop-3");
     expect(result.nextStopId).toBeNull();
+  });
+});
+
+describe("inferStopProgress shift gate", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("returns EMPTY_PROGRESS when no shifts exist", async () => {
+    setMockTime(8, 5);
+
+    const pendingStops = [
+      {
+        schedule_entry_id: "entry-0800",
+        schedule_entries: {
+          time: "08:00",
+          stop_lat: CAAB_LAT,
+          stop_lng: CAAB_LNG,
+          geofence_radius_m: 50,
+        },
+      },
+    ];
+    const allStops = [
+      {
+        schedule_entry_id: "entry-0800",
+        status: "pending",
+        schedule_entries: { time: "08:00" },
+      },
+    ];
+
+    const mock = createMockSupabase({ pendingStops, allStops });
+    const result = await inferStopProgress(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mock as any,
+      "van-1",
+      VAN_AT_CAAB_LAT,
+      VAN_AT_CAAB_LNG,
+    );
+
+    expect(result.passedStopIds).toHaveLength(0);
+    expect(result.nextStopId).toBeNull();
+    expect(result.lastPassedStopId).toBeNull();
+    expect(mock._updates).toHaveLength(0);
+    expect(mock._backfills).toHaveLength(0);
+  });
+
+  it("returns EMPTY_PROGRESS when all shifts are ended", async () => {
+    setMockTime(8, 5);
+
+    const pendingStops = [
+      {
+        schedule_entry_id: "entry-0800",
+        schedule_entries: {
+          time: "08:00",
+          stop_lat: CAAB_LAT,
+          stop_lng: CAAB_LNG,
+          geofence_radius_m: 50,
+        },
+      },
+    ];
+    const allStops = [
+      {
+        schedule_entry_id: "entry-0800",
+        status: "pending",
+        schedule_entries: { time: "08:00" },
+      },
+    ];
+
+    const mock = createMockSupabase({
+      pendingStops,
+      allStops,
+      shifts: [{ id: "shift-1", ended_at: "2026-03-07T18:00:00Z" }],
+    });
+    const result = await inferStopProgress(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mock as any,
+      "van-1",
+      VAN_AT_CAAB_LAT,
+      VAN_AT_CAAB_LNG,
+    );
+
+    expect(result.passedStopIds).toHaveLength(0);
+    expect(result.nextStopId).toBeNull();
+    expect(result.lastPassedStopId).toBeNull();
+    expect(mock._updates).toHaveLength(0);
+    expect(mock._backfills).toHaveLength(0);
+  });
+
+  it("mid-route start with active shift triggers correct backfill", async () => {
+    setMockTime(9, 5);
+
+    // 5 stops at different coordinates (~111m apart, outside 50m geofence)
+    const pendingStops = [
+      {
+        schedule_entry_id: "stop-1",
+        schedule_entries: { time: "07:00", stop_lat: -12.950, stop_lng: -38.500, geofence_radius_m: 50 },
+      },
+      {
+        schedule_entry_id: "stop-2",
+        schedule_entries: { time: "07:30", stop_lat: -12.951, stop_lng: -38.501, geofence_radius_m: 50 },
+      },
+      {
+        schedule_entry_id: "stop-3",
+        schedule_entries: { time: "08:00", stop_lat: -12.952, stop_lng: -38.502, geofence_radius_m: 50 },
+      },
+      {
+        schedule_entry_id: "stop-4",
+        schedule_entries: { time: "09:00", stop_lat: -12.953, stop_lng: -38.503, geofence_radius_m: 50 },
+      },
+      {
+        schedule_entry_id: "stop-5",
+        schedule_entries: { time: "10:00", stop_lat: -12.954, stop_lng: -38.504, geofence_radius_m: 50 },
+      },
+    ];
+
+    // Van is at stop-3's coordinates (~5m away)
+    const vanLat = -12.952 + 0.00003;
+    const vanLng = -38.502 + 0.00003;
+
+    const allStops = [
+      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "07:00" } },
+      { schedule_entry_id: "stop-2", status: "passed", schedule_entries: { time: "07:30" } },
+      { schedule_entry_id: "stop-3", status: "passed", schedule_entries: { time: "08:00" } },
+      { schedule_entry_id: "stop-4", status: "pending", schedule_entries: { time: "09:00" } },
+      { schedule_entry_id: "stop-5", status: "pending", schedule_entries: { time: "10:00" } },
+    ];
+
+    const mock = createMockSupabase({
+      pendingStops,
+      allStops,
+      shifts: [{ id: "shift-1", ended_at: null }],
+    });
+    const result = await inferStopProgress(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mock as any,
+      "van-1",
+      vanLat,
+      vanLng,
+    );
+
+    // stop-3 matched by geofence
+    expect(mock._updates).toHaveLength(1);
+    expect(mock._updates[0].schedule_entry_id).toBe("stop-3");
+
+    // stops 1-2 backfilled
+    expect(mock._backfills).toHaveLength(1);
+    expect(mock._backfills[0].schedule_entry_ids).toHaveLength(2);
+    expect(mock._backfills[0].schedule_entry_ids).toContain("stop-1");
+    expect(mock._backfills[0].schedule_entry_ids).toContain("stop-2");
+
+    // stops 4-5 remain pending (not in passedStopIds)
+    expect(result.passedStopIds).toContain("stop-1");
+    expect(result.passedStopIds).toContain("stop-2");
+    expect(result.passedStopIds).toContain("stop-3");
+    expect(result.passedStopIds).not.toContain("stop-4");
+    expect(result.passedStopIds).not.toContain("stop-5");
   });
 });
