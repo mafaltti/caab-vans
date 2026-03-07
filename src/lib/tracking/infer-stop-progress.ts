@@ -61,6 +61,27 @@ export async function inferStopProgress(
     return EMPTY_PROGRESS;
   }
 
+  // 3b. Gate: require an active shift before seeding/marking stops
+  const { data: activeShift, error: activeShiftError } = await supabase
+    .from("route_shifts")
+    .select("id")
+    .eq("run_id", run.id)
+    .is("ended_at", null)
+    .limit(1)
+    .maybeSingle();
+
+  if (activeShiftError) {
+    console.error("inferStopProgress: active shift lookup failed", {
+      runId: run.id,
+      error: activeShiftError.message,
+    });
+    return EMPTY_PROGRESS;
+  }
+
+  if (!activeShift) {
+    return EMPTY_PROGRESS;
+  }
+
   // 4. Seed route_run_stops on first creation
   const { count: stopCount, error: countError } = await supabase
     .from("route_run_stops")
