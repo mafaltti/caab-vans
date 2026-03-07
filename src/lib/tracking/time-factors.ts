@@ -1,5 +1,7 @@
 import { readFileSync } from "fs";
 import { join } from "path";
+import { DateTime } from "luxon";
+import { haversineDistanceMeters } from "@/lib/tracking/haversine";
 
 type DayType = "weekday" | "saturday" | "sunday";
 type HourFactors = Record<string, number>;
@@ -52,9 +54,45 @@ export function loadFactors(): TimeFactorsFile {
   }
 }
 
+// Calibration constant for recentRuns baseline predictions. Changing this value
+// will shift all recent-factor ratios and thus all in-flight ETAs — it is NOT
+// neutral. The current value (~30 km/h) represents typical urban van speed.
+// Stability guarantee: the value is constant across API calls, so timeFactor
+// only changes when a new stop is actually passed.
+export const REFERENCE_SPEED_MPS = 8.3;
+export const MIN_SEGMENT_DIST_M = 100;
+export const MIN_SEGMENT_TIME_MIN = 0.5;
+
 export interface RecentRun {
   actualMinutes: number;
   predictedMinutes: number;
+}
+
+export interface PassedStop {
+  passedAt: string;
+  stopLat: number | null;
+  stopLng: number | null;
+}
+
+export function buildRecentRuns(
+  passedStops: PassedStop[],
+  roadFactor: number,
+): RecentRun[] {
+  const runs: RecentRun[] = [];
+  for (let i = 0; i < passedStops.length - 1; i++) {
+    const curr = passedStops[i];
+    const next = passedStops[i + 1];
+    if (curr.stopLat == null || curr.stopLng == null || next.stopLat == null || next.stopLng == null) continue;
+    const dist = haversineDistanceMeters(curr.stopLat, curr.stopLng, next.stopLat, next.stopLng);
+    if (dist < MIN_SEGMENT_DIST_M) continue;
+    const actualMinutes = DateTime.fromISO(next.passedAt).diff(DateTime.fromISO(curr.passedAt), "minutes").minutes;
+    if (actualMinutes < MIN_SEGMENT_TIME_MIN) continue;
+    const predictedMinutes = (dist * roadFactor) / REFERENCE_SPEED_MPS / 60;
+    if (predictedMinutes > 0) {
+      runs.push({ actualMinutes, predictedMinutes });
+    }
+  }
+  return runs;
 }
 
 export function computeRecentFactor(recentRuns: RecentRun[]): number {
