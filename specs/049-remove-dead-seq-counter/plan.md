@@ -43,7 +43,7 @@ Remove ~80 lines of dead sequence counter code (`currentSeq`, `resetSequence()`,
 specs/049-remove-dead-seq-counter/
 ├── plan.md              # This file
 ├── research.md          # Phase 0: file inventory with exact line numbers
-├── data-model.md        # Phase 1: minimal (column retention note)
+├── data-model.md        # Phase 1: seq column dropped (migration 00010)
 ├── quickstart.md        # Phase 1: removal steps
 └── tasks.md             # Phase 2 output (/speckit.tasks command)
 ```

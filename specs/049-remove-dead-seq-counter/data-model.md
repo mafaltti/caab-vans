@@ -18,10 +18,7 @@ Migration `00010_drop_seq_column.sql` drops the `seq` column and its partial ind
 
 ### `LocationPoint` (tracker app)
 
-**Before**:
-```
-seq?: number | null
-```
+**Before**: `seq?: number | null`
 
 **After**: Field removed entirely.
 

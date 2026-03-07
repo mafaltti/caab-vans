@@ -3,7 +3,7 @@
 **Input**: Design documents from `/specs/049-remove-dead-seq-counter/`
 **Prerequisites**: plan.md (required), spec.md (required), research.md, data-model.md
 
-**Tests**: Not requested — no test tasks included.
+**Tests**: Verification tasks included (lint, typecheck, build, test — T007-T011).
 
 **Organization**: Tasks are grouped by user story. Both stories are P1 but US1 (tracker + server removal) must complete before US2 (backward compat verification) can be validated.
 

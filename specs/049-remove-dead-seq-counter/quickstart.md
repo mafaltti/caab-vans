@@ -45,8 +45,9 @@ Remove the dead `seq` (sequence counter) mechanism from the tracker app, server,
 ### 5. Verify
 
 ```bash
+# Run from repo root
+
 # Server
-cd C:/Projetos/caab-vans
 npx eslint .
 npx tsc --noEmit
 npx next build
@@ -57,6 +58,9 @@ cd apps/van-tracker
 npx eslint .
 npx tsc --noEmit
 npx expo export
+
+# Database (apply migration on DEV)
+# supabase db push  OR  psql -f supabase/migrations/00010_drop_seq_column.sql
 ```
 
 ## What NOT to do

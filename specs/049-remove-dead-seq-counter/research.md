@@ -66,7 +66,7 @@
 | `src/app/api/tracking/[vanId]/route.ts` | 103 | `seq: seq ?? null,` in upsert | DELETE |
 | `src/app/api/tracking/[vanId]/route.ts` | 127-145 | Gap detection block | DELETE |
 | `src/app/api/tracking-batch/[vanId]/route.ts` | 98 | `seq: point.seq ?? null,` in upsert | DELETE |
-| `src/app/api/tracking-batch/[vanId]/route.ts` | TBD | Gap detection block (if present) | DELETE if exists |
+| `src/app/api/tracking-batch/[vanId]/route.ts` | — | Gap detection block | NOT PRESENT (verified) |
 | `src/lib/validators/tracking.ts` | 11 | `seq` in Zod schema | DELETE |
 
 ### Database
