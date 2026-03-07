@@ -3,6 +3,15 @@ export interface OsrmRouteResult {
   durationSeconds: number;
 }
 
+export function parsePositiveInt(value: string | undefined, fallback: number): number {
+  if (value == null) return fallback;
+  const n = parseInt(value, 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+const ROUTE_TIMEOUT_MS = parsePositiveInt(process.env.OSRM_ROUTE_TIMEOUT_MS, 300);
+const MATCH_TIMEOUT_MS = parsePositiveInt(process.env.OSRM_MATCH_TIMEOUT_MS, 200);
+
 /**
  * Get road distance and duration between two points via OSRM /route.
  * Returns null on any failure (timeout, network error, no route).
@@ -16,7 +25,7 @@ export async function osrmRoute(
 ): Promise<OsrmRouteResult | null> {
   const url = `${osrmBaseUrl}/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=false&annotations=false`;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 100);
+  const timer = setTimeout(() => controller.abort(), ROUTE_TIMEOUT_MS);
 
   try {
     const res = await fetch(url, { signal: controller.signal });
@@ -66,7 +75,7 @@ export async function snapToRoad(
   const url = `${osrmBaseUrl}/match/v1/driving/${coordinates}?timestamps=${timestamps}&radiuses=${radiuses}&geometries=geojson&overview=false&annotations=false`;
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 50);
+  const timer = setTimeout(() => controller.abort(), MATCH_TIMEOUT_MS);
 
   try {
     const res = await fetch(url, { signal: controller.signal });
@@ -96,7 +105,7 @@ export async function snapToRoad(
     clearTimeout(timer);
     const msg =
       err instanceof Error && err.name === "AbortError"
-        ? "OSRM request timed out (50ms)"
+        ? `OSRM request timed out (${MATCH_TIMEOUT_MS}ms)`
         : `OSRM request failed: ${err}`;
     console.warn(`[osrm] ${msg}`);
     return null;
