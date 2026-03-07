@@ -296,7 +296,7 @@ describe("computeEta", () => {
         lat: VAN_LAT,
         lng: VAN_LNG,
         speedMps: 10, // ~36 km/h
-        locationUpdatedAt: DateTime.fromObject(
+        lastGpsFixAt: DateTime.fromObject(
           { hour: 8, minute: 40 },
           { zone: TZ },
         ),
@@ -364,7 +364,7 @@ describe("computeEta", () => {
     it("falls back when location is stale (>10 min)", async () => {
       const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
       const vanPosition = makeVanPosition({
-        locationUpdatedAt: DateTime.fromObject(
+        lastGpsFixAt: DateTime.fromObject(
           { hour: 8, minute: 20 },
           { zone: TZ },
         ), // 22 minutes ago
@@ -409,10 +409,10 @@ describe("computeEta", () => {
       expect(result.etaNextStopMinutes).toBe(0);
     });
 
-    it("falls back when locationUpdatedAt is in the future (clock skew)", async () => {
+    it("falls back when lastGpsFixAt is in the future (clock skew)", async () => {
       const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
       const vanPosition = makeVanPosition({
-        locationUpdatedAt: DateTime.fromObject(
+        lastGpsFixAt: DateTime.fromObject(
           { hour: 8, minute: 50 },
           { zone: TZ },
         ), // 8 minutes in the future
@@ -533,7 +533,7 @@ describe("computeEta", () => {
       const now = DateTime.fromObject({ year: 2026, month: 3, day: 2, hour: 8, minute: 42 }, { zone: TZ });
       const vanPosition = makeVanPosition({
         speedMps: 10,
-        locationUpdatedAt: DateTime.fromObject({ year: 2026, month: 3, day: 2, hour: 8, minute: 40 }, { zone: TZ }),
+        lastGpsFixAt: DateTime.fromObject({ year: 2026, month: 3, day: 2, hour: 8, minute: 40 }, { zone: TZ }),
       });
       const stops = makeStops();
 
@@ -636,7 +636,7 @@ describe("computeEta", () => {
     it("uses GPS ETA for next pending occurrence after repeated stop partial progress", async () => {
       const now = DateTime.fromObject({ hour: 8, minute: 30 }, { zone: TZ });
       const vanPosition = makeVanPosition({
-        locationUpdatedAt: DateTime.fromObject(
+        lastGpsFixAt: DateTime.fromObject(
           { hour: 8, minute: 28 },
           { zone: TZ },
         ),

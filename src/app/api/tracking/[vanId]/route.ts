@@ -87,15 +87,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return apiError("VALIDATION_ERROR", "Ping too old", 400);
   }
 
-  // Query latest ping BEFORE upsert so isNewest compares against the previous state
-  const { data: previousLatest } = await supabase
-    .from("van_location_pings")
-    .select("device_ts")
-    .eq("van_id", vanId)
-    .order("device_ts", { ascending: false })
-    .limit(1)
-    .single();
-
   // Upsert with unique constraint on (van_id, device_ts) — silently skip duplicates
   const { data: upsertedPing, error: upsertError } = await supabase
     .from("van_location_pings")
@@ -153,60 +144,55 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
   }
 
-  // Update van position only if this ping is strictly newer than the previous
-  // latest ping. Combined with the 5-min future clamp above, this prevents
-  // both out-of-order regressions and timestamp poisoning.
-  const isNewest =
-    !previousLatest ||
-    DateTime.fromISO(deviceTs) > DateTime.fromISO(previousLatest.device_ts);
+  // OSRM road-snapping (best-effort, before atomic position update)
+  let snappedLat: number | null = null;
+  let snappedLng: number | null = null;
 
-  if (isNewest) {
-    let snappedLat: number | null = null;
-    let snappedLng: number | null = null;
+  const osrmBaseUrl = process.env.OSRM_BASE_URL;
+  if (osrmBaseUrl) {
+    const { data: recentPings } = await supabase
+      .from("van_location_pings")
+      .select("lat, lng, device_ts, accuracy_m")
+      .eq("van_id", vanId)
+      .order("device_ts", { ascending: false })
+      .limit(5);
 
-    const osrmBaseUrl = process.env.OSRM_BASE_URL;
-    if (osrmBaseUrl) {
-      const { data: recentPings } = await supabase
-        .from("van_location_pings")
-        .select("lat, lng, device_ts, accuracy_m")
-        .eq("van_id", vanId)
-        .order("device_ts", { ascending: false })
-        .limit(5);
+    const trajectory = (recentPings ?? [])
+      .map((p) => ({
+        lat: p.lat,
+        lng: p.lng,
+        ts: new Date(p.device_ts).getTime(),
+        accuracy: p.accuracy_m ?? undefined,
+      }))
+      .reverse();
 
-      const trajectory = (recentPings ?? [])
-        .map((p) => ({
-          lat: p.lat,
-          lng: p.lng,
-          ts: new Date(p.device_ts).getTime(),
-          accuracy: p.accuracy_m ?? undefined,
-        }))
-        .reverse();
-
-      const snapped = await snapToRoad(trajectory, osrmBaseUrl);
-      if (snapped) {
-        snappedLat = snapped.lat;
-        snappedLng = snapped.lng;
-      }
+    const snapped = await snapToRoad(trajectory, osrmBaseUrl);
+    if (snapped) {
+      snappedLat = snapped.lat;
+      snappedLng = snapped.lng;
     }
+  }
 
-    const { error: updateError } = await supabase
-      .from("vans")
-      .update({
-        last_lat: lat,
-        last_lng: lng,
-        last_accuracy_m: accuracy,
-        last_speed_mps: speed,
-        last_heading_deg: heading,
-        snapped_lat: snappedLat,
-        snapped_lng: snappedLng,
-        location_updated_at: new Date().toISOString(),
-      })
-      .eq("id", vanId);
+  // Atomically update van position only if this ping is newer than what's stored.
+  // The RPC's WHERE guard (device_ts > location_updated_at) prevents out-of-order
+  // regressions without a separate SELECT query.
+  const { data: updated, error: updateError } = await supabase.rpc("update_van_position", {
+    p_van_id: vanId,
+    p_lat: lat,
+    p_lng: lng,
+    p_accuracy_m: accuracy,
+    p_speed_mps: speed,
+    p_heading_deg: heading,
+    p_snapped_lat: snappedLat,
+    p_snapped_lng: snappedLng,
+    p_device_ts: deviceTs,
+  });
 
-    if (updateError) {
-      return apiError("INTERNAL_ERROR", "Failed to update van position", 500);
-    }
+  if (updateError) {
+    return apiError("INTERNAL_ERROR", "Failed to update van position", 500);
+  }
 
+  if (updated) {
     try {
       await inferStopProgress(supabase, vanId, lat, lng);
     } catch (error) {

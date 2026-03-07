@@ -28,6 +28,7 @@ type VanItem = {
   ingestionToken: string;
   locationUrl: string | null;
   locationUpdatedAt: string | null;
+  lastGpsFixAt: string | null;
   createdAt: string;
 };
 

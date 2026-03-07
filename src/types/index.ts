@@ -21,6 +21,7 @@ export type Van = {
   last_heading_deg: number | null;
   snapped_lat: number | null;
   snapped_lng: number | null;
+  last_gps_fix_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -118,7 +119,7 @@ export type RouteWithStatus = {
   van: {
     id: string;
     locationUrl: string | null;
-    locationUpdatedAt: string | null;
+    lastGpsFixAt: string | null;
     isLocationOutdated: boolean;
     lastLat: number | null;
     lastLng: number | null;

@@ -2,7 +2,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 
 interface TrackerHealthStatus {
   vanId: string;
-  locationUpdatedAt: string | null;
+  lastGpsFixAt: string | null;
   staleSinceMinutes: number | null;
   latestBufferSize: number | null;
   latestFailureCount: number | null;
@@ -20,7 +20,7 @@ export async function getTrackerHealthStatuses(
   // Get all vans with their latest location timestamp
   const { data: vans, error: vansError } = await supabase
     .from("vans")
-    .select("id, location_updated_at");
+    .select("id, last_gps_fix_at");
 
   if (vansError || !vans) return [];
 
@@ -37,8 +37,8 @@ export async function getTrackerHealthStatuses(
       .single();
 
     const now = Date.now();
-    const updatedAt = van.location_updated_at
-      ? new Date(van.location_updated_at).getTime()
+    const updatedAt = van.last_gps_fix_at
+      ? new Date(van.last_gps_fix_at).getTime()
       : null;
     const staleSinceMinutes = updatedAt
       ? Math.round((now - updatedAt) / 60000)
@@ -55,7 +55,7 @@ export async function getTrackerHealthStatuses(
 
     statuses.push({
       vanId: van.id,
-      locationUpdatedAt: van.location_updated_at,
+      lastGpsFixAt: van.last_gps_fix_at,
       staleSinceMinutes,
       latestBufferSize: bufferSize,
       latestFailureCount: failureCount,
