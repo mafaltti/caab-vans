@@ -1,6 +1,6 @@
 import { DateTime } from "luxon";
 import { parseTime, STALENESS_THRESHOLD_MINUTES } from "@/lib/time";
-import { haversineDistanceMeters } from "@/lib/tracking/haversine";
+import { computeBearing, haversineDistanceMeters } from "@/lib/tracking/haversine";
 import { osrmRoute } from "@/lib/tracking/osrm";
 import { getTimeFactor, type RecentRun } from "@/lib/tracking/time-factors";
 
@@ -18,6 +18,7 @@ export interface VanPosition {
   lng: number;
   speedMps: number;
   locationUpdatedAt: DateTime;
+  headingDeg?: number | null;
 }
 
 interface EtaResult {
@@ -32,12 +33,19 @@ interface EtaResult {
 export const ROAD_FACTOR = 1.3;
 export const MIN_SPEED_MPS = 1.0;
 export const PROXIMITY_THRESHOLD_M = 500;
+// ~15 km/h — urban crawling speed estimate, used when van is stationary but GPS branch is active (proximity or hysteresis grace period)
 export const FALLBACK_SPEED_MPS = 4.2;
+export const HYSTERESIS_WINDOW_S = 60;
+export const DIRECTION_THRESHOLD_DEG = 90;
 
 export function computeSmoothedSpeed(recentSpeeds: number[]): number {
   const nonZero = recentSpeeds.filter((s) => s > 0);
   if (nonZero.length === 0) return 0;
-  return nonZero.reduce((sum, s) => sum + s, 0) / nonZero.length;
+  const sorted = [...nonZero].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 !== 0
+    ? sorted[mid]
+    : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
 export async function computeEta(args: {
@@ -48,7 +56,7 @@ export async function computeEta(args: {
   osrmBaseUrl?: string;
   routeId?: string;
   recentRuns?: RecentRun[];
-  recentSpeeds?: number[];
+  recentSpeeds?: Array<{ speedMps: number; deviceTs: string }>;
 }): Promise<EtaResult> {
   const { stops, now, vanPosition, startedAt, osrmBaseUrl, routeId, recentRuns } = args;
 
@@ -90,10 +98,19 @@ export async function computeEta(args: {
     ? haversineDistanceMeters(vanPosition.lat, vanPosition.lng, nextStop.stopLat!, nextStop.stopLng!) <= PROXIMITY_THRESHOLD_M
     : false;
 
-  const gpsConditionsMet = hasCoords && locationFresh && (isMoving || isNearStop);
+  // Hysteresis: check if any recent ping within the last 60s had speed >= MIN_SPEED_MPS
+  const nowMs = now.toMillis();
+  const recentlyMoving = args.recentSpeeds
+    ? args.recentSpeeds.some((p) => {
+        const pingMs = DateTime.fromISO(p.deviceTs).toMillis();
+        const ageSeconds = (nowMs - pingMs) / 1000;
+        return ageSeconds >= 0 && ageSeconds <= HYSTERESIS_WINDOW_S && p.speedMps >= MIN_SPEED_MPS;
+      })
+    : false;
+
+  const gpsConditionsMet = hasCoords && locationFresh && (isMoving || isNearStop || recentlyMoving);
 
   if (gpsConditionsMet) {
-    let distanceMeters: number;
     let etaSource: "gps" | "gps_osrm" = "gps";
 
     const osrmResult = osrmBaseUrl
@@ -107,23 +124,30 @@ export async function computeEta(args: {
       : null;
 
     if (osrmResult) {
-      distanceMeters = osrmResult.distanceMeters;
       etaSource = "gps_osrm";
     } else {
-      distanceMeters =
-        haversineDistanceMeters(
-          vanPosition.lat,
-          vanPosition.lng,
-          nextStop.stopLat!,
-          nextStop.stopLng!,
-        ) * ROAD_FACTOR;
+      // Direction detection: if van is heading away from stop, fall through to schedule
+      // Only check when moving — at low speed, headingDeg is often stale
+      if (vanPosition.headingDeg != null && isMoving) {
+        const bearingToStop = computeBearing(
+          vanPosition.lat, vanPosition.lng,
+          nextStop.stopLat!, nextStop.stopLng!,
+        );
+        const diff = Math.abs(vanPosition.headingDeg - bearingToStop);
+        const angularDiff = Math.min(diff, 360 - diff);
+        if (angularDiff > DIRECTION_THRESHOLD_DEG) {
+          // Van is heading away from stop — skip GPS branch
+          return scheduleDelayFallback(stops, passed, nextStop, nextStopId, passedStopIds, now);
+        }
+      }
     }
 
     let effectiveSpeed: number;
     if (vanPosition.speedMps < MIN_SPEED_MPS) {
+      // Stationary but GPS branch active via proximity or hysteresis
       effectiveSpeed = FALLBACK_SPEED_MPS;
     } else if (args.recentSpeeds && args.recentSpeeds.length > 0) {
-      const smoothed = computeSmoothedSpeed(args.recentSpeeds);
+      const smoothed = computeSmoothedSpeed(args.recentSpeeds.map((p) => p.speedMps));
       effectiveSpeed = smoothed >= MIN_SPEED_MPS ? smoothed : vanPosition.speedMps;
     } else {
       effectiveSpeed = vanPosition.speedMps;
@@ -133,30 +157,39 @@ export async function computeEta(args: {
     if (osrmResult) {
       baseTravelMinutes = osrmResult.durationSeconds / 60;
     } else {
+      const distanceMeters =
+        haversineDistanceMeters(
+          vanPosition.lat,
+          vanPosition.lng,
+          nextStop.stopLat!,
+          nextStop.stopLng!,
+        ) * ROAD_FACTOR;
       baseTravelMinutes = distanceMeters / effectiveSpeed / 60;
     }
     const timeFactor = getTimeFactor(now.hour, now.weekday, routeId, recentRuns);
     const travelMinutes = baseTravelMinutes * timeFactor;
 
-    const haversineDistance = haversineDistanceMeters(
-      vanPosition.lat, vanPosition.lng,
-      nextStop.stopLat!, nextStop.stopLng!,
-    );
-    const haversineTravelMin = (haversineDistance * ROAD_FACTOR) / effectiveSpeed / 60;
+    if (process.env.DEBUG_ETA) {
+      const haversineDistance = haversineDistanceMeters(
+        vanPosition.lat, vanPosition.lng,
+        nextStop.stopLat!, nextStop.stopLng!,
+      );
+      const haversineTravelMin = (haversineDistance * ROAD_FACTOR) / effectiveSpeed / 60;
 
-    console.log(JSON.stringify({
-      event: "eta_comparison",
-      routeId,
-      stopId: nextStop.scheduleEntryId,
-      haversine: { distanceM: haversineDistance * ROAD_FACTOR, travelMinutes: haversineTravelMin },
-      osrm: osrmResult ? { distanceM: osrmResult.distanceMeters, durationS: osrmResult.durationSeconds } : null,
-      baseTravelSource: osrmResult ? "osrm_duration" : "distance_speed",
-      timeFactor,
-      finalTravelMinutes: travelMinutes,
-      gpsSpeedMps: vanPosition.speedMps,
-      chosen: etaSource,
-      timestamp: now.toISO(),
-    }));
+      console.log(JSON.stringify({
+        event: "eta_comparison",
+        routeId,
+        stopId: nextStop.scheduleEntryId,
+        haversine: { distanceM: haversineDistance * ROAD_FACTOR, travelMinutes: haversineTravelMin },
+        osrm: osrmResult ? { distanceM: osrmResult.distanceMeters, durationS: osrmResult.durationSeconds } : null,
+        baseTravelSource: osrmResult ? "osrm_duration" : "distance_speed",
+        timeFactor,
+        finalTravelMinutes: travelMinutes,
+        gpsSpeedMps: vanPosition.speedMps,
+        chosen: etaSource,
+        timestamp: now.toISO(),
+      }));
+    }
 
     const etaDateTime = now.plus({ minutes: travelMinutes });
     const etaNextStopMinutes = Math.max(
@@ -186,7 +219,17 @@ export async function computeEta(args: {
     };
   }
 
-  // Schedule-delay fallback
+  return scheduleDelayFallback(stops, passed, nextStop, nextStopId, passedStopIds, now);
+}
+
+function scheduleDelayFallback(
+  _stops: Stop[],
+  passed: Stop[],
+  nextStop: Stop,
+  nextStopId: string,
+  passedStopIds: string[],
+  now: DateTime,
+): EtaResult {
   const sortedPassed = [...passed].sort((a, b) =>
     a.time.localeCompare(b.time),
   );
@@ -224,6 +267,7 @@ interface ScheduleEntry {
   time: string;
   stop_lat: number | null;
   stop_lng: number | null;
+  osrm_distance_m?: number | null;
 }
 
 interface ResolvedNextStop {

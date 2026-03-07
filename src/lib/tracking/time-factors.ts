@@ -30,11 +30,20 @@ const DEFAULT_SATURDAY_FACTORS: HourFactors = {
   "18": 1.05,
 };
 
+const DEFAULT_SUNDAY_FACTORS: HourFactors = {
+  "7": 0.95,
+  "8": 0.95,
+  "9": 0.95,
+  "16": 0.95,
+  "17": 0.95,
+  "18": 0.95,
+};
+
 const DEFAULT_FACTORS: TimeFactorsFile = {
   global: {
     weekday: DEFAULT_WEEKDAY_FACTORS,
     saturday: DEFAULT_SATURDAY_FACTORS,
-    sunday: {},
+    sunday: DEFAULT_SUNDAY_FACTORS,
   },
 };
 
@@ -62,6 +71,7 @@ export function loadFactors(): TimeFactorsFile {
 export const REFERENCE_SPEED_MPS = 8.3;
 export const MIN_SEGMENT_DIST_M = 100;
 export const MIN_SEGMENT_TIME_MIN = 0.5;
+export const MIN_BLEND_SEGMENTS = 3;
 
 export interface RecentRun {
   actualMinutes: number;
@@ -72,22 +82,29 @@ export interface PassedStop {
   passedAt: string;
   stopLat: number | null;
   stopLng: number | null;
+  scheduleEntryId?: string;
 }
 
 export function buildRecentRuns(
   passedStops: PassedStop[],
   roadFactor: number,
+  osrmDistances?: Map<string, number>,
 ): RecentRun[] {
   const runs: RecentRun[] = [];
   for (let i = 0; i < passedStops.length - 1; i++) {
     const curr = passedStops[i];
     const next = passedStops[i + 1];
     if (curr.stopLat == null || curr.stopLng == null || next.stopLat == null || next.stopLng == null) continue;
-    const dist = haversineDistanceMeters(curr.stopLat, curr.stopLng, next.stopLat, next.stopLng);
+
+    const osrmDist = curr.scheduleEntryId ? osrmDistances?.get(curr.scheduleEntryId) : undefined;
+    const dist = osrmDist ?? haversineDistanceMeters(curr.stopLat, curr.stopLng, next.stopLat, next.stopLng);
     if (dist < MIN_SEGMENT_DIST_M) continue;
+
     const actualMinutes = DateTime.fromISO(next.passedAt).diff(DateTime.fromISO(curr.passedAt), "minutes").minutes;
     if (actualMinutes < MIN_SEGMENT_TIME_MIN) continue;
-    const predictedMinutes = (dist * roadFactor) / REFERENCE_SPEED_MPS / 60;
+
+    const roadDist = osrmDist ?? dist * roadFactor;
+    const predictedMinutes = roadDist / REFERENCE_SPEED_MPS / 60;
     if (predictedMinutes > 0) {
       runs.push({ actualMinutes, predictedMinutes });
     }
@@ -128,8 +145,8 @@ export function getTimeFactor(
     historical = factors.global[dayType]?.[String(hour)] ?? 1.0;
   }
 
-  // Blend with recent runs when available
-  if (recentRuns && recentRuns.length > 0) {
+  // Blend with recent runs when enough segments available
+  if (recentRuns && recentRuns.length >= MIN_BLEND_SEGMENTS) {
     const recent = computeRecentFactor(recentRuns);
     return 0.7 * historical + 0.3 * recent;
   }

@@ -30,7 +30,7 @@ const TZ = "America/Bahia";
 const OBSERVATION_DAYS = 30;
 const MIN_OBSERVATIONS = 20;
 const ROUTE_VARIANCE_THRESHOLD = 0.15; // 15%
-const DEFAULT_SPEED_MPS = 8.33; // ~30 km/h fallback
+const DEFAULT_SPEED_MPS = 8.3; // ~30 km/h — must match REFERENCE_SPEED_MPS in src/lib/tracking/time-factors.ts
 const ROAD_FACTOR = 1.3; // haversine → road distance multiplier
 const OSRM_TIMEOUT_MS = 500; // more generous than runtime (batch job)
 

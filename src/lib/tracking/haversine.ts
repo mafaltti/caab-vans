@@ -4,6 +4,21 @@ function toRadians(degrees: number): number {
   return (degrees * Math.PI) / 180;
 }
 
+export function computeBearing(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number,
+): number {
+  const dLng = toRadians(lng2 - lng1);
+  const y = Math.sin(dLng) * Math.cos(toRadians(lat2));
+  const x =
+    Math.cos(toRadians(lat1)) * Math.sin(toRadians(lat2)) -
+    Math.sin(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.cos(dLng);
+  const bearing = (Math.atan2(y, x) * 180) / Math.PI;
+  return ((bearing % 360) + 360) % 360;
+}
+
 export function haversineDistanceMeters(
   lat1: number,
   lng1: number,
