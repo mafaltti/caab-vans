@@ -29,7 +29,7 @@ All NEEDS CLARIFICATION items from the Technical Context have been resolved thro
 
 **Rationale**: Median is immune to single-point GPS spikes. With 10 readings of [5, 6, 5, 40, 6, 5, 4, 6, 5, 6], mean = 8.8 (71% error), median = 5.5 (correct). The training script (`compute-time-factors.ts:131-138`) already uses median for factor aggregation.
 
-**Implementation detail**: Change `eta.ts:37-41`. Sort non-zero values, return middle element (or average of two middle). Existing test in `src/lib/tracking/__tests__/eta.test.ts` has assertion `expect(computeSmoothedSpeed([3, 5, 2, 8])).toBeCloseTo(4.625)` which will change to median = 4.0 (sorted [2,3,5,8], avg of 3 and 5 = 4.0).
+**Implementation detail**: Change `eta.ts:37-41`. Sort non-zero values, return middle element (or average of two middle). Existing test in `src/__tests__/tracking/eta.test.ts` has assertion `expect(computeSmoothedSpeed([3, 5, 2, 8])).toBeCloseTo(4.625)` which will change to median = 4.0 (sorted [2,3,5,8], avg of 3 and 5 = 4.0).
 
 **Alternatives considered**:
 - EMA (exponential moving average) — rejected per spec assumption: outlier immunity more valuable than recency weighting

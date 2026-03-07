@@ -52,7 +52,7 @@
 
 - [x] T006 [US1] Update `computeSmoothedSpeed()` call site in `src/lib/tracking/eta.ts` to extract speed values from the new `recentSpeeds` object format: `args.recentSpeeds.map(p => p.speedMps)` before passing to the smoothing function.
 
-- [x] T007 [US1] Update existing hysteresis-related test cases in `src/lib/tracking/__tests__/eta.test.ts`: add test for van at >500m, speed=0, recent pings within 60s with speed>=1.0 → should return GPS-based ETA with fallback speed. Add test for van at >500m, speed=0, all recent pings older than 60s → should return schedule-based ETA.
+- [x] T007 [US1] Update existing hysteresis-related test cases in `src/__tests__/tracking/eta.test.ts`: add test for van at >500m, speed=0, recent pings within 60s with speed>=1.0 → should return GPS-based ETA with fallback speed. Add test for van at >500m, speed=0, all recent pings older than 60s → should return schedule-based ETA.
 
 **Checkpoint**: Van briefly stopping at traffic light keeps GPS-based ETA. ETA changes by <30% during a 45-second stop.
 
@@ -70,7 +70,7 @@
 
 - [x] T008 [P] [US2] Rewrite `computeSmoothedSpeed()` in `src/lib/tracking/eta.ts` (lines 37-41) to use median instead of arithmetic mean: filter non-zero speeds, sort ascending, return middle value (or average of two middle values for even count). Keep returning 0 when all speeds are zero.
 
-- [x] T009 [US2] Update the `computeSmoothedSpeed` test in `src/lib/tracking/__tests__/eta.test.ts`: change assertion from `toBeCloseTo(4.625)` (mean of [3,5,2,8]) to `toBeCloseTo(4.0)` (median: sorted [2,3,5,8], avg of 3 and 5). Add test with spike: `[5, 6, 5, 40, 6, 5, 4, 6, 5, 6]` → result within 10% of 5.5.
+- [x] T009 [US2] Update the `computeSmoothedSpeed` test in `src/__tests__/tracking/eta.test.ts`: change assertion from `toBeCloseTo(4.625)` (mean of [3,5,2,8]) to `toBeCloseTo(4.0)` (median: sorted [2,3,5,8], avg of 3 and 5). Add test with spike: `[5, 6, 5, 40, 6, 5, 4, 6, 5, 6]` → result within 10% of 5.5.
 
 **Checkpoint**: GPS speed spikes cause <10% deviation in smoothed speed.
 
@@ -88,7 +88,7 @@
 
 - [x] T010 [P] [US3] In `getTimeFactor()` in `src/lib/tracking/time-factors.ts` (line 132), change condition from `recentRuns && recentRuns.length > 0` to `recentRuns && recentRuns.length >= 3`. Add a `MIN_BLEND_SEGMENTS = 3` exported constant above the function.
 
-- [x] T011 [US3] Add test in `src/lib/tracking/__tests__/eta.test.ts` (or a new `time-factors.test.ts`): verify `getTimeFactor()` with 1 and 2 `recentRuns` returns the historical factor unchanged, and with 3+ runs it blends 70/30.
+- [x] T011 [US3] Add test in `src/__tests__/tracking/eta.test.ts` (or a new `time-factors.test.ts`): verify `getTimeFactor()` with 1 and 2 `recentRuns` returns the historical factor unchanged, and with 3+ runs it blends 70/30.
 
 **Checkpoint**: ETA congestion factor during first 3 stops matches historical baseline within 5%.
 
@@ -170,7 +170,7 @@
 
 - [x] T025 [US7] Update both API route files (`src/app/api/routes/[routeId]/route.ts` and `src/app/api/routes/route.ts`) to include `heading_deg` from the `vans` table when constructing the `VanPosition` object passed to `computeEta()`.
 
-- [x] T026 [US7] Add test in `src/lib/tracking/__tests__/eta.test.ts`: van heading 180 degrees away from stop, OSRM unavailable → should return schedule-based ETA. Van heading toward stop → should return GPS-based ETA.
+- [x] T026 [US7] Add test in `src/__tests__/tracking/eta.test.ts`: van heading 180 degrees away from stop, OSRM unavailable → should return schedule-based ETA. Van heading toward stop → should return GPS-based ETA.
 
 **Checkpoint**: Haversine fallback detects wrong-direction travel and uses schedule ETA instead.
 

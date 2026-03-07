@@ -24,7 +24,7 @@
 ### 1. Run existing tests
 
 ```bash
-npx vitest run src/lib/tracking/__tests__/eta.test.ts
+npx vitest run src/__tests__/tracking/eta.test.ts
 ```
 
 ### 2. Enable debug logging (optional)

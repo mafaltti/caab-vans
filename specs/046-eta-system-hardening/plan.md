@@ -12,7 +12,7 @@ Harden the ETA computation pipeline by addressing 11 identified gaps: add hyster
 **Language/Version**: TypeScript 5.x (Next.js App Router)
 **Primary Dependencies**: Luxon (datetime), OSRM (routing), Supabase (Postgres via service role), Zod (validation)
 **Storage**: PostgreSQL (Supabase self-hosted) — one new nullable column on `schedule_entries`
-**Testing**: Vitest — existing test file at `src/lib/tracking/__tests__/eta.test.ts`
+**Testing**: Vitest — existing test file at `src/__tests__/tracking/eta.test.ts`
 **Target Platform**: Web (Next.js server-side BFF + client)
 **Project Type**: Web service (BFF route handlers computing ETA)
 **Performance Goals**: ETA computation must add zero latency to the route API hot path. Pre-computed OSRM distances avoid runtime routing calls for congestion calibration.
@@ -68,9 +68,10 @@ src/lib/tracking/
 ├── eta.ts               # Core ETA (hysteresis, median speed, direction, logging, constants)
 ├── time-factors.ts      # timeFactor blending (N>=3 gate, buildRecentRuns with OSRM distances)
 ├── haversine.ts         # Haversine distance + new computeBearing()
-├── osrm.ts              # OSRM routing client (unchanged)
-└── __tests__/
-    └── eta.test.ts      # Updated tests for median, hysteresis, direction
+└── osrm.ts              # OSRM routing client (unchanged)
+
+src/__tests__/tracking/
+└── eta.test.ts          # Updated tests for median, hysteresis, direction
 
 src/app/api/routes/
 ├── [routeId]/route.ts   # Route detail API (device_ts in pings query, osrm_distance_m)

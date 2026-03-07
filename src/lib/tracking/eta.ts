@@ -123,19 +123,9 @@ export async function computeEta(args: {
         )
       : null;
 
-    let distanceMeters: number;
     if (osrmResult) {
-      distanceMeters = osrmResult.distanceMeters;
       etaSource = "gps_osrm";
     } else {
-      distanceMeters =
-        haversineDistanceMeters(
-          vanPosition.lat,
-          vanPosition.lng,
-          nextStop.stopLat!,
-          nextStop.stopLng!,
-        ) * ROAD_FACTOR;
-
       // Direction detection: if van is heading away from stop, fall through to schedule
       // Only check when moving — at low speed, headingDeg is often stale
       if (vanPosition.headingDeg != null && isMoving) {
@@ -167,6 +157,13 @@ export async function computeEta(args: {
     if (osrmResult) {
       baseTravelMinutes = osrmResult.durationSeconds / 60;
     } else {
+      const distanceMeters =
+        haversineDistanceMeters(
+          vanPosition.lat,
+          vanPosition.lng,
+          nextStop.stopLat!,
+          nextStop.stopLng!,
+        ) * ROAD_FACTOR;
       baseTravelMinutes = distanceMeters / effectiveSpeed / 60;
     }
     const timeFactor = getTimeFactor(now.hour, now.weekday, routeId, recentRuns);
