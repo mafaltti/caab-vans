@@ -51,7 +51,7 @@
 
 ### Implementation
 
-- [x] T005 [US3] Rename `locationUpdatedAt` to `lastGpsFixAt` in `VanPosition` interface in `src/lib/tracking/eta.ts` (line ~20). Update the age calculation (lines ~91-95) to use `vanPosition.lastGpsFixAt`. No change to `isLocationFresh()` in `src/lib/time.ts` (it still takes `DateTime`).
+- [x] T005 [US3] Rename `locationUpdatedAt` to `lastGpsFixAt` in `VanPosition` interface in `src/lib/tracking/eta.ts` (line ~20). Update the age calculation (lines ~91-95) to use `vanPosition.lastGpsFixAt`. Also added `elapsed >= 0` guard to `isLocationFresh()` in `src/lib/time.ts` to reject future device timestamps (per Codex review feedback).
 - [x] T006 [P] [US3] Update route list API in `src/app/api/routes/route.ts`: (1) Add `last_gps_fix_at` to the `.select()` query (line ~32). (2) Change freshness check (lines ~88-90) to use `van.last_gps_fix_at` instead of `van.location_updated_at`. (3) Change VanPosition construction (lines ~115-120) to pass `lastGpsFixAt: DateTime.fromISO(van.last_gps_fix_at)`. (4) Change API response field (line ~302) from `locationUpdatedAt` to `lastGpsFixAt: van.last_gps_fix_at`.
 - [x] T007 [P] [US3] Update route detail API in `src/app/api/routes/[routeId]/route.ts`: Same 4 changes as T006 — add `last_gps_fix_at` to select (line ~37), freshness check (lines ~88-90), VanPosition construction (lines ~123-128), API response field (line ~311).
 - [x] T008 [P] [US3] Update tracker health in `src/lib/tracking/tracker-health.ts`: Change `.select()` (line ~23) to query `last_gps_fix_at`. Update staleness calculation (lines ~40-45) to use `van.last_gps_fix_at`. Update response field (line ~58).
