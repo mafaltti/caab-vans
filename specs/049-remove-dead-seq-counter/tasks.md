@@ -36,15 +36,15 @@
 
 ---
 
-## Phase 2: User Story 2 - Server remains backward-compatible during rollout (Priority: P1)
+## Phase 2: User Story 2 - Full cleanup of seq from validator and database (Priority: P1)
 
-**Goal**: Confirm the Zod validator still accepts payloads with `seq` (old clients) and without `seq` (new clients).
+**Goal**: Remove `seq` from the Zod validator and drop the database column + index.
 
-**Independent Test**: Manually verify the validator schema in `src/lib/validators/tracking.ts` still has `seq` as optional/nullable.
+**Independent Test**: Zod v4 strips unknown keys by default, so old clients sending `seq` will not get 400 errors. Migration drops column cleanly.
 
-- [x] T006 [US2] Verify `seq` field is retained as optional in Zod schema in `src/lib/validators/tracking.ts` (line 11) — if accidentally removed during US1, restore it to preserve backward compatibility
+- [x] T006 [US2] Remove `seq` field from Zod schema in `src/lib/validators/tracking.ts` and create migration `00010_drop_seq_column.sql` to drop column + index
 
-**Checkpoint**: Backward compatibility confirmed. Old tracker versions sending `seq` will not be rejected.
+**Checkpoint**: Full seq cleanup complete. Validator, database, and all application code are seq-free.
 
 ---
 
@@ -104,5 +104,5 @@ This feature is small enough for a single implementation pass:
 
 - All Phase 1 tasks are pure deletions — no new code needed
 - Line numbers from research.md are verified but may shift if other PRs merge first; use code content to locate
-- The `seq` DB column and index are explicitly NOT touched (deferred cleanup)
+- The `seq` DB column and index are dropped via migration `00010_drop_seq_column.sql`
 - Commit message: `chore(tracking): remove dead sequence counter code`
