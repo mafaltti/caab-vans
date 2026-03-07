@@ -151,6 +151,7 @@ See [apps/van-tracker/README.md](apps/van-tracker/README.md) for setup, build pr
 | [docs/PRINCIPLES.md](docs/PRINCIPLES.md) | Engineering principles (KISS, DRY, YAGNI) |
 | [docs/GIT-WORKFLOW.md](docs/GIT-WORKFLOW.md) | Branch strategy and PR rules |
 | [docs/DELIVERY-WORKFLOW.md](docs/DELIVERY-WORKFLOW.md) | Deployment pipeline and quality gates |
+| [docs/OPERATIONS.md](docs/OPERATIONS.md) | Complete operations guide: env vars, schema, API, scripts, ETA, infra |
 
 ## Scripts
 
