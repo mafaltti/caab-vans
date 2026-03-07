@@ -105,7 +105,7 @@ caab-vans/
 
 6. **Pre-compute stop distances** *(optional, requires OSRM)*
 
-   Computes road-network distances between consecutive stops for more accurate ETA congestion factors. Falls back to straight-line estimation if skipped.
+   Computes road-network distances between consecutive stops for more accurate ETA congestion factors. Falls back to straight-line estimation if skipped. **Re-run after adding, removing, or relocating stops** — the script resets stale values automatically.
 
    ```bash
    OSRM_BASE_URL=http://localhost:5000 DATABASE_URL=postgresql://... npx tsx scripts/precompute-stop-distances.ts
