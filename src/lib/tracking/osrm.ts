@@ -7,8 +7,8 @@ const MAX_TIMEOUT_MS = 2_147_483_647; // setTimeout max (signed 32-bit int)
 
 export function parsePositiveInt(value: string | undefined, fallback: number): number {
   if (value == null) return fallback;
-  const n = parseInt(value, 10);
-  return Number.isFinite(n) && n > 0 && n <= MAX_TIMEOUT_MS ? n : fallback;
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 && n <= MAX_TIMEOUT_MS ? n : fallback;
 }
 
 const ROUTE_TIMEOUT_MS = parsePositiveInt(process.env.OSRM_ROUTE_TIMEOUT_MS, 300);

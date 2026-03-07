@@ -22,8 +22,8 @@ describe("parsePositiveInt", () => {
     expect(parsePositiveInt("-100", 300)).toBe(300);
   });
 
-  it("parses integer ignoring trailing non-numeric characters", () => {
-    expect(parsePositiveInt("200abc", 300)).toBe(200);
+  it("returns fallback for value with trailing non-numeric characters", () => {
+    expect(parsePositiveInt("200abc", 300)).toBe(300);
   });
 
   it("returns fallback for empty string", () => {
