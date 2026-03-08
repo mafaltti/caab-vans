@@ -47,50 +47,60 @@
 
 ## Example Responses
 
-### Running route with valid ETA
+Note: `GET /api/routes` wraps in `{ "routes": [...], "serverTime": "..." }`. `GET /api/routes/[routeId]` wraps in `{ "route": {...}, "serverTime": "..." }`. Examples below show the **route object** inside that envelope.
+
+### Running route with valid ETA (`GET /api/routes/[routeId]`)
 ```json
 {
-  "isRunning": true,
-  "nextStopMode": "live",
-  "nextStop": { "stopName": "Terminal", "time": "14:30", "id": "abc" },
-  "currentStopIndex": 3,
-  "progress": {
-    "etaStatus": "estimated",
-    "etaNextStopMinutes": 8,
-    "etaNextStopISO": "2026-03-08T14:38:00-03:00",
-    "etaSource": "gps"
-  }
+  "route": {
+    "isRunning": true,
+    "nextStopMode": "live",
+    "nextStop": { "stopName": "Terminal", "time": "14:30", "id": "abc" },
+    "currentStopIndex": 3,
+    "progress": {
+      "etaStatus": "estimated",
+      "etaNextStopMinutes": 8,
+      "etaNextStopISO": "2026-03-08T14:38:00-03:00",
+      "etaSource": "gps"
+    }
+  },
+  "serverTime": "2026-03-08T14:30:00-03:00"
 }
 ```
 
-### Non-running route with last-known data
+### Non-running route with last-known data (`GET /api/routes/[routeId]?includeLastKnown=true`)
 ```json
 {
-  "isRunning": false,
-  "nextStopMode": "last_known",
-  "nextStop": { "stopName": "Centro", "time": "15:00", "id": "def" },
-  "currentStopIndex": 5,
-  "progress": {
-    "etaStatus": "none",
-    "etaNextStopMinutes": null,
-    "etaNextStopISO": null,
-    "etaSource": null
-  }
+  "route": {
+    "isRunning": false,
+    "nextStopMode": "last_known",
+    "nextStop": { "stopName": "Centro", "time": "15:00", "id": "def" },
+    "currentStopIndex": 5,
+    "progress": {
+      "etaStatus": "none",
+      "etaNextStopMinutes": null,
+      "etaNextStopISO": null,
+      "etaSource": null
+    }
+  },
+  "serverTime": "2026-03-08T15:45:00-03:00"
 }
 ```
 
-### Overdue degraded ETA
+### Overdue degraded ETA (`GET /api/routes/[routeId]`)
 ```json
 {
-  "isRunning": true,
-  "nextStopMode": "live",
-  "nextStop": { "stopName": "Praça", "time": "14:00", "id": "ghi" },
-  "currentStopIndex": 2,
-  "progress": {
-    "etaStatus": "overdue",
-    "etaNextStopMinutes": null,
-    "etaNextStopISO": "2026-03-08T14:10:00-03:00",
-    "etaSource": "segment"
-  }
+  "route": {
+    "isRunning": true,
+    "nextStopMode": "live",
+    "nextStop": { "stopName": "Praça", "time": "14:00", "id": "ghi" },
+    "currentStopIndex": 2,
+    "progress": {
+      "etaStatus": "overdue",
+      "etaNextStopMinutes": null,
+      "etaNextStopISO": "2026-03-08T14:10:00-03:00",
+      "etaSource": "segment"
+    }
+  },
+  "serverTime": "2026-03-08T14:25:00-03:00"
 }
-```
