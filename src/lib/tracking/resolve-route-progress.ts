@@ -95,6 +95,23 @@ export async function resolveRouteProgress(args: {
     };
   }
 
+  // Waiting routes should never expose last-known progress — stale pointers
+  // from a previous day's run are not meaningful for a waiting route.
+  if (runStatus === "waiting" && includeLastKnown) {
+    return {
+      serviceDate,
+      runStatus,
+      shiftStartedAt: null,
+      nextStopId: null,
+      passedStopIds: [],
+      etaNextStopISO: null,
+      etaNextStopMinutes: null,
+      delayMinutes: null,
+      etaSource: null,
+      etaStatus: "none",
+    };
+  }
+
   // 4. Fetch route_run_stops
   const { data: runStops, error: runStopsError } = await supabase
     .from("route_run_stops")
@@ -183,7 +200,28 @@ export async function resolveRouteProgress(args: {
       : Infinity;
     const pointerWithinCeiling = pointerAge >= 0 && pointerAge < POINTER_ABSOLUTE_CEILING_MINUTES;
 
-    if (pointerExists && pointerIsPending && pointerWithinCeiling) {
+    // Adjacency check: next_stop_id must be the immediate successor of last_passed_stop_id
+    let pointerIsAdjacent = true;
+    if (runData.last_passed_stop_id) {
+      const lastPassedIdx = sortedEntries.findIndex((e) => e.id === runData.last_passed_stop_id);
+      const nextStopIdx = sortedEntries.findIndex((e) => e.id === runData.next_stop_id);
+      if (lastPassedIdx >= 0 && nextStopIdx >= 0 && lastPassedIdx + 1 !== nextStopIdx) {
+        pointerIsAdjacent = false;
+      }
+      // Also check runStops: no pending stops between them
+      if (pointerIsAdjacent && lastPassedIdx >= 0 && nextStopIdx >= 0) {
+        for (let i = lastPassedIdx + 1; i < nextStopIdx; i++) {
+          const entryId = sortedEntries[i].id;
+          const rs = runStops.find((r) => r.schedule_entry_id === entryId);
+          if (rs && rs.status === "pending") {
+            pointerIsAdjacent = false;
+            break;
+          }
+        }
+      }
+    }
+
+    if (pointerExists && pointerIsPending && pointerWithinCeiling && pointerIsAdjacent) {
       targetStopId = runData.next_stop_id;
     }
   }

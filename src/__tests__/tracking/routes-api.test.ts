@@ -233,6 +233,19 @@ describe("routes API derivation logic", () => {
       expect(result.nextStopMode).toBeNull();
     });
 
+    it("completed route with null nextStopId produces consistent last-known response", () => {
+      // When resolveRouteProgress returns null nextStopId for a completed route,
+      // the route handler should also not populate nextStop
+      const result = deriveLastKnown({
+        isRunning: false,
+        includeLastKnown: true,
+        runStatus: "completed",
+        nextStopId: null,
+      });
+      expect(result.nextStopPopulated).toBe(false);
+      expect(result.nextStopMode).toBeNull();
+    });
+
     it("returns null when no pointer exists", () => {
       const result = deriveLastKnown({
         isRunning: false,

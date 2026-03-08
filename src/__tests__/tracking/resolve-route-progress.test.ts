@@ -577,6 +577,105 @@ describe("resolveRouteProgress", () => {
     expect(mockComputeEta).toHaveBeenCalled();
   });
 
+  it("rejects non-adjacent pointer (pending stops between last_passed and next_stop)", async () => {
+    const freshTimestamp = makeNow()
+      .minus({ minutes: 2 })
+      .toISO()!;
+
+    // last_passed_stop_id = entry-a, next_stop_id = entry-c
+    // But entry-b is pending between them → non-adjacent → reject pointer
+    const supabase = buildSupabase({
+      runData: {
+        id: RUN_ID,
+        last_passed_stop_id: "entry-a",
+        next_stop_id: "entry-c",
+        progress_updated_at: freshTimestamp,
+      },
+      shifts: [{ id: "shift-1", started_at: "2026-03-07T08:00:00-03:00", ended_at: null }],
+      runStops: [
+        {
+          schedule_entry_id: "entry-a",
+          status: "passed" as const,
+          passed_at: "2026-03-07T08:32:00-03:00",
+          schedule_entries: { time: "08:30" },
+        },
+        {
+          schedule_entry_id: "entry-b",
+          status: "pending" as const,
+          passed_at: null,
+          schedule_entries: { time: "08:45" },
+        },
+        {
+          schedule_entry_id: "entry-c",
+          status: "pending" as const,
+          passed_at: null,
+          schedule_entries: { time: "09:00" },
+        },
+      ],
+    });
+
+    const result = await resolveRouteProgress(makeArgs(supabase));
+
+    expect(result).not.toBeNull();
+    expect(result!.runStatus).toBe("in_progress");
+    // Pointer entry-c is non-adjacent to entry-a (entry-b is pending between) → rejected
+    expect(mockComputeEta).toHaveBeenCalledTimes(1);
+    const callArgs = mockComputeEta.mock.calls[0][0];
+    expect(callArgs.targetStopId).toBeUndefined();
+  });
+
+  it("accepts adjacent pointer (next_stop_id is immediate successor of last_passed_stop_id)", async () => {
+    const freshTimestamp = makeNow()
+      .minus({ minutes: 2 })
+      .toISO()!;
+
+    // last_passed_stop_id = entry-a, next_stop_id = entry-b
+    // entry-b is the immediate successor of entry-a → adjacent → accept
+    const supabase = buildSupabase({
+      runData: {
+        id: RUN_ID,
+        last_passed_stop_id: "entry-a",
+        next_stop_id: "entry-b",
+        progress_updated_at: freshTimestamp,
+      },
+      shifts: [{ id: "shift-1", started_at: "2026-03-07T08:00:00-03:00", ended_at: null }],
+      runStops: standardRunStops(),
+    });
+
+    const result = await resolveRouteProgress(makeArgs(supabase));
+
+    expect(result).not.toBeNull();
+    expect(result!.runStatus).toBe("in_progress");
+    // Pointer entry-b is adjacent to entry-a → accepted
+    expect(mockComputeEta).toHaveBeenCalledTimes(1);
+    const callArgs = mockComputeEta.mock.calls[0][0];
+    expect(callArgs.targetStopId).toBe("entry-b");
+  });
+
+  it("waiting route with includeLastKnown=true returns null nextStopId (no stale pointer)", async () => {
+    const supabase = buildSupabase({
+      runData: {
+        id: RUN_ID,
+        last_passed_stop_id: "entry-a",
+        next_stop_id: "entry-b",
+        progress_updated_at: makeNow().minus({ minutes: 5 }).toISO()!,
+      },
+      shifts: [],
+      runStops: standardRunStops(),
+    });
+
+    const args = { ...makeArgs(supabase), includeLastKnown: true };
+    const result = await resolveRouteProgress(args);
+
+    expect(result).not.toBeNull();
+    expect(result!.runStatus).toBe("waiting");
+    expect(result!.nextStopId).toBeNull();
+    expect(result!.etaNextStopMinutes).toBeNull();
+    expect(result!.etaNextStopISO).toBeNull();
+    // Should not even call computeEta for waiting routes
+    expect(mockComputeEta).not.toHaveBeenCalled();
+  });
+
   // --- T015: stale pointer targeting already-passed stop falls back to next pending by route order ---
   it("stale pointer targeting already-passed stop falls back to next pending by route order", async () => {
     const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
