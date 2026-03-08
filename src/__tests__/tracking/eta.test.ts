@@ -934,9 +934,9 @@ describe("getTimeFactor", () => {
 
 describe("segment-aware ETA fallback", () => {
   // GPS conditions NOT met: no vanPosition provided (stale/no GPS)
-  // Segment fallback triggers when last passed stop has passedAt AND next stop has osrmDistanceM
+  // Segment fallback triggers when last passed stop has passedAt AND osrmDistanceM (distance to successor)
 
-  it("uses segment calculation when GPS unavailable and osrmDistanceM is set", async () => {
+  it("uses segment calculation when GPS unavailable and last passed stop has osrmDistanceM", async () => {
     // Use a known weekday (Monday) so timeFactor is deterministic
     const now = DateTime.fromObject({ year: 2026, month: 3, day: 2, hour: 8, minute: 42 }, { zone: TZ });
     const timeFactor = getTimeFactor(8, 1, undefined, undefined); // 1.4 on weekday hour 8
@@ -946,20 +946,20 @@ describe("segment-aware ETA fallback", () => {
       { zone: TZ },
     ).toISO()!;
 
-    const osrmDistanceM = 5000; // 5 km between stops
+    const osrmDistanceM = 5000; // 5 km from stop A to stop B
     const stops = [
       {
         scheduleEntryId: "a",
         time: "08:30",
         status: "passed" as const,
         passedAt,
+        osrmDistanceM, // distance from A to its successor (B)
       },
       {
         scheduleEntryId: "b",
         time: "08:45",
         status: "pending" as const,
         passedAt: null,
-        osrmDistanceM,
       },
     ];
 
@@ -1049,6 +1049,7 @@ describe("segment-aware ETA fallback", () => {
         ).toISO()!,
         stopLat: -12.96,
         stopLng: -38.52,
+        osrmDistanceM: 5000,
       },
       {
         scheduleEntryId: "b",
@@ -1057,7 +1058,6 @@ describe("segment-aware ETA fallback", () => {
         passedAt: null,
         stopLat: -12.9814,
         stopLng: -38.4524,
-        osrmDistanceM: 5000,
       },
     ];
 
@@ -1085,13 +1085,13 @@ describe("segment-aware ETA fallback", () => {
         time: "08:30",
         status: "passed" as const,
         passedAt,
+        osrmDistanceM,
       },
       {
         scheduleEntryId: "b",
         time: "08:45",
         status: "pending" as const,
         passedAt: null,
-        osrmDistanceM,
       },
     ];
 
@@ -1121,13 +1121,13 @@ describe("segment-aware ETA fallback", () => {
         time: "08:30",
         status: "passed" as const,
         passedAt,
+        osrmDistanceM: 3000,
       },
       {
         scheduleEntryId: "b",
         time: "08:45",
         status: "pending" as const,
         passedAt: null,
-        osrmDistanceM: 3000,
       },
     ];
 

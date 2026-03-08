@@ -681,7 +681,15 @@ describe("inferStopProgress backfill", () => {
       schedule_entries: { time: s.schedule_entries.time },
     }));
 
-    const mock = createMockSupabase({ pendingStops, allStops, shifts: [{ id: "shift-1", ended_at: null }] });
+    const mock = createMockSupabase({
+      pendingStops,
+      allStops,
+      shifts: [{ id: "shift-1", ended_at: null }],
+      pings: [
+        { lat: vanLat + 0.00001, lng: vanLng + 0.00001 },
+        { lat: vanLat - 0.00001, lng: vanLng - 0.00001 },
+      ],
+    });
     await inferStopProgress(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mock as any,
@@ -752,7 +760,15 @@ describe("inferStopProgress backfill", () => {
       { schedule_entry_id: "stop-8", status: "passed", schedule_entries: { time: "08:30" } },
     ];
 
-    const mock = createMockSupabase({ pendingStops, allStops, shifts: [{ id: "shift-1", ended_at: null }] });
+    const mock = createMockSupabase({
+      pendingStops,
+      allStops,
+      shifts: [{ id: "shift-1", ended_at: null }],
+      pings: [
+        { lat: vanLat + 0.00001, lng: vanLng + 0.00001 },
+        { lat: vanLat - 0.00001, lng: vanLng - 0.00001 },
+      ],
+    });
     await inferStopProgress(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mock as any,
@@ -851,7 +867,15 @@ describe("inferStopProgress backfill", () => {
       { schedule_entry_id: "stop-3", status: "passed", schedule_entries: { time: "10:00" } },
     ];
 
-    const mock = createMockSupabase({ pendingStops, allStops, shifts: [{ id: "shift-1", ended_at: null }] });
+    const mock = createMockSupabase({
+      pendingStops,
+      allStops,
+      shifts: [{ id: "shift-1", ended_at: null }],
+      pings: [
+        { lat: vanLat + 0.00001, lng: vanLng + 0.00001 },
+        { lat: vanLat - 0.00001, lng: vanLng - 0.00001 },
+      ],
+    });
     await inferStopProgress(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mock as any,
@@ -917,7 +941,15 @@ describe("inferStopProgress edge cases", () => {
       { schedule_entry_id: "stop-3", status: "passed", schedule_entries: { time: "10:00" } },
     ];
 
-    const mock = createMockSupabase({ pendingStops, allStops, shifts: [{ id: "shift-1", ended_at: null }] });
+    const mock = createMockSupabase({
+      pendingStops,
+      allStops,
+      shifts: [{ id: "shift-1", ended_at: null }],
+      pings: [
+        { lat: vanLat + 0.00001, lng: vanLng + 0.00001 },
+        { lat: vanLat - 0.00001, lng: vanLng - 0.00001 },
+      ],
+    });
     const result = await inferStopProgress(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mock as any,
@@ -1200,6 +1232,10 @@ describe("inferStopProgress shift gate", () => {
       pendingStops,
       allStops,
       shifts: [{ id: "shift-1", ended_at: null }],
+      pings: [
+        { lat: vanLat + 0.00001, lng: vanLng + 0.00001 },
+        { lat: vanLat - 0.00001, lng: vanLng - 0.00001 },
+      ],
     });
     const result = await inferStopProgress(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1389,7 +1425,7 @@ describe("inferStopProgress confidence gating", () => {
     vi.restoreAllMocks();
   });
 
-  it("single ping raw geofence match has confidence 0.7 and backfills large gap", async () => {
+  it("single ping raw geofence match has confidence 0.7 and does NOT backfill large gap", async () => {
     setMockTime(10, 5);
 
     const pendingStops = [
@@ -1429,10 +1465,8 @@ describe("inferStopProgress confidence gating", () => {
     expect(mock._updates[0].pass_source).toBe("geofence_raw");
     expect(mock._updates[0].pass_confidence).toBe(0.7);
 
-    // Backfill allowed (confidence 0.7 >= 0.7 threshold)
-    expect(mock._backfills).toHaveLength(1);
-    expect(mock._backfills[0].pass_source).toBe("backfill");
-    expect(mock._backfills[0].pass_confidence).toBe(0.3); // 4-stop gap
+    // Backfill NOT allowed (confidence 0.7 is not > 0.7, and gap > 1)
+    expect(mock._backfills).toHaveLength(0);
   });
 
   it("2 pings within 5-min window yield higher confidence and trigger backfill", async () => {

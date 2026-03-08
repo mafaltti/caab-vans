@@ -224,9 +224,9 @@ export async function computeEta(args: {
   const sortedPassedForSegment = [...passed].sort((a, b) => a.time.localeCompare(b.time));
   const lastPassedForSegment = sortedPassedForSegment.length > 0 ? sortedPassedForSegment.at(-1)! : null;
 
-  if (lastPassedForSegment?.passedAt && nextStop.osrmDistanceM != null) {
+  if (lastPassedForSegment?.passedAt && lastPassedForSegment.osrmDistanceM != null) {
     const timeFactor = getTimeFactor(now.hour, now.weekday, routeId, recentRuns);
-    const travelMinutes = (nextStop.osrmDistanceM / REFERENCE_SPEED_MPS / 60) * timeFactor;
+    const travelMinutes = (lastPassedForSegment.osrmDistanceM / REFERENCE_SPEED_MPS / 60) * timeFactor;
     const etaDateTime = DateTime.fromISO(lastPassedForSegment.passedAt).plus({ minutes: travelMinutes });
     const etaNextStopMinutes = Math.max(0, Math.ceil(etaDateTime.diff(now, "minutes").minutes));
 

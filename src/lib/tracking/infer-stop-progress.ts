@@ -305,8 +305,8 @@ export async function inferStopProgress(
 
     if (backfillIds.length > 0) {
       const gap = backfillIds.length;
-      // Gate: only backfill if confidence >= 0.7 OR gap is 1 stop
-      const shouldBackfill = maxPassedConfidence >= 0.7 || gap <= 1;
+      // Gate: only backfill if confidence > 0.7 (requires snapped or multi-ping) OR gap is 1 stop
+      const shouldBackfill = maxPassedConfidence > 0.7 || gap <= 1;
 
       if (shouldBackfill) {
         let backfillConfidence: number;
