@@ -37,7 +37,7 @@
 
 ## 5. Pointer Staleness Threshold
 
-**Decision**: 30 minutes, checked via `progress_updated_at` age.
+**Decision**: 30 minutes, checked via `progress_updated_at` age. Future-dated values are also rejected (clock skew guard, consistent with `eta.ts` hysteresis filter).
 **Rationale**: ~2x the maximum reasonable ping interval (10-15 min). GPS staleness is 10 min (`STALENESS_THRESHOLD_MINUTES` in `time.ts:13`); pointer staleness is intentionally longer because pointer writes happen less frequently than ping reception.
 **Alternatives considered**: 15 min (too aggressive, GPS gaps would trigger false fallbacks), 60 min (too conservative, stale pointers served too long)
 
