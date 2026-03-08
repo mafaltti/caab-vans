@@ -1,6 +1,6 @@
 # Deployment Runbook
 
-This is the supported production deployment guide for this repo.
+This is the supported production deployment guide for the current repo state.
 
 ## Supported Topology
 
@@ -15,13 +15,13 @@ This is the supported production deployment guide for this repo.
 - Ubuntu 22.04 or 24.04 VPS with SSH access
 - DNS control for three hostnames
 - Docker Engine and Docker Compose plugin
-- Node.js 22
+- Node.js 22 LTS
 - Caddy
 - Access to the repo
 
 ## Domains
 
-Use placeholders in real deployment notes first, then substitute client values.
+Use placeholders in deploy notes first, then substitute the client values.
 
 | Placeholder | Purpose |
 |-------------|---------|
@@ -39,6 +39,8 @@ STUDIO_DOMAIN=studio-vans.example.com
 
 ## Secrets and Environment Mapping
 
+The full variable reference lives in [OPERATIONS.md](OPERATIONS.md). The minimum production set is below.
+
 ### `infra/supabase/.env`
 
 Set these at minimum:
@@ -49,6 +51,8 @@ Set these at minimum:
 - `SERVICE_ROLE_KEY`
 - `API_EXTERNAL_URL=https://API_DOMAIN`
 - `SITE_URL=https://APP_DOMAIN`
+- `POSTGRES_PORT=5433`
+- `STUDIO_PORT=54324`
 - `DISABLE_SIGNUP=true`
 
 ### Root `.env.local`
@@ -58,8 +62,11 @@ Set these before building the app or running scripts:
 - `NEXT_PUBLIC_SUPABASE_URL=https://API_DOMAIN`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY=<same anon key as Supabase>`
 - `SUPABASE_SERVICE_ROLE_KEY=<same service role key as Supabase>`
-- `DATABASE_URL=postgresql://supabase_admin:<password>@localhost:5433/postgres`
+- `DATABASE_URL=postgresql://supabase_admin:<POSTGRES_PASSWORD>@localhost:5433/postgres`
 - Optional `OSRM_BASE_URL=http://localhost:5000`
+- Optional `OSRM_ROUTE_TIMEOUT_MS=300`
+- Optional `OSRM_MATCH_TIMEOUT_MS=200`
+- Optional `TRACKING_PROGRESS_SOURCE=legacy`
 
 ### One-Time Bootstrap Variables
 
@@ -78,7 +85,7 @@ Install Docker, Docker Compose plugin, Node.js 22, and Caddy. Open ports `80`, `
 git clone <repo-url> /opt/caab-vans
 cd /opt/caab-vans
 git checkout <target-branch>
-npm install
+npm ci
 ```
 
 ## Step 3: Bring Up Supabase
@@ -95,10 +102,10 @@ docker compose up -d
 docker compose ps
 ```
 
-Expected local ports:
+Recommended port bindings from the checked-in example:
 
 - Kong gateway: `54321`
-- Postgres: `5433` in production is recommended to avoid accidental public defaults
+- Postgres: `5433`
 - Studio: `54324`
 
 ## Step 4: Configure App Environment
@@ -133,6 +140,13 @@ Do not use `npm run db:seed` in production. It is reserved for development conve
 
 ## Step 7: Build and Run Next.js via `systemd`
 
+Create a dedicated OS user first if you do not already have one:
+
+```bash
+sudo useradd --system --shell /usr/sbin/nologin --home-dir /opt/caab-vans caab
+sudo chown -R caab:caab /opt/caab-vans
+```
+
 Build the app:
 
 ```bash
@@ -149,10 +163,13 @@ After=network.target docker.service
 
 [Service]
 Type=simple
-User=root
+User=caab
+Group=caab
 WorkingDirectory=/opt/caab-vans
 EnvironmentFile=/opt/caab-vans/.env.local
-ExecStart=/usr/bin/npm start
+Environment=NODE_ENV=production
+Environment=PORT=3000
+ExecStart=/usr/bin/npm run start
 Restart=always
 RestartSec=5
 
@@ -210,7 +227,29 @@ docker compose up -d
 
 Then set `OSRM_BASE_URL=http://localhost:5000` in the root `.env.local`.
 
-## Step 10: Tracker APK Provisioning
+If you change `OSRM_BASE_URL`, `OSRM_ROUTE_TIMEOUT_MS`, or `OSRM_MATCH_TIMEOUT_MS`, restart the Next.js service so the new process environment is loaded.
+
+## Step 10: Initial Application Bootstrap
+
+After the first superuser is created:
+
+1. Open `https://APP_DOMAIN/admin/login`.
+2. Log in with the bootstrap superuser.
+3. Create any additional superusers or admins you need.
+4. Create driver users.
+5. Create vans. Record each van's UUID and ingestion token.
+6. Create routes. Each route currently maps one-to-one to a van.
+7. Add schedule entries with stop names and times. Add coordinates if you want GPS ETA and stop inference to work.
+8. Assign drivers to vans from the van edit screen.
+
+If you later add or edit stop coordinates and want segment fallback ETAs to stay accurate, run:
+
+```bash
+cd /opt/caab-vans
+npx tsx scripts/precompute-stop-distances.ts
+```
+
+## Step 11: Tracker APK Provisioning
 
 Build the tracker app from a workstation, not the VPS:
 
@@ -240,6 +279,22 @@ Verify these before handoff:
 - Admin login works with the bootstrapped superuser
 - You can create a van, route, and schedule entry
 - A tracker device can post to `/api/tracking/:vanId`
+
+## Updating an Existing Deploy
+
+For normal application releases:
+
+```bash
+cd /opt/caab-vans
+git fetch --all
+git checkout <target-branch-or-commit>
+npm ci
+npm run db:migrate
+npm run build
+sudo systemctl restart caab-vans
+```
+
+If you changed `infra/supabase/` or `infra/osrm/`, restart those stacks separately with `docker compose up -d`.
 
 ## Rollback
 

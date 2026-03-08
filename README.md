@@ -4,11 +4,13 @@ CAAB Vans is a Next.js web app plus an Expo-based Android tracker app for route 
 
 ## Start Here
 
-Use the canonical docs in this order:
+Read these in order:
 
 1. [docs/START-HERE.md](docs/START-HERE.md) for newcomer onboarding.
 2. [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the supported production runbook.
 3. [docs/OPERATIONS.md](docs/OPERATIONS.md) for environment, scripts, schema, and maintenance reference.
+4. [apps/van-tracker/README.md](apps/van-tracker/README.md) for tracker build, provisioning, and support procedures.
+5. [docs/ETA-CONFIGURATION.md](docs/ETA-CONFIGURATION.md) for ETA, OSRM, and time-factor tuning.
 
 Historical notes under `docs/execution/` are archive/reference only.
 
@@ -42,8 +44,9 @@ caab-vans/
 2. Start Supabase from `infra/supabase/`.
 3. Copy `.env.local.example` to `.env.local` and fill the values.
 4. Run `npm run db:migrate`.
-5. Optionally run `npm run db:seed` for development-only bootstrap data.
+5. Optionally run `npm run db:seed` for the fixed development superuser (`admin@caab.org.br` / `caab2026!`).
 6. Start the app with `npm run dev`.
+7. For the tracker workspace, use `apps/van-tracker/README.md`.
 
 Detailed local setup lives in [docs/START-HERE.md](docs/START-HERE.md).
 
@@ -51,6 +54,7 @@ Detailed local setup lives in [docs/START-HERE.md](docs/START-HERE.md).
 
 - [docs/TECH.md](docs/TECH.md) for architecture and infrastructure constraints
 - [apps/van-tracker/README.md](apps/van-tracker/README.md) for tracker setup and provisioning
+- [docs/ETA-CONFIGURATION.md](docs/ETA-CONFIGURATION.md) for ETA and OSRM tuning
 - [docs/PRINCIPLES.md](docs/PRINCIPLES.md) for engineering constraints
 - [docs/GIT-WORKFLOW.md](docs/GIT-WORKFLOW.md) and [docs/DELIVERY-WORKFLOW.md](docs/DELIVERY-WORKFLOW.md) for branch and release process
 

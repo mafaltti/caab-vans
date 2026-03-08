@@ -1,23 +1,26 @@
 # ETA Configuration Guide
 
-How the ETA system works and how to configure it for optimal accuracy.
+How the ETA system works and how to configure it based on the current codebase.
 
 ## Overview
 
-The ETA system uses a multi-layer approach to estimate arrival times:
+The ETA system uses four layers:
 
-1. **OSRM road distance** — real driving distance between van and next stop
-2. **Segment-aware fallback** — stored OSRM distances when GPS is unavailable
-3. **Time-of-day correction** — rush hour multipliers applied to base ETA
-4. **Nightly refinement** — automatic factor updates from historical trip data
+1. GPS ETA from fresh tracker data
+2. OSRM routing when `OSRM_BASE_URL` is configured and healthy
+3. Segment fallback from stored per-stop road distances when GPS is stale
+4. Time factors from built-in defaults or generated `data/time-factors.json`
 
-All four layers are **optional and progressive**. A fresh deployment works out of the box with sensible defaults. Each layer improves accuracy when enabled.
+All layers are optional and progressive. A fresh deployment works without OSRM or generated factor files.
 
-## Layer 1: OSRM Road Distance
+## Layer 1: GPS ETA and OSRM Routing
 
 ### What it does
 
-Replaces the straight-line (haversine × 1.3) distance estimate with actual road distance from a self-hosted OSRM instance. Improves ETA accuracy from ~±30% to ~±15%.
+When the van has a fresh GPS fix and the next stop has coordinates, the server computes ETA from the current van position to the next target stop.
+
+- If OSRM is configured and reachable, the server uses OSRM `/route` duration.
+- If OSRM is disabled or times out, the server falls back to haversine distance times the road factor.
 
 ### How to enable
 
@@ -27,116 +30,105 @@ Add to `.env.local`:
 OSRM_BASE_URL=http://localhost:5000
 ```
 
+Optional timeout overrides:
+
+```bash
+OSRM_ROUTE_TIMEOUT_MS=300
+OSRM_MATCH_TIMEOUT_MS=200
+```
+
 ### Behavior
 
-| Scenario | ETA source | Distance method |
-|----------|-----------|-----------------|
-| OSRM configured and responding | `gps_osrm` | Road distance from OSRM `/route` |
-| OSRM configured but down/slow (>100ms) | `gps` | Haversine × 1.3 (automatic fallback) |
-| OSRM not configured | `gps` | Haversine × 1.3 (same as before) |
-| No GPS but OSRM segment distances stored | `segment` | Segment distance / reference speed × time factor |
-| No GPS / no segment data / van stopped | `schedule` | Schedule time + observed delay |
-
-### Requirements
-
-- A running OSRM instance with local road data (e.g., Bahia extract)
-- Network reachable from the Next.js server
-- No authentication needed (OSRM runs without auth by default)
+| Scenario | ETA source | Method |
+|----------|------------|--------|
+| Fresh GPS + OSRM reachable | `gps_osrm` | OSRM `/route` duration |
+| Fresh GPS + OSRM disabled or timed out | `gps` | Haversine distance and speed heuristics |
+| GPS stale + segment data available | `segment` | Stored `osrm_distance_m` plus time factor |
+| GPS stale or unavailable with no segment path | `schedule` | Scheduled time plus observed delay |
 
 ### Notes
 
-- The OSRM call has a **100ms timeout**. If OSRM is slow, the system falls back silently.
-- The `etaSource` field in the API response (`"gps_osrm"` vs `"gps"`) indicates which method was used.
-- No restart needed to enable/disable — reads `process.env.OSRM_BASE_URL` on each request.
-
----
+- Runtime defaults are `300ms` for `/route` and `200ms` for `/match`.
+- Changing OSRM env vars requires restarting the Next.js process so the new environment is loaded.
+- The `etaSource` field in the API response indicates which method was used.
+- OSRM failures degrade gracefully.
 
 ## Layer 2: Segment-Aware Fallback
 
 ### What it does
 
-When GPS is unavailable (stale or missing) but stops have been passed, uses stored per-segment OSRM road distances to estimate travel time to the next stop. Fills the gap between GPS-based ETA and schedule-delay fallback.
+When GPS is unavailable but stops have already been passed, the server uses stored per-segment road distances to estimate travel time to the next stop.
 
 ### How it works
 
-The computation is: `travelMinutes = (osrmDistanceM / REFERENCE_SPEED_MPS / 60) × timeFactor`, where:
+The computation is:
 
-- `osrmDistanceM` — pre-computed road distance from `schedule_entries.osrm_distance_m`
-- `REFERENCE_SPEED_MPS` — 8.3 m/s (~30 km/h), typical urban van speed
-- `timeFactor` — time-of-day correction from Layer 3
+```text
+travelMinutes = (osrmDistanceM / REFERENCE_SPEED_MPS / 60) * timeFactor
+```
 
-ETA is anchored to the last passed stop's actual passage time: `lastPassedStop.passedAt + travelMinutes`.
+Where:
 
-### When it activates
+- `osrmDistanceM` comes from `schedule_entries.osrm_distance_m`
+- `REFERENCE_SPEED_MPS` is `8.3`
+- `timeFactor` comes from the historical/default factor system
 
-| Condition | Result |
-|-----------|--------|
-| GPS fresh + moving | GPS branch used (Layer 1) |
-| GPS stale + last stop passed + `osrm_distance_m` available | **Segment fallback** |
-| GPS stale + no segment data | Schedule fallback |
-| No stops passed yet | Schedule fallback |
+ETA is anchored to the last passed stop timestamp.
 
-### ETA source priority chain
+### Maintaining segment data
 
-| Priority | Source | Condition |
-|----------|--------|-----------|
-| 1 | `gps_osrm` | Fresh GPS + OSRM reachable |
-| 2 | `gps` | Fresh GPS + haversine fallback |
-| 3 | `segment` | GPS unavailable, road distance known |
-| 4 | `schedule` | Final fallback — scheduled time + delay |
+Whenever stop coordinates change, recompute per-stop road distances:
 
----
+```bash
+npx tsx scripts/precompute-stop-distances.ts
+```
 
 ## Layer 3: Time-of-Day Correction Factors
 
 ### What it does
 
-Multiplies the base ETA by a correction factor based on the current hour and day of week. Accounts for rush hour congestion. Improves peak-hour accuracy from ~±15% to ~±10%.
+The server multiplies the base ETA by a correction factor based on hour and day-of-week.
 
-### How it works
+### Sources
 
-The system loads correction factors from two sources (in priority order):
+The system loads factors from:
 
-1. **`data/time-factors.json`** — generated by the nightly script (see Layer 3)
-2. **Hardcoded defaults** — built into the code, used when the JSON file doesn't exist
+1. `data/time-factors.json` if present
+2. Built-in defaults from `src/lib/tracking/time-factors.ts`
 
-### Default factors (built-in)
+### Built-in defaults
 
-| Day type | Hour | Factor | Effect |
-|----------|------|--------|--------|
-| Weekday | 06:00 | 1.05 | +5% |
-| Weekday | 07:00 | 1.35 | +35% (morning rush) |
-| Weekday | 08:00 | 1.40 | +40% (peak morning) |
-| Weekday | 09:00 | 1.15 | +15% |
-| Weekday | 10:00–15:00 | 1.00 | No correction |
-| Weekday | 16:00 | 1.10 | +10% |
-| Weekday | 17:00 | 1.35 | +35% (evening rush) |
-| Weekday | 18:00 | 1.30 | +30% |
-| Weekday | 19:00 | 1.05 | +5% |
-| Saturday | all hours | 1.00–1.10 | Minimal correction |
-| Sunday | all hours | 1.00 | No correction |
-
-These defaults are reasonable starting values for any Brazilian city. They apply automatically — no configuration needed.
+| Day type | Hour | Factor |
+|----------|------|--------|
+| Weekday | `6` | `1.05` |
+| Weekday | `7` | `1.35` |
+| Weekday | `8` | `1.40` |
+| Weekday | `9` | `1.15` |
+| Weekday | `16` | `1.10` |
+| Weekday | `17` | `1.35` |
+| Weekday | `18` | `1.30` |
+| Weekday | `19` | `1.05` |
+| Saturday | `8`, `9`, `10`, `17`, `18` | `1.05` to `1.10` |
+| Sunday | `7`, `8`, `9`, `16`, `17`, `18` | `0.95` |
 
 ### Per-route overrides
 
-The nightly script can generate per-route overrides when a specific route's traffic pattern differs significantly (>15%) from the global average. Route-level factors take precedence over global factors.
+The nightly script can write route-specific overrides when a route differs enough from the global pattern.
 
 ### Recency blending
 
-When today's completed runs are available, the system blends:
-- **70%** historical factor (from defaults or `time-factors.json`)
-- **30%** today's observed factor (median of actual/predicted ratios)
+When at least 3 recent segments exist for the current run, the runtime blends:
 
-This captures day-specific anomalies (rain, events, unusual congestion) without overreacting to a single outlier.
+- `70%` historical factor
+- `30%` recent observed factor
 
----
+This logic lives in `src/lib/tracking/time-factors.ts`.
 
 ## Layer 4: Nightly Factor Refinement
 
 ### What it does
 
-A standalone script that analyzes the last 30 days of trip data and generates refined correction factors. Replaces the hardcoded defaults with data-driven values. Targets ~±8% accuracy after 1 month of data.
+A standalone script analyzes the last 30 days of trip data and writes refined factors to `data/time-factors.json`.
 
 ### How to run
 
@@ -144,23 +136,21 @@ A standalone script that analyzes the last 30 days of trip data and generates re
 DATABASE_URL="postgresql://user:pass@host:5432/dbname" npx tsx scripts/compute-time-factors.ts
 ```
 
-Optionally, pass `OSRM_BASE_URL` so the script uses road distance (instead of haversine × 1.3) when computing predicted travel times. This produces more accurate correction factors:
+Optionally pass `OSRM_BASE_URL` so the script uses road distance instead of haversine-based fallback:
 
 ```bash
 DATABASE_URL="postgresql://..." OSRM_BASE_URL="http://localhost:5000" npx tsx scripts/compute-time-factors.ts
 ```
 
-When `OSRM_BASE_URL` is not set, the script falls back to haversine × 1.3 for distance estimation — still functional, just less precise.
-
 ### How to automate
 
-Add a cron job to run nightly (e.g., 11:30 PM local time):
+Example nightly cron:
 
 ```cron
 30 23 * * * cd /path/to/caab-vans && DATABASE_URL="postgresql://..." OSRM_BASE_URL="http://localhost:5000" npx tsx scripts/compute-time-factors.ts >> /var/log/compute-factors.log 2>&1
 ```
 
-### What it produces
+### Output format
 
 The script writes `data/time-factors.json` with this structure:
 
@@ -170,13 +160,15 @@ The script writes `data/time-factors.json` with this structure:
   "observationDays": 30,
   "minObservations": 20,
   "global": {
-    "weekday": { "7": 1.35, "8": 1.40, "17": 1.35 },
-    "saturday": { "9": 1.10 },
+    "weekday": { "7": 1.35, "8": 1.4, "17": 1.35 },
+    "saturday": { "9": 1.1 },
     "sunday": {}
   },
   "routes": {
     "route-uuid": {
-      "weekday": { "7": 1.50, "8": 1.55 }
+      "weekday": { "7": 1.5, "8": 1.55 },
+      "saturday": {},
+      "sunday": {}
     }
   }
 }
@@ -184,59 +176,36 @@ The script writes `data/time-factors.json` with this structure:
 
 ### Requirements
 
-- `DATABASE_URL` environment variable pointing to the Supabase Postgres instance (required)
-- `OSRM_BASE_URL` environment variable pointing to an OSRM instance (optional — falls back to haversine × 1.3)
-- At least a few days of trip data (`route_run_stops` with `passed_at` timestamps)
-- The `data/` directory is created automatically if it doesn't exist
-
-### Thresholds
-
-- **20 observations minimum** per (dayType, hour) bucket before overriding defaults
-- **15% variance threshold** before generating a per-route override
-- **30-day rolling window** for historical data
-- Outlier segments (factor < 0.1 or > 10, or > 2h travel time) are excluded
+- `DATABASE_URL` pointing to the Supabase Postgres instance
+- Optional `OSRM_BASE_URL`
+- Enough `route_run_stops` history to make the output useful
 
 ### Notes
 
-- The file is **gitignored** (`/data/time-factors.json` in `.gitignore`) — it's environment-specific generated data.
-- `loadFactors()` reads the file on each API request (no restart needed after updates).
-- If the file is deleted or corrupted, the system falls back to hardcoded defaults silently.
-
----
+- `data/time-factors.json` is gitignored and environment-specific.
+- The runtime reads this file on each API request, so replacing the file does not require restarting the app.
+- If the file is missing or malformed, the system silently falls back to built-in defaults.
 
 ## Deployment Checklist
 
-### Minimum (zero-config)
+### Minimum
 
-Nothing to do. The system works with haversine + hardcoded rush hour factors.
+Nothing to do. The system works with haversine plus built-in time factors.
 
 ### Recommended
 
-1. Set up and configure an OSRM instance with local road data
-2. Add `OSRM_BASE_URL` to the environment
-3. Set up the nightly cron job for factor refinement
+1. Set up and configure OSRM
+2. Add `OSRM_BASE_URL` to the app environment
+3. Recompute segment distances after stop-coordinate changes
+4. Schedule the nightly factor job once you have enough historical data
 
-### Monitoring
+## Monitoring
 
-Check the `etaSource` field in API responses to verify which layer is active:
-- `"gps_osrm"` — OSRM is working (best accuracy)
-- `"gps"` — falling back to haversine (check OSRM availability)
-- `"segment"` — GPS unavailable, using stored segment distances
-- `"schedule"` — no GPS or segment data available (normal when van is stopped)
+Check the `etaSource` field in API responses:
 
-Server logs emit structured `eta_comparison` JSON events that include both haversine and OSRM distances side-by-side, useful for accuracy analysis:
+- `"gps_osrm"` means OSRM is working
+- `"gps"` means the request fell back to non-OSRM GPS ETA
+- `"segment"` means GPS was stale and segment fallback was used
+- `"schedule"` means the final fallback was used
 
-```json
-{
-  "event": "eta_comparison",
-  "routeId": "...",
-  "stopId": "...",
-  "haversine": { "distanceM": 8574, "travelMinutes": 14.3 },
-  "osrm": { "distanceM": 10200, "durationS": 612 },
-  "timeFactor": 1.4,
-  "finalTravelMinutes": 23.8,
-  "gpsSpeedMps": 10,
-  "chosen": "gps_osrm",
-  "timestamp": "2026-03-04T08:42:00-03:00"
-}
-```
+When `DEBUG_ETA=1`, server logs emit structured `eta_comparison` events with both haversine and OSRM calculations.

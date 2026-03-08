@@ -1,11 +1,16 @@
 <!--
   Sync Impact Report
   ==================
-  Version change: 1.0.0 → 1.0.1
+  Version change: 1.0.1 → 1.0.2
   Modified principles:
-    - V. Stack Constraints — corrected shadcn/ui preset from
-      "Radix + Nova style" to "New York style", font from "Inter"
-      to "Geist", and added Motion library.
+    - II. Explicit Trade-offs in PRs — scoped before/after snippets to
+      non-trivial refactors.
+    - V. Stack Constraints — clarified that the BFF uses Next.js
+      Route Handlers under `src/app/api/*`.
+    - Timezone & Data Consistency — added a scoped `HH:mm` rule for
+      passenger-facing schedule and ETA surfaces.
+    - Governance — clarified that referenced docs are supporting
+      references, not peers to the constitution's authority.
   Added sections: none
   Removed sections: none
   Templates requiring updates:
@@ -53,7 +58,8 @@ Every change MUST follow these three rules:
 Every PR description MUST include:
 
 - Which principle(s) from this constitution the change applies.
-- Before/after snippets for any refactor.
+- Before/after snippets for any non-trivial refactor that changes structure,
+  flow, or behavior expectations.
 - An explicit statement of trade-offs (e.g., duplication kept vs. abstraction
   introduced, and why).
 - Justification for any new abstraction with concrete duplication or near-term
@@ -91,7 +97,7 @@ justification for why testing instructions are not applicable.
 The following technology decisions are locked for this project:
 
 - **Web frontend + BFF**: Next.js (App Router) with TypeScript. The BFF layer
-  uses Next.js Route Handlers (`/app/api/*`).
+  uses Next.js Route Handlers under `src/app/api/*`.
 - **UI**: Tailwind CSS + shadcn/ui (New York style, Neutral base, Lucide icons,
   Geist font). Design direction: clean utility / modern mobile app.
 - **Motion**: Motion library for transitions and tap feedback.
@@ -122,8 +128,10 @@ for smooth visual updates.
 ## Timezone & Data Consistency
 
 - Canonical timezone: **America/Bahia**.
-- All displayed times MUST use `HH:mm` format in the `America/Bahia` timezone.
-- All date/time operations MUST use Luxon configured with this timezone.
+- Passenger-facing schedule and ETA times MUST use `HH:mm` format in the
+  `America/Bahia` timezone unless a screen explicitly requires fuller
+  date/time context for admin, operations, or audit workflows.
+- All date/time operations MUST use Luxon configured in the `America/Bahia` timezone.
 
 ## Governance
 
@@ -138,7 +146,7 @@ for smooth visual updates.
      - **MINOR**: New principle/section added or materially expanded.
      - **PATCH**: Clarifications, wording, or typo fixes.
 - Refer to `docs/PRINCIPLES.md`, `docs/GIT-WORKFLOW.md`,
-  `docs/DELIVERY-WORKFLOW.md`, and `docs/TECH.md` as authoritative source
-  documents that inform this constitution.
+  `docs/DELIVERY-WORKFLOW.md`, and `docs/TECH.md` as supporting reference
+  documents that inform and operationalize this constitution.
 
-**Version**: 1.0.1 | **Ratified**: 2026-02-26 | **Last Amended**: 2026-02-28
+**Version**: 1.0.2 | **Ratified**: 2026-02-26 | **Last Amended**: 2026-03-08
