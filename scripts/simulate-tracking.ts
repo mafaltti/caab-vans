@@ -19,6 +19,7 @@ import { randomUUID } from "crypto";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const APP_URL = process.env.APP_URL ?? "http://localhost:3000";
+const OSRM_BASE_URL = process.env.OSRM_BASE_URL;
 
 if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
   console.error(
@@ -56,6 +57,67 @@ function lerp(
     lat: a.lat + (b.lat - a.lat) * t,
     lng: a.lng + (b.lng - a.lng) * t,
   };
+}
+
+/** Haversine distance in meters. */
+function haversineM(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const R = 6_371_000;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const sinLat = Math.sin(dLat / 2);
+  const sinLng = Math.sin(dLng / 2);
+  const h = sinLat * sinLat +
+    Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * sinLng * sinLng;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+/** Fetch OSRM route geometry between two points. Returns [lng, lat][] or null. */
+async function osrmRouteGeometry(
+  from: { lat: number; lng: number },
+  to: { lat: number; lng: number },
+): Promise<Array<[number, number]> | null> {
+  if (!OSRM_BASE_URL) return null;
+  const url = `${OSRM_BASE_URL}/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(2000) });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.code !== "Ok" || !data.routes?.[0]) return null;
+    return data.routes[0].geometry.coordinates as Array<[number, number]>;
+  } catch {
+    return null;
+  }
+}
+
+/** Interpolate along an OSRM route polyline at fraction t ∈ [0, 1]. */
+function interpolateGeometry(
+  coords: Array<[number, number]>,
+  t: number,
+): { lat: number; lng: number } {
+  if (coords.length === 1) return { lat: coords[0][1], lng: coords[0][0] };
+
+  const dists: number[] = [0];
+  for (let i = 1; i < coords.length; i++) {
+    const prev = { lat: coords[i - 1][1], lng: coords[i - 1][0] };
+    const curr = { lat: coords[i][1], lng: coords[i][0] };
+    dists.push(dists[i - 1] + haversineM(prev, curr));
+  }
+
+  const targetDist = t * dists[dists.length - 1];
+  for (let i = 1; i < dists.length; i++) {
+    if (dists[i] >= targetDist) {
+      const segLen = dists[i] - dists[i - 1];
+      const segT = segLen > 0 ? (targetDist - dists[i - 1]) / segLen : 0;
+      return lerp(
+        { lat: coords[i - 1][1], lng: coords[i - 1][0] },
+        { lat: coords[i][1], lng: coords[i][0] },
+        segT,
+      );
+    }
+  }
+
+  const last = coords[coords.length - 1];
+  return { lat: last[1], lng: last[0] };
 }
 
 // ---------------------------------------------------------------------------
@@ -194,13 +256,13 @@ async function main() {
       nowMin >= prevMin ? nowMin - prevMin : nowMin + 1440 - prevMin;
     const t = span > 0 ? Math.min(elapsed / span, 0.95) : 0.5;
 
-    const pos = lerp(
-      { lat: prev.stop_lat!, lng: prev.stop_lng! },
-      { lat: next.stop_lat!, lng: next.stop_lng! },
-      t,
-    );
+    const from = { lat: prev.stop_lat!, lng: prev.stop_lng! };
+    const to = { lat: next.stop_lat!, lng: next.stop_lng! };
+    const geometry = await osrmRouteGeometry(from, to);
+    const pos = geometry ? interpolateGeometry(geometry, t) : lerp(from, to, t);
+    const source = geometry ? "osrm" : "lerp";
 
-    console.log(`  Payload: { lat: ${pos.lat.toFixed(6)}, lng: ${pos.lng.toFixed(6)}, ts: ${Date.now()}, deviceId: "${DEVICE_ID}" }`);
+    console.log(`  [${source}] { lat: ${pos.lat.toFixed(6)}, lng: ${pos.lng.toFixed(6)} }`);
     process.stdout.write(
       `  ${prev.stop_name} (${prev.time}) → ${next.stop_name} (${next.time}) [${(t * 100).toFixed(0)}%]... `,
     );
