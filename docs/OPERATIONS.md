@@ -43,6 +43,7 @@ Data flow: `Web UI -> Next.js BFF (/api/*) -> Supabase (Postgres)`. The tracker 
 | `OSRM_BASE_URL` | No | Server + Scripts | Road routing service URL. Dev: `https://router.project-osrm.org` (1 req/sec limit). Prod: `http://localhost:5000` (self-hosted). If omitted, ETA falls back to haversine estimation. |
 | `NEXT_PUBLIC_TILE_URL` | No | Client | Map tile server URL. Falls back to `https://tile.openstreetmap.org/{z}/{x}/{y}.png` if omitted. |
 | `DEBUG_ETA` | No | Server | Set to any value to enable verbose ETA computation logging. Produces ~900-1,500 log entries/hour — use only for debugging. |
+| `TRACKING_PROGRESS_SOURCE` | No | Server | Progress pointer rollout mode: `legacy` (default — time-based ETA selection), `shadow` (compute both legacy and persisted, serve legacy, log mismatches), `persisted` (use validated pointer for ETA targeting with legacy fallback). See `specs/052-progress-pointer-cutover/quickstart.md` for rollout guide. |
 | `APP_URL` | No | Scripts | Used by `simulate-tracking.ts` only. Defaults to `http://localhost:3000`. |
 
 ### Supabase (infra/supabase/.env)
