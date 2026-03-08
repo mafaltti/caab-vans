@@ -145,26 +145,21 @@ export async function inferStopProgress(
     });
   }
 
-  // 6. Determine effective coordinates (hybrid raw/snapped)
+  // 6. Determine snap eligibility (gate only — per-stop decision deferred)
   const hasSnapped = snappedLat != null && snappedLng != null;
-  let useSnapped = false;
-  let effectiveLat = lat;
-  let effectiveLng = lng;
+  let snapEligible = false;
 
   if (hasSnapped) {
     const snapDisplacement = haversineDistanceMeters(
       lat, lng, snappedLat!, snappedLng!,
     );
-    if (snapDisplacement <= SNAP_DISPLACEMENT_THRESHOLD_M) {
-      useSnapped = true;
-      effectiveLat = snappedLat!;
-      effectiveLng = snappedLng!;
-    }
+    snapEligible = snapDisplacement <= SNAP_DISPLACEMENT_THRESHOLD_M;
   }
 
   // Check geofence for each pending stop — closest-in-time matching
   const newlyPassedIds: string[] = [];
   const newlyPassedConfidence = new Map<string, number>();
+  const perStopSnap = new Map<string, boolean>();
   const now = nowBahia();
 
   if (pendingStops) {
@@ -186,6 +181,7 @@ export async function inferStopProgress(
     // For each group: check geofence per entry, then pick closest-in-time
     for (const [, group] of coordGroups) {
       // Filter entries within their individual geofence AND early arrival window
+      // Per-stop snap decision: use whichever coordinate is closer
       const eligible = group.filter((stop) => {
         const entry = stop.schedule_entries as unknown as {
           time: string;
@@ -193,12 +189,24 @@ export async function inferStopProgress(
           stop_lng: number;
           geofence_radius_m: number;
         };
-        const distance = haversineDistanceMeters(
-          effectiveLat,
-          effectiveLng,
-          entry.stop_lat,
-          entry.stop_lng,
-        );
+        const rawDist = haversineDistanceMeters(lat, lng, entry.stop_lat, entry.stop_lng);
+        let distance: number;
+        let useSnappedForThisStop = false;
+
+        if (snapEligible) {
+          const snappedDist = haversineDistanceMeters(snappedLat!, snappedLng!, entry.stop_lat, entry.stop_lng);
+          if (snappedDist < rawDist) {
+            distance = snappedDist;
+            useSnappedForThisStop = true;
+          } else {
+            distance = rawDist;
+          }
+        } else {
+          distance = rawDist;
+        }
+
+        perStopSnap.set(stop.schedule_entry_id, useSnappedForThisStop);
+
         if (distance > entry.geofence_radius_m) return false;
         const stopTime = parseTime(entry.time);
         return now >= stopTime.minus({ minutes: EARLY_ARRIVAL_WINDOW_MINUTES });
@@ -253,14 +261,16 @@ export async function inferStopProgress(
         }
       }
 
+      const useSnappedForThisStop = perStopSnap.get(bestStop.schedule_entry_id) ?? false;
+
       let confidence: number;
       if (pingsInGeofence >= 2) {
-        confidence = useSnapped ? 1.0 : 0.9;
+        confidence = useSnappedForThisStop ? 0.8 : 0.9;
       } else {
-        confidence = useSnapped ? 0.8 : 0.7;
+        confidence = useSnappedForThisStop ? 0.8 : 0.7;
       }
 
-      const passSource = useSnapped ? "geofence_snapped" : "geofence_raw";
+      const passSource = useSnappedForThisStop ? "geofence_snapped" : "geofence_raw";
 
       // Mark as passed with confidence metadata
       const { error: geofenceError } = await supabase
@@ -314,8 +324,8 @@ export async function inferStopProgress(
 
     if (backfillIds.length > 0) {
       const gap = backfillIds.length;
-      // Gate: only backfill if confidence > 0.7 (requires snapped or multi-ping) OR gap is 1 stop
-      const shouldBackfill = maxPassedConfidence > 0.7 || gap <= 1;
+      // Gate: only backfill if confidence > 0.7 (requires multi-ping raw match)
+      const shouldBackfill = maxPassedConfidence > 0.7;
 
       if (shouldBackfill) {
         let backfillConfidence: number;

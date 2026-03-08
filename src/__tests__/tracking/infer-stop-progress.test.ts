@@ -1514,7 +1514,7 @@ describe("inferStopProgress confidence gating", () => {
     expect(mock._backfills[0].pass_confidence).toBe(0.5); // 2-stop gap
   });
 
-  it("single ping DOES backfill for 1-stop gap", async () => {
+  it("single ping does NOT backfill even for 1-stop gap (confidence 0.7 not > 0.7)", async () => {
     setMockTime(9, 5);
 
     const pendingStops = [
@@ -1526,7 +1526,7 @@ describe("inferStopProgress confidence gating", () => {
     const vanLng = -38.501 + 0.00003;
 
     const allStops = [
-      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00" } },
+      { schedule_entry_id: "stop-1", status: "pending", schedule_entries: { time: "08:00" } },
       { schedule_entry_id: "stop-2", status: "passed", schedule_entries: { time: "09:00" } },
     ];
 
@@ -1547,11 +1547,10 @@ describe("inferStopProgress confidence gating", () => {
 
     expect(mock._updates).toHaveLength(1);
     expect(mock._updates[0].schedule_entry_id).toBe("stop-2");
+    expect(mock._updates[0].pass_confidence).toBe(0.7);
 
-    expect(mock._backfills).toHaveLength(1);
-    expect(mock._backfills[0].schedule_entry_ids).toEqual(["stop-1"]);
-    expect(mock._backfills[0].pass_source).toBe("backfill");
-    expect(mock._backfills[0].pass_confidence).toBe(0.7); // 1-stop gap
+    // Backfill NOT allowed — confidence 0.7 is not > 0.7, gap exception removed
+    expect(mock._backfills).toHaveLength(0);
   });
 
   it("backfilled stops have pass_source backfill with scaled confidence", async () => {
@@ -1645,7 +1644,7 @@ describe("inferStopProgress confidence gating", () => {
 
     expect(mock._updates).toHaveLength(1);
     expect(mock._updates[0].pass_source).toBe("geofence_snapped");
-    expect(mock._updates[0].pass_confidence).toBe(1.0);
+    expect(mock._updates[0].pass_confidence).toBe(0.8);
   });
 });
 
@@ -1982,6 +1981,391 @@ describe("inferStopProgress stop_group_id grouping", () => {
   });
 });
 
+// --- Per-stop snap evaluation tests (US4) ---
+
+describe("inferStopProgress per-stop snap evaluation", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("same ping uses snapped for road stop and raw for campus stop (T020)", async () => {
+    setMockTime(8, 5);
+
+    // Road stop: snapped coord is closer to it than raw
+    // Campus stop: raw coord is closer to it than snapped
+    const roadStopLat = -12.9700;
+    const roadStopLng = -38.5100;
+    const campusStopLat = -12.9720;
+    const campusStopLng = -38.5140;
+
+    // Raw GPS is closer to campus stop, snapped is closer to road stop
+    const rawLat = -12.9718;
+    const rawLng = -38.5138;
+    const snappedLat = -12.9701;
+    const snappedLng = -38.5101;
+    // Snap displacement ~189m? Let me compute: raw at -12.9718, snapped at -12.9701 => ~189m
+    // That exceeds 50m threshold, so snap won't be eligible.
+    // Let me use coords where displacement < 50m but per-stop decision differs.
+
+    // Better approach: raw and snapped are close together (displacement < 50m)
+    // but for one stop snapped is closer and for the other raw is closer
+    const rawLat2 = -12.9710;
+    const rawLng2 = -38.5120;
+    // Snapped ~30m from raw (within 50m threshold)
+    const snappedLat2 = -12.97075;
+    const snappedLng2 = -38.5120;
+
+    // Stop A at -12.9706 (snapped at -12.97075 is closer: ~17m vs raw -12.9710: ~44m)
+    const stopALat = -12.9706;
+    const stopALng = -38.5120;
+    // Stop B at -12.9713 (raw at -12.9710 is closer: ~33m vs snapped -12.97075: ~61m)
+    const stopBLat = -12.9713;
+    const stopBLng = -38.5120;
+
+    const pendingStops = [
+      {
+        schedule_entry_id: "stop-a",
+        schedule_entries: {
+          time: "08:00",
+          stop_lat: stopALat,
+          stop_lng: stopALng,
+          geofence_radius_m: 50,
+        },
+      },
+      {
+        schedule_entry_id: "stop-b",
+        schedule_entries: {
+          time: "08:05",
+          stop_lat: stopBLat,
+          stop_lng: stopBLng,
+          geofence_radius_m: 50,
+        },
+      },
+    ];
+
+    const allStops = [
+      { schedule_entry_id: "stop-a", status: "passed", schedule_entries: { time: "08:00" } },
+      { schedule_entry_id: "stop-b", status: "passed", schedule_entries: { time: "08:05" } },
+    ];
+
+    const mock = createMockSupabase({
+      pendingStops,
+      allStops,
+      shifts: [{ id: "shift-1", ended_at: null }],
+      pings: [{ lat: rawLat2, lng: rawLng2 }],
+    });
+
+    await inferStopProgress(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mock as any,
+      "van-1",
+      rawLat2,
+      rawLng2,
+      snappedLat2,
+      snappedLng2,
+    );
+
+    expect(mock._updates).toHaveLength(2);
+
+    const stopA = mock._updates.find((u: UpdateCall) => u.schedule_entry_id === "stop-a");
+    const stopB = mock._updates.find((u: UpdateCall) => u.schedule_entry_id === "stop-b");
+
+    // Stop A: snapped is closer => geofence_snapped
+    expect(stopA).toBeDefined();
+    expect(stopA!.pass_source).toBe("geofence_snapped");
+
+    // Stop B: raw is closer => geofence_raw
+    expect(stopB).toBeDefined();
+    expect(stopB!.pass_source).toBe("geofence_raw");
+  });
+
+  it("snap displacement > 50m forces raw for all stops (T021)", async () => {
+    setMockTime(8, 5);
+
+    const pendingStops = [
+      {
+        schedule_entry_id: "stop-1",
+        schedule_entries: {
+          time: "08:00",
+          stop_lat: CAAB_LAT,
+          stop_lng: CAAB_LNG,
+          geofence_radius_m: 50,
+        },
+      },
+    ];
+
+    const allStops = [
+      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00" } },
+    ];
+
+    const rawLat = VAN_AT_CAAB_LAT;
+    const rawLng = VAN_AT_CAAB_LNG;
+    // Snapped ~111m from raw (displacement > 50m)
+    const snappedLat = CAAB_LAT + 0.001;
+    const snappedLng = CAAB_LNG;
+
+    const mock = createMockSupabase({
+      pendingStops,
+      allStops,
+      shifts: [{ id: "shift-1", ended_at: null }],
+      pings: [{ lat: rawLat, lng: rawLng }],
+    });
+
+    await inferStopProgress(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mock as any,
+      "van-1",
+      rawLat,
+      rawLng,
+      snappedLat,
+      snappedLng,
+    );
+
+    expect(mock._updates).toHaveLength(1);
+    expect(mock._updates[0].pass_source).toBe("geofence_raw");
+  });
+});
+
+// --- Confidence source alignment tests (US5) ---
+
+describe("inferStopProgress confidence source alignment", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("snapped passage with 2+ pings gets confidence 0.8 (T027)", async () => {
+    setMockTime(8, 5);
+
+    const pendingStops = [
+      {
+        schedule_entry_id: "stop-1",
+        schedule_entries: {
+          time: "08:00",
+          stop_lat: CAAB_LAT,
+          stop_lng: CAAB_LNG,
+          geofence_radius_m: 50,
+        },
+      },
+    ];
+
+    const allStops = [
+      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00" } },
+    ];
+
+    // Raw ~33m from stop, snapped very close (displacement ~33m < 50m)
+    const rawLat = CAAB_LAT + 0.0003;
+    const rawLng = CAAB_LNG;
+    const snappedLat = CAAB_LAT + 0.00001;
+    const snappedLng = CAAB_LNG + 0.00001;
+
+    const mock = createMockSupabase({
+      pendingStops,
+      allStops,
+      shifts: [{ id: "shift-1", ended_at: null }],
+      pings: [
+        { lat: snappedLat, lng: snappedLng },
+        { lat: snappedLat + 0.00001, lng: snappedLng },
+      ],
+    });
+
+    await inferStopProgress(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mock as any,
+      "van-1",
+      rawLat,
+      rawLng,
+      snappedLat,
+      snappedLng,
+    );
+
+    expect(mock._updates).toHaveLength(1);
+    expect(mock._updates[0].pass_source).toBe("geofence_snapped");
+    expect(mock._updates[0].pass_confidence).toBe(0.8);
+  });
+
+  it("raw passage with 2+ pings still gets confidence 0.9 (T028)", async () => {
+    setMockTime(10, 5);
+
+    const pendingStops = [
+      { schedule_entry_id: "stop-1", schedule_entries: { time: "10:00", stop_lat: -12.952, stop_lng: -38.502, geofence_radius_m: 50 } },
+    ];
+
+    const vanLat = -12.952 + 0.00003;
+    const vanLng = -38.502 + 0.00003;
+
+    const allStops = [
+      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "10:00" } },
+    ];
+
+    const mock = createMockSupabase({
+      pendingStops,
+      allStops,
+      shifts: [{ id: "shift-1", ended_at: null }],
+      pings: [
+        { lat: vanLat + 0.00001, lng: vanLng + 0.00001 },
+        { lat: vanLat - 0.00001, lng: vanLng - 0.00001 },
+      ],
+    });
+
+    await inferStopProgress(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mock as any,
+      "van-1",
+      vanLat,
+      vanLng,
+    );
+
+    expect(mock._updates).toHaveLength(1);
+    expect(mock._updates[0].pass_source).toBe("geofence_raw");
+    expect(mock._updates[0].pass_confidence).toBe(0.9);
+  });
+
+  it("snapped passage with < 2 pings keeps confidence 0.8 (T029)", async () => {
+    setMockTime(8, 5);
+
+    const pendingStops = [
+      {
+        schedule_entry_id: "stop-1",
+        schedule_entries: {
+          time: "08:00",
+          stop_lat: CAAB_LAT,
+          stop_lng: CAAB_LNG,
+          geofence_radius_m: 50,
+        },
+      },
+    ];
+
+    const allStops = [
+      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00" } },
+    ];
+
+    // Raw ~33m from stop, snapped very close
+    const rawLat = CAAB_LAT + 0.0003;
+    const rawLng = CAAB_LNG;
+    const snappedLat = CAAB_LAT + 0.00001;
+    const snappedLng = CAAB_LNG + 0.00001;
+
+    const mock = createMockSupabase({
+      pendingStops,
+      allStops,
+      shifts: [{ id: "shift-1", ended_at: null }],
+      pings: [{ lat: snappedLat, lng: snappedLng }],
+    });
+
+    await inferStopProgress(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mock as any,
+      "van-1",
+      rawLat,
+      rawLng,
+      snappedLat,
+      snappedLng,
+    );
+
+    expect(mock._updates).toHaveLength(1);
+    expect(mock._updates[0].pass_source).toBe("geofence_snapped");
+    expect(mock._updates[0].pass_confidence).toBe(0.8);
+  });
+});
+
+// --- Backfill gate tightening tests (US6) ---
+
+describe("inferStopProgress backfill gate tightening", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("2-ping raw match (confidence 0.9) with gap=1 DOES trigger backfill (T033)", async () => {
+    setMockTime(9, 5);
+
+    const pendingStops = [
+      { schedule_entry_id: "stop-1", schedule_entries: { time: "08:00", stop_lat: -12.950, stop_lng: -38.500, geofence_radius_m: 50 } },
+      { schedule_entry_id: "stop-2", schedule_entries: { time: "09:00", stop_lat: -12.951, stop_lng: -38.501, geofence_radius_m: 50 } },
+    ];
+
+    const vanLat = -12.951 + 0.00003;
+    const vanLng = -38.501 + 0.00003;
+
+    const allStops = [
+      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00" } },
+      { schedule_entry_id: "stop-2", status: "passed", schedule_entries: { time: "09:00" } },
+    ];
+
+    const mock = createMockSupabase({
+      pendingStops,
+      allStops,
+      shifts: [{ id: "shift-1", ended_at: null }],
+      pings: [
+        { lat: vanLat + 0.00001, lng: vanLng + 0.00001 },
+        { lat: vanLat - 0.00001, lng: vanLng - 0.00001 },
+      ],
+    });
+
+    await inferStopProgress(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mock as any,
+      "van-1",
+      vanLat,
+      vanLng,
+    );
+
+    expect(mock._updates).toHaveLength(1);
+    expect(mock._updates[0].schedule_entry_id).toBe("stop-2");
+    expect(mock._updates[0].pass_confidence).toBe(0.9);
+
+    // 0.9 > 0.7, so backfill IS allowed
+    expect(mock._backfills).toHaveLength(1);
+    expect(mock._backfills[0].schedule_entry_ids).toEqual(["stop-1"]);
+    expect(mock._backfills[0].pass_confidence).toBe(0.7); // 1-stop gap
+  });
+
+  it("snapped passage (confidence 0.8) with gap=1 DOES trigger backfill (T034)", async () => {
+    setMockTime(9, 5);
+
+    const pendingStops = [
+      { schedule_entry_id: "stop-1", schedule_entries: { time: "08:00", stop_lat: -12.950, stop_lng: -38.500, geofence_radius_m: 50 } },
+      { schedule_entry_id: "stop-2", schedule_entries: { time: "09:00", stop_lat: -12.951, stop_lng: -38.501, geofence_radius_m: 50 } },
+    ];
+
+    // Raw far from stop-2, snapped close to stop-2
+    const rawLat = -12.951 + 0.0003; // ~33m from stop
+    const rawLng = -38.501;
+    const snappedLat = -12.951 + 0.00003; // ~3m from stop
+    const snappedLng = -38.501;
+
+    const allStops = [
+      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00" } },
+      { schedule_entry_id: "stop-2", status: "passed", schedule_entries: { time: "09:00" } },
+    ];
+
+    const mock = createMockSupabase({
+      pendingStops,
+      allStops,
+      shifts: [{ id: "shift-1", ended_at: null }],
+      pings: [{ lat: snappedLat, lng: snappedLng }],
+    });
+
+    await inferStopProgress(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mock as any,
+      "van-1",
+      rawLat,
+      rawLng,
+      snappedLat,
+      snappedLng,
+    );
+
+    expect(mock._updates).toHaveLength(1);
+    expect(mock._updates[0].schedule_entry_id).toBe("stop-2");
+    expect(mock._updates[0].pass_source).toBe("geofence_snapped");
+    expect(mock._updates[0].pass_confidence).toBe(0.8);
+
+    // 0.8 > 0.7, so backfill IS allowed
+    expect(mock._backfills).toHaveLength(1);
+    expect(mock._backfills[0].schedule_entry_ids).toEqual(["stop-1"]);
+  });
+});
+
 // --- Write error logging tests ---
 
 describe("write error logging", () => {
@@ -2078,7 +2462,15 @@ describe("write error logging", () => {
       { schedule_entry_id: "entry-0900", status: "passed", schedule_entries: { time: "09:00" } },
     ];
 
-    const mock = createMockSupabase({ pendingStops, allStops, shifts: [{ id: "shift-1", ended_at: null }] });
+    const mock = createMockSupabase({
+      pendingStops,
+      allStops,
+      shifts: [{ id: "shift-1", ended_at: null }],
+      pings: [
+        { lat: VAN_AT_CAAB_LAT, lng: VAN_AT_CAAB_LNG },
+        { lat: VAN_AT_CAAB_LAT + 0.00001, lng: VAN_AT_CAAB_LNG },
+      ],
+    });
 
     // Override route_run_stops.update so backfill .in() returns an error, geofence .eq() succeeds
     const originalFrom = mock.from;

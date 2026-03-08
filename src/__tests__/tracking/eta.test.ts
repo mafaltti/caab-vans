@@ -184,7 +184,7 @@ describe("computeEta", () => {
       expect(result.passedStopIds).toEqual(["stop-2200"]);
     });
 
-    it("returns null ETA when all pending stops are in the past", async () => {
+    it("falls back to first pending by route order when all pending stops are overdue", async () => {
       const stops = [
         {
           scheduleEntryId: "caab-0000",
@@ -215,9 +215,9 @@ describe("computeEta", () => {
 
       const result = await computeEta({ stops, now });
 
-      expect(result.nextStopId).toBeNull();
-      expect(result.etaNextStopMinutes).toBeNull();
-      expect(result.etaNextStopISO).toBeNull();
+      // Route-order fallback: first pending stop by schedule order
+      expect(result.nextStopId).toBe("caab-0000");
+      expect(result.etaSource).toBe("schedule");
       expect(result.passedStopIds).toEqual(["stop-2200", "stop-2220"]);
     });
 
@@ -1185,12 +1185,12 @@ describe("explicit targetStopId", () => {
         passedAt: null,
       },
     ];
-    // now is 09:00 — stop "b" at 08:45 is overdue; without targetStopId, time-floor would skip it
+    // now is 09:00 — stop "b" at 08:45 is overdue; without targetStopId, route-order fallback picks it
     const now = DateTime.fromObject({ hour: 9, minute: 0 }, { zone: TZ });
 
-    // Without target → null (time-floor filters out past pending stop)
+    // Without target → route-order fallback picks first pending by schedule order
     const resultNoTarget = await computeEta({ stops, now });
-    expect(resultNoTarget.nextStopId).toBeNull();
+    expect(resultNoTarget.nextStopId).toBe("b");
 
     // With target → valid ETA for the overdue pending stop
     const result = await computeEta({ stops, now, targetStopId: "b" });
@@ -1384,5 +1384,183 @@ describe("explicit targetStopId", () => {
     expect(result.etaNextStopMinutes).toBeGreaterThan(0);
     expect(result.etaNextStopISO).not.toBeNull();
     expect(result.etaSource).toBe("schedule");
+  });
+});
+
+describe("multi-segment distance accumulation", () => {
+  it("T002: 2-stop gap uses cumulative segment distance", async () => {
+    // stops: A (passed) → B (pending) → C (pending, target)
+    // osrmDistanceM: A→B = 5000m, B→C = 5000m
+    // Expected: total = 10000m, ETA based on cumulative distance
+    const stops = [
+      {
+        scheduleEntryId: "a",
+        time: "08:30",
+        status: "passed" as const,
+        passedAt: DateTime.fromObject({ hour: 8, minute: 35 }, { zone: TZ }).toISO()!,
+        osrmDistanceM: 5000,
+      },
+      {
+        scheduleEntryId: "b",
+        time: "08:45",
+        status: "pending" as const,
+        passedAt: null,
+        osrmDistanceM: 5000,
+      },
+      {
+        scheduleEntryId: "c",
+        time: "09:00",
+        status: "pending" as const,
+        passedAt: null,
+        osrmDistanceM: null,
+      },
+    ];
+    const now = DateTime.fromObject({ hour: 8, minute: 36 }, { zone: TZ });
+
+    // Target stop C (2-stop gap from A)
+    const result = await computeEta({ stops, now, targetStopId: "c" });
+
+    expect(result.nextStopId).toBe("c");
+    expect(result.etaSource).toBe("segment");
+    // Accumulated distance: A.osrmDistanceM (5000) + B.osrmDistanceM (5000) = 10000
+    // travelMinutes = (10000 / REFERENCE_SPEED_MPS / 60) * timeFactor
+    expect(result.etaNextStopMinutes).toBeGreaterThan(0);
+  });
+
+  it("T003: 3-stop gap uses cumulative segment distance", async () => {
+    const stops = [
+      {
+        scheduleEntryId: "a",
+        time: "08:30",
+        status: "passed" as const,
+        passedAt: DateTime.fromObject({ hour: 8, minute: 35 }, { zone: TZ }).toISO()!,
+        osrmDistanceM: 1000,
+      },
+      {
+        scheduleEntryId: "b",
+        time: "08:45",
+        status: "pending" as const,
+        passedAt: null,
+        osrmDistanceM: 1500,
+      },
+      {
+        scheduleEntryId: "c",
+        time: "09:00",
+        status: "pending" as const,
+        passedAt: null,
+        osrmDistanceM: 800,
+      },
+      {
+        scheduleEntryId: "d",
+        time: "09:15",
+        status: "pending" as const,
+        passedAt: null,
+        osrmDistanceM: null,
+      },
+    ];
+    const now = DateTime.fromObject({ hour: 8, minute: 40 }, { zone: TZ });
+
+    // Target stop D (3-stop gap from A)
+    const result = await computeEta({ stops, now, targetStopId: "d" });
+
+    expect(result.nextStopId).toBe("d");
+    expect(result.etaSource).toBe("segment");
+    // Accumulated: 1000 + 1500 + 800 = 3300m
+    expect(result.etaNextStopMinutes).toBeGreaterThan(0);
+  });
+
+  it("T004: null osrmDistanceM in middle segment falls back to schedule ETA", async () => {
+    const stops = [
+      {
+        scheduleEntryId: "a",
+        time: "08:30",
+        status: "passed" as const,
+        passedAt: DateTime.fromObject({ hour: 8, minute: 35 }, { zone: TZ }).toISO()!,
+        osrmDistanceM: 1000,
+      },
+      {
+        scheduleEntryId: "b",
+        time: "08:45",
+        status: "pending" as const,
+        passedAt: null,
+        osrmDistanceM: null, // missing!
+      },
+      {
+        scheduleEntryId: "c",
+        time: "09:00",
+        status: "pending" as const,
+        passedAt: null,
+        osrmDistanceM: 800,
+      },
+    ];
+    const now = DateTime.fromObject({ hour: 8, minute: 40 }, { zone: TZ });
+
+    const result = await computeEta({ stops, now, targetStopId: "c" });
+
+    expect(result.nextStopId).toBe("c");
+    // Should fall back to schedule because B has null osrmDistanceM
+    expect(result.etaSource).toBe("schedule");
+  });
+
+  it("T005: single-stop gap (immediate successor) preserves existing behavior", async () => {
+    const stops = [
+      {
+        scheduleEntryId: "a",
+        time: "08:30",
+        status: "passed" as const,
+        passedAt: DateTime.fromObject({ hour: 8, minute: 35 }, { zone: TZ }).toISO()!,
+        osrmDistanceM: 5000,
+      },
+      {
+        scheduleEntryId: "b",
+        time: "08:45",
+        status: "pending" as const,
+        passedAt: null,
+        osrmDistanceM: null,
+      },
+    ];
+    const now = DateTime.fromObject({ hour: 8, minute: 36 }, { zone: TZ });
+
+    // Target is immediate successor — only 1 segment needed (A.osrmDistanceM)
+    const result = await computeEta({ stops, now, targetStopId: "b" });
+
+    expect(result.nextStopId).toBe("b");
+    expect(result.etaSource).toBe("segment");
+    expect(result.etaNextStopMinutes).toBeGreaterThan(0);
+  });
+});
+
+describe("route-order fallback (T016)", () => {
+  it("time-floor yields no stops (all overdue), falls back to first pending by route order", async () => {
+    // All pending stops are before the time floor (now = 10:00, stops at 08:45 and 09:00)
+    const stops = [
+      {
+        scheduleEntryId: "a",
+        time: "08:30",
+        status: "passed" as const,
+        passedAt: DateTime.fromObject({ hour: 8, minute: 35 }, { zone: TZ }).toISO()!,
+      },
+      {
+        scheduleEntryId: "b",
+        time: "08:45",
+        status: "pending" as const,
+        passedAt: null,
+      },
+      {
+        scheduleEntryId: "c",
+        time: "09:00",
+        status: "pending" as const,
+        passedAt: null,
+      },
+    ];
+    // now is 10:00 — both pending stops are before time floor
+    const now = DateTime.fromObject({ hour: 10, minute: 0 }, { zone: TZ });
+
+    const result = await computeEta({ stops, now });
+
+    // Previously would return null; now falls back to first pending by route order
+    expect(result.nextStopId).toBe("b");
+    expect(result.etaSource).toBe("schedule");
+    expect(result.passedStopIds).toEqual(["a"]);
   });
 });
