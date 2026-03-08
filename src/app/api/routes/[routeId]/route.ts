@@ -9,11 +9,10 @@ import {
   getNextStop,
   isLocationFresh,
 } from "@/lib/time";
-import { computeEta, ROAD_FACTOR, resolveNextStop, type VanPosition } from "@/lib/tracking/eta";
-import { deriveRunStatus } from "@/lib/tracking/run-status";
+import { resolveNextStop, type VanPosition } from "@/lib/tracking/eta";
 import { deriveTrackingStatus } from "@/lib/tracking/tracking-status";
+import { resolveRouteProgress } from "@/lib/tracking/resolve-route-progress";
 import { apiError } from "@/lib/api/errors";
-import { buildRecentRuns } from "@/lib/tracking/time-factors";
 import { DateTime } from "luxon";
 import type { ScheduleStatus } from "@/types";
 
@@ -133,140 +132,18 @@ export async function GET(
         }
       : null;
 
-  const stopCoordsMap = new Map(
-    entries.map((e) => [e.id, { stopLat: e.stop_lat, stopLng: e.stop_lng }]),
-  );
+  const progress = await resolveRouteProgress({
+    supabase,
+    routeId: route.id,
+    serviceDate,
+    sortedEntries,
+    vanId: van.id,
+    vanPosition,
+    now,
+    times,
+  });
 
-  const { data: runData } = await supabase
-    .from("route_runs")
-    .select("id, last_passed_stop_id, next_stop_id, progress_updated_at")
-    .eq("route_id", route.id)
-    .eq("service_date", serviceDate)
-    .single();
-
-  let progress = null;
-  if (runData) {
-    const { data: shifts } = await supabase
-      .from("route_shifts")
-      .select("id, started_at, ended_at")
-      .eq("run_id", runData.id);
-
-    const shiftsArr = shifts ?? [];
-    const sorted = [...times].sort();
-    const lastTime = sorted.length > 0 ? sorted[sorted.length - 1] : null;
-    const isPastScheduleWindow = lastTime
-      ? now.toFormat("HH:mm") > lastTime
-      : false;
-    const runStatus = deriveRunStatus(shiftsArr, isPastScheduleWindow);
-    const activeShift = shiftsArr.find((s) => s.ended_at === null);
-
-    if (runStatus === "completed") {
-      progress = {
-        serviceDate,
-        runStatus,
-        shiftStartedAt: null,
-        nextStopId: null,
-        passedStopIds: [] as string[],
-        etaNextStopISO: null,
-        etaNextStopMinutes: null,
-        delayMinutes: null,
-        etaSource: null,
-      };
-    } else {
-      const { data: runStops } = await supabase
-        .from("route_run_stops")
-        .select("schedule_entry_id, status, passed_at, schedule_entries!inner(time)")
-        .eq("run_id", runData.id);
-
-      if (runStops && runStops.length > 0) {
-        // Query recent speed readings for smoothed ETA
-        const recentSpeeds: Array<{speedMps: number; deviceTs: string}> = [];
-        if (van.id) {
-          const { data: recentPings } = await supabase
-            .from("van_location_pings")
-            .select("speed_mps, device_ts")
-            .eq("van_id", van.id)
-            .not("speed_mps", "is", null)
-            .order("device_ts", { ascending: false })
-            .limit(10);
-
-          if (recentPings) {
-            recentSpeeds.push(...recentPings.map((p) => ({
-              speedMps: p.speed_mps as number,
-              deviceTs: p.device_ts as string,
-            })));
-          }
-        }
-
-        // Build recentRuns from today's passed stops
-        const passedStops = runStops
-          .filter((rs) => rs.status === "passed" && rs.passed_at != null)
-          .map((rs) => {
-            const coords = stopCoordsMap.get(rs.schedule_entry_id);
-            return {
-              scheduleEntryId: rs.schedule_entry_id,
-              passedAt: rs.passed_at!,
-              stopLat: coords?.stopLat ?? null,
-              stopLng: coords?.stopLng ?? null,
-            };
-          })
-          .sort((a, b) => a.passedAt.localeCompare(b.passedAt));
-
-        const osrmDistances = new Map<string, number>();
-        for (const e of entries) {
-          if (e.osrm_distance_m != null) {
-            osrmDistances.set(e.id, e.osrm_distance_m);
-          }
-        }
-
-        const recentRuns = buildRecentRuns(passedStops, ROAD_FACTOR, osrmDistances);
-
-        const etaResult = await computeEta({
-          stops: runStops.map((rs) => {
-            const coords = stopCoordsMap.get(rs.schedule_entry_id);
-            return {
-              scheduleEntryId: rs.schedule_entry_id,
-              time: (rs.schedule_entries as unknown as { time: string }).time,
-              status: rs.status as "pending" | "passed",
-              passedAt: rs.passed_at,
-              stopLat: coords?.stopLat ?? null,
-              stopLng: coords?.stopLng ?? null,
-              osrmDistanceM: osrmDistances.get(rs.schedule_entry_id) ?? null,
-            };
-          }),
-          now,
-          vanPosition,
-          startedAt: activeShift?.started_at,
-          osrmBaseUrl: process.env.OSRM_BASE_URL,
-          routeId: route.id,
-          recentRuns,
-          recentSpeeds,
-        });
-        progress = {
-          serviceDate,
-          runStatus,
-          shiftStartedAt: activeShift?.started_at ?? null,
-          ...etaResult,
-        };
-
-      } else {
-        progress = {
-          serviceDate,
-          runStatus,
-          shiftStartedAt: activeShift?.started_at ?? null,
-          nextStopId: null,
-          passedStopIds: [] as string[],
-          etaNextStopISO: null,
-          etaNextStopMinutes: null,
-          delayMinutes: null,
-          etaSource: null,
-        };
-      }
-    }
-  }
-
-  const isRunning = withinWindow &&
-    progress?.runStatus === "in_progress";
+  const isRunning = progress?.runStatus === "in_progress";
 
   const trackingStatus = deriveTrackingStatus(van.last_gps_fix_at, now);
   const isTrackingFresh = trackingStatus === "live";

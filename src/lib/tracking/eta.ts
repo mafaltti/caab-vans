@@ -58,35 +58,49 @@ export async function computeEta(args: {
   routeId?: string;
   recentRuns?: RecentRun[];
   recentSpeeds?: Array<{ speedMps: number; deviceTs: string }>;
+  targetStopId?: string;
 }): Promise<EtaResult> {
-  const { stops, now, vanPosition, startedAt, osrmBaseUrl, routeId, recentRuns } = args;
+  const { stops, now, vanPosition, startedAt, osrmBaseUrl, routeId, recentRuns, targetStopId } = args;
 
   const passed = stops.filter((s) => s.status === "passed");
   const pending = stops.filter((s) => s.status === "pending");
   const passedStopIds = passed.map((s) => s.scheduleEntryId);
 
-  // Time floor: started_at (explicit) > now (fallback)
-  const timeFloor = startedAt
-    ? DateTime.fromISO(startedAt).setZone(now.zone).toFormat("HH:mm")
-    : now.toFormat("HH:mm");
-  const futurePending = pending.filter((s) => s.time >= timeFloor);
+  // Target stop resolution: when targetStopId is provided, bypass time-floor filtering
+  let nextStop: Stop;
+  let nextStopId: string;
 
-  if (futurePending.length === 0) {
-    return {
-      etaNextStopISO: null,
-      etaNextStopMinutes: null,
-      delayMinutes: null,
-      nextStopId: null,
-      passedStopIds,
-      etaSource: null,
-    };
+  if (targetStopId) {
+    const target = pending.find((s) => s.scheduleEntryId === targetStopId);
+    if (!target) {
+      return { etaNextStopISO: null, etaNextStopMinutes: null, delayMinutes: null, nextStopId: null, passedStopIds, etaSource: null };
+    }
+    nextStop = target;
+    nextStopId = target.scheduleEntryId;
+  } else {
+    // Time floor: started_at (explicit) > now (fallback)
+    const timeFloor = startedAt
+      ? DateTime.fromISO(startedAt).setZone(now.zone).toFormat("HH:mm")
+      : now.toFormat("HH:mm");
+    const futurePending = pending.filter((s) => s.time >= timeFloor);
+
+    if (futurePending.length === 0) {
+      return {
+        etaNextStopISO: null,
+        etaNextStopMinutes: null,
+        delayMinutes: null,
+        nextStopId: null,
+        passedStopIds,
+        etaSource: null,
+      };
+    }
+
+    const sortedPending = [...futurePending].sort((a, b) =>
+      a.time.localeCompare(b.time),
+    );
+    nextStop = sortedPending[0];
+    nextStopId = nextStop.scheduleEntryId;
   }
-
-  const sortedPending = [...futurePending].sort((a, b) =>
-    a.time.localeCompare(b.time),
-  );
-  const nextStop = sortedPending[0];
-  const nextStopId = nextStop.scheduleEntryId;
 
   // GPS branch: use distance/speed when all conditions are met
   const locationAgeMinutes = vanPosition
@@ -220,7 +234,10 @@ export async function computeEta(args: {
     };
   }
 
-  // Segment-aware fallback: use stored OSRM distance when GPS is unavailable
+  // Segment-aware fallback: use stored OSRM distance when GPS is unavailable.
+  // Known limitation: osrmDistanceM is the distance from the last passed stop
+  // to its immediate successor only. When targetStopId is a non-successor stop,
+  // the ETA is approximate. Accumulating multi-segment distances is a future enhancement.
   const sortedPassedForSegment = [...passed].sort((a, b) => a.time.localeCompare(b.time));
   const lastPassedForSegment = sortedPassedForSegment.length > 0 ? sortedPassedForSegment.at(-1)! : null;
 

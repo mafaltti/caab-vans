@@ -29,7 +29,7 @@ function makeNow(): DateTime {
 
 /**
  * Mirrors the derivation logic from routes/route.ts:
- * - isRunning = withinWindow && runStatus === "in_progress"
+ * - isRunning = runStatus === "in_progress"
  * - trackingStatus = deriveTrackingStatus(lastGpsFixAt, now)
  * - isTrackingFresh = trackingStatus === "live"
  */
@@ -39,9 +39,9 @@ function deriveRouteFields(params: {
   lastGpsFixAt: string | null;
   now: DateTime;
 }): { isRunning: boolean; trackingStatus: TrackingStatus; isTrackingFresh: boolean } {
-  const { withinWindow, runStatus, lastGpsFixAt, now } = params;
+  const { runStatus, lastGpsFixAt, now } = params;
 
-  const isRunning = withinWindow && runStatus === "in_progress";
+  const isRunning = runStatus === "in_progress";
   const trackingStatus = deriveTrackingStatus(lastGpsFixAt, now);
   const isTrackingFresh = trackingStatus === "live";
 
@@ -82,7 +82,7 @@ describe("routes API derivation logic", () => {
       expect(result.isRunning).toBe(false);
     });
 
-    it("is false when outside schedule window", () => {
+    it("is true even when outside schedule window (late run)", () => {
       const freshFix = makeNow().minus({ minutes: 1 }).toISO()!;
       const result = deriveRouteFields({
         withinWindow: false,
@@ -90,7 +90,7 @@ describe("routes API derivation logic", () => {
         lastGpsFixAt: freshFix,
         now: makeNow(),
       });
-      expect(result.isRunning).toBe(false);
+      expect(result.isRunning).toBe(true);
     });
 
     it("is false when runStatus is null (no run data)", () => {

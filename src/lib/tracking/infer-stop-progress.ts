@@ -263,7 +263,7 @@ export async function inferStopProgress(
       const passSource = useSnapped ? "geofence_snapped" : "geofence_raw";
 
       // Mark as passed with confidence metadata
-      await supabase
+      const { error: geofenceError } = await supabase
         .from("route_run_stops")
         .update({
           status: "passed",
@@ -273,6 +273,15 @@ export async function inferStopProgress(
         })
         .eq("run_id", run.id)
         .eq("schedule_entry_id", bestStop.schedule_entry_id);
+
+      if (geofenceError) {
+        console.error("inferStopProgress: geofence mark failed", {
+          runId: run.id,
+          scheduleEntryId: bestStop.schedule_entry_id,
+          error: geofenceError.message,
+        });
+        continue;
+      }
 
       newlyPassedIds.push(bestStop.schedule_entry_id);
       newlyPassedConfidence.set(bestStop.schedule_entry_id, confidence);
@@ -318,7 +327,7 @@ export async function inferStopProgress(
           backfillConfidence = 0.3;
         }
 
-        await supabase
+        const { error: backfillError } = await supabase
           .from("route_run_stops")
           .update({
             status: "passed",
@@ -328,6 +337,14 @@ export async function inferStopProgress(
           })
           .eq("run_id", run.id)
           .in("schedule_entry_id", backfillIds);
+
+        if (backfillError) {
+          console.error("inferStopProgress: backfill mark failed", {
+            runId: run.id,
+            backfillIds,
+            error: backfillError.message,
+          });
+        }
       }
     }
   }
@@ -345,11 +362,8 @@ export async function inferStopProgress(
     });
   }
 
-  // Time floor: use current time (shifts track start separately)
-  const timeFloor = nowBahia().toFormat("HH:mm");
   const passedStopIds: string[] = [];
   let nextStopId: string | null = null;
-  let firstPendingId: string | null = null;
   let lastPassedStopId: string | null = null;
 
   if (allStops) {
@@ -358,24 +372,19 @@ export async function inferStopProgress(
         passedStopIds.push(stop.schedule_entry_id);
         lastPassedStopId = stop.schedule_entry_id;
       } else if (stop.status === "pending") {
-        if (firstPendingId === null) firstPendingId = stop.schedule_entry_id;
+        // Always use the first pending stop chronologically — including overdue
+        // stops. The read path (resolve-route-progress) trusts this pointer and
+        // computes ETA for it, so skipping overdue stops would break the cutover.
         if (nextStopId === null) {
-          const entry = stop.schedule_entries as unknown as { time: string };
-          if (entry.time >= timeFloor) {
-            nextStopId = stop.schedule_entry_id;
-          }
+          nextStopId = stop.schedule_entry_id;
         }
       }
-    }
-    // Fallback: if all pending stops are overdue, use the first pending stop
-    if (nextStopId === null && firstPendingId !== null) {
-      nextStopId = firstPendingId;
     }
   }
 
   // Persist progress pointers on the route_run
   if (lastPassedStopId !== null || nextStopId !== null) {
-    await supabase
+    const { error: pointerError } = await supabase
       .from("route_runs")
       .update({
         last_passed_stop_id: lastPassedStopId,
@@ -383,6 +392,17 @@ export async function inferStopProgress(
         progress_updated_at: new Date().toISOString(),
       })
       .eq("id", run.id);
+
+    if (pointerError) {
+      console.error("inferStopProgress: pointer persist failed", {
+        runId: run.id,
+        routeId: route.id,
+        serviceDate,
+        nextStopId,
+        lastPassedStopId,
+        error: pointerError.message,
+      });
+    }
   }
 
   return { passedStopIds, nextStopId, lastPassedStopId };
