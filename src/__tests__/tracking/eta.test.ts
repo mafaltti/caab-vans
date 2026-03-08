@@ -1138,3 +1138,251 @@ describe("segment-aware ETA fallback", () => {
     expect(result.passedStopIds).toEqual(["a"]);
   });
 });
+
+describe("explicit targetStopId", () => {
+  it("target is a valid pending stop → ETA computed for that stop", async () => {
+    const stops = [
+      {
+        scheduleEntryId: "a",
+        time: "08:30",
+        status: "passed" as const,
+        passedAt: DateTime.fromObject({ hour: 8, minute: 35 }, { zone: TZ }).toISO()!,
+      },
+      {
+        scheduleEntryId: "b",
+        time: "08:45",
+        status: "pending" as const,
+        passedAt: null,
+      },
+      {
+        scheduleEntryId: "c",
+        time: "09:00",
+        status: "pending" as const,
+        passedAt: null,
+      },
+    ];
+    const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+
+    const result = await computeEta({ stops, now, targetStopId: "b" });
+
+    expect(result.nextStopId).toBe("b");
+    expect(result.etaNextStopMinutes).toBeGreaterThan(0);
+    expect(result.etaNextStopISO).not.toBeNull();
+  });
+
+  it("target is overdue but still pending → valid ETA returned", async () => {
+    const stops = [
+      {
+        scheduleEntryId: "a",
+        time: "08:30",
+        status: "passed" as const,
+        passedAt: DateTime.fromObject({ hour: 8, minute: 35 }, { zone: TZ }).toISO()!,
+      },
+      {
+        scheduleEntryId: "b",
+        time: "08:45",
+        status: "pending" as const,
+        passedAt: null,
+      },
+    ];
+    // now is 09:00 — stop "b" at 08:45 is overdue; without targetStopId, time-floor would skip it
+    const now = DateTime.fromObject({ hour: 9, minute: 0 }, { zone: TZ });
+
+    // Without target → null (time-floor filters out past pending stop)
+    const resultNoTarget = await computeEta({ stops, now });
+    expect(resultNoTarget.nextStopId).toBeNull();
+
+    // With target → valid ETA for the overdue pending stop
+    const result = await computeEta({ stops, now, targetStopId: "b" });
+    expect(result.nextStopId).toBe("b");
+    expect(result.etaNextStopMinutes).not.toBeNull();
+    expect(result.etaSource).not.toBeNull();
+  });
+
+  it("target differs from time-based selection → target wins", async () => {
+    const stops = [
+      {
+        scheduleEntryId: "a",
+        time: "08:30",
+        status: "pending" as const,
+        passedAt: null,
+      },
+      {
+        scheduleEntryId: "b",
+        time: "09:00",
+        status: "pending" as const,
+        passedAt: null,
+      },
+    ];
+    // now is 08:25 — both are future; time-floor would pick "a" (earliest)
+    const now = DateTime.fromObject({ hour: 8, minute: 25 }, { zone: TZ });
+
+    const resultNoTarget = await computeEta({ stops, now });
+    expect(resultNoTarget.nextStopId).toBe("a");
+
+    // With target pointing to "b", it should return "b"
+    const result = await computeEta({ stops, now, targetStopId: "b" });
+    expect(result.nextStopId).toBe("b");
+  });
+
+  it("target not found in pending stops → null ETA returned", async () => {
+    const stops = [
+      {
+        scheduleEntryId: "a",
+        time: "08:30",
+        status: "passed" as const,
+        passedAt: DateTime.fromObject({ hour: 8, minute: 32 }, { zone: TZ }).toISO()!,
+      },
+      {
+        scheduleEntryId: "b",
+        time: "08:45",
+        status: "pending" as const,
+        passedAt: null,
+      },
+    ];
+    const now = DateTime.fromObject({ hour: 8, minute: 40 }, { zone: TZ });
+
+    const result = await computeEta({ stops, now, targetStopId: "nonexistent" });
+
+    expect(result.nextStopId).toBeNull();
+    expect(result.etaNextStopMinutes).toBeNull();
+    expect(result.etaNextStopISO).toBeNull();
+    expect(result.etaSource).toBeNull();
+    expect(result.passedStopIds).toEqual(["a"]);
+  });
+
+  it("target is provided but all stops are passed → null ETA returned", async () => {
+    const stops = [
+      {
+        scheduleEntryId: "a",
+        time: "08:30",
+        status: "passed" as const,
+        passedAt: "2026-03-01T08:32:00-03:00",
+      },
+      {
+        scheduleEntryId: "b",
+        time: "08:45",
+        status: "passed" as const,
+        passedAt: "2026-03-01T08:48:00-03:00",
+      },
+    ];
+    const now = DateTime.fromObject({ hour: 9, minute: 0 }, { zone: TZ });
+
+    const result = await computeEta({ stops, now, targetStopId: "b" });
+
+    expect(result.nextStopId).toBeNull();
+    expect(result.etaNextStopMinutes).toBeNull();
+    expect(result.etaNextStopISO).toBeNull();
+    expect(result.etaSource).toBeNull();
+    expect(result.passedStopIds).toEqual(["a", "b"]);
+  });
+
+  it("no target provided → legacy time-floor selection used (backward compat)", async () => {
+    const stops = [
+      {
+        scheduleEntryId: "a",
+        time: "08:30",
+        status: "passed" as const,
+        passedAt: DateTime.fromObject({ hour: 8, minute: 35 }, { zone: TZ }).toISO()!,
+      },
+      {
+        scheduleEntryId: "b",
+        time: "08:45",
+        status: "pending" as const,
+        passedAt: null,
+      },
+      {
+        scheduleEntryId: "c",
+        time: "09:00",
+        status: "pending" as const,
+        passedAt: null,
+      },
+    ];
+    const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+
+    // No targetStopId → time-floor picks "b" (first pending >= now)
+    const result = await computeEta({ stops, now });
+
+    expect(result.nextStopId).toBe("b");
+    expect(result.etaSource).toBe("schedule");
+    expect(result.delayMinutes).toBe(5);
+  });
+
+  it("stale GPS + explicit target → segment/schedule fallback still targets the explicit stop", async () => {
+    const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+    const vanPosition: VanPosition = {
+      lat: -12.9714,
+      lng: -38.5124,
+      speedMps: 10,
+      // 20 minutes ago → stale, GPS branch skipped
+      lastGpsFixAt: DateTime.fromObject({ hour: 8, minute: 22 }, { zone: TZ }),
+    };
+
+    const stops = [
+      {
+        scheduleEntryId: "a",
+        time: "08:30",
+        status: "passed" as const,
+        passedAt: DateTime.fromObject({ hour: 8, minute: 35 }, { zone: TZ }).toISO()!,
+        osrmDistanceM: 5000,
+      },
+      {
+        scheduleEntryId: "b",
+        time: "08:45",
+        status: "pending" as const,
+        passedAt: null,
+        stopLat: -12.9814,
+        stopLng: -38.4524,
+      },
+      {
+        scheduleEntryId: "c",
+        time: "09:00",
+        status: "pending" as const,
+        passedAt: null,
+        stopLat: -12.9900,
+        stopLng: -38.4400,
+      },
+    ];
+
+    // Target "c" even though "b" is the next by time
+    const result = await computeEta({ stops, now, vanPosition, targetStopId: "c" });
+
+    expect(result.nextStopId).toBe("c");
+    expect(result.etaNextStopMinutes).not.toBeNull();
+    // GPS is stale, so should fall back to segment or schedule
+    expect(["segment", "schedule"]).toContain(result.etaSource);
+  });
+
+  it("target stop with stop_group_id-like field → ETA computed normally", async () => {
+    // stop_group_id is irrelevant at the ETA level — grouping has no effect on resolution.
+    // This test verifies that a targetStopId still works for any stop regardless of grouping.
+    const stops = [
+      {
+        scheduleEntryId: "a",
+        time: "08:30",
+        status: "passed" as const,
+        passedAt: DateTime.fromObject({ hour: 8, minute: 35 }, { zone: TZ }).toISO()!,
+      },
+      {
+        scheduleEntryId: "b",
+        time: "08:45",
+        status: "pending" as const,
+        passedAt: null,
+      },
+      {
+        scheduleEntryId: "c",
+        time: "09:00",
+        status: "pending" as const,
+        passedAt: null,
+      },
+    ];
+    const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+
+    const result = await computeEta({ stops, now, targetStopId: "c" });
+
+    expect(result.nextStopId).toBe("c");
+    expect(result.etaNextStopMinutes).toBeGreaterThan(0);
+    expect(result.etaNextStopISO).not.toBeNull();
+    expect(result.etaSource).toBe("schedule");
+  });
+});

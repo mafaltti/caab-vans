@@ -1981,3 +1981,210 @@ describe("inferStopProgress stop_group_id grouping", () => {
     expect(mock._updates[0].schedule_entry_id).toBe("grp-1100");
   });
 });
+
+// --- Write error logging tests ---
+
+describe("write error logging", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("logs structured error when geofence mark write fails", async () => {
+    setMockTime(8, 5);
+
+    const pendingStops = [
+      {
+        schedule_entry_id: "entry-0800",
+        schedule_entries: {
+          time: "08:00",
+          stop_lat: CAAB_LAT,
+          stop_lng: CAAB_LNG,
+          geofence_radius_m: 50,
+        },
+      },
+    ];
+    const allStops = [
+      { schedule_entry_id: "entry-0800", status: "passed", schedule_entries: { time: "08:00" } },
+    ];
+
+    const mock = createMockSupabase({ pendingStops, allStops, shifts: [{ id: "shift-1", ended_at: null }] });
+
+    // Override route_run_stops.update so geofence .eq("schedule_entry_id", ...) returns an error
+    const originalFrom = mock.from;
+    mock.from = vi.fn((table: string) => {
+      if (table === "route_run_stops") {
+        const base = originalFrom(table);
+        base.update = vi.fn((payload: { status: string; pass_source?: string; pass_confidence?: number }) => ({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn((_field: string, _value: string) => {
+              return { error: { message: "geofence write failed" } };
+            }),
+            in: vi.fn((_field: string, _ids: string[]) => {
+              return { error: null };
+            }),
+          }),
+        }));
+        return base;
+      }
+      return originalFrom(table);
+    });
+
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await inferStopProgress(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mock as any,
+      "van-1",
+      VAN_AT_CAAB_LAT,
+      VAN_AT_CAAB_LNG,
+    );
+
+    const geofenceCall = errorSpy.mock.calls.find(
+      (call) => call[0] === "inferStopProgress: geofence mark failed",
+    );
+    expect(geofenceCall).toBeDefined();
+    expect(geofenceCall![1]).toMatchObject({
+      runId: "run-1",
+      scheduleEntryId: "entry-0800",
+    });
+  });
+
+  it("logs structured error when backfill mark write fails", async () => {
+    setMockTime(9, 5);
+
+    // Two pending stops; van is at the later one (09:00), so 08:00 gets backfilled
+    const pendingStops = [
+      {
+        schedule_entry_id: "entry-0800",
+        schedule_entries: {
+          time: "08:00",
+          stop_lat: CAAB_LAT + 0.01, // far from van
+          stop_lng: CAAB_LNG,
+          geofence_radius_m: 50,
+        },
+      },
+      {
+        schedule_entry_id: "entry-0900",
+        schedule_entries: {
+          time: "09:00",
+          stop_lat: CAAB_LAT,
+          stop_lng: CAAB_LNG,
+          geofence_radius_m: 50,
+        },
+      },
+    ];
+    const allStops = [
+      { schedule_entry_id: "entry-0800", status: "passed", schedule_entries: { time: "08:00" } },
+      { schedule_entry_id: "entry-0900", status: "passed", schedule_entries: { time: "09:00" } },
+    ];
+
+    const mock = createMockSupabase({ pendingStops, allStops, shifts: [{ id: "shift-1", ended_at: null }] });
+
+    // Override route_run_stops.update so backfill .in() returns an error, geofence .eq() succeeds
+    const originalFrom = mock.from;
+    mock.from = vi.fn((table: string) => {
+      if (table === "route_run_stops") {
+        const base = originalFrom(table);
+        base.update = vi.fn((payload: { status: string; pass_source?: string; pass_confidence?: number }) => ({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn((_field: string, value: string) => {
+              mock._updates.push({
+                schedule_entry_id: value,
+                status: payload.status,
+                pass_source: payload.pass_source,
+                pass_confidence: payload.pass_confidence,
+              });
+              return { error: null };
+            }),
+            in: vi.fn((_field: string, ids: string[]) => {
+              mock._backfills.push({
+                schedule_entry_ids: ids,
+                status: payload.status,
+                pass_source: payload.pass_source,
+                pass_confidence: payload.pass_confidence,
+              });
+              return { error: { message: "backfill write failed" } };
+            }),
+          }),
+        }));
+        return base;
+      }
+      return originalFrom(table);
+    });
+
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await inferStopProgress(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mock as any,
+      "van-1",
+      VAN_AT_CAAB_LAT,
+      VAN_AT_CAAB_LNG,
+    );
+
+    const backfillCall = errorSpy.mock.calls.find(
+      (call) => call[0] === "inferStopProgress: backfill mark failed",
+    );
+    expect(backfillCall).toBeDefined();
+    expect(backfillCall![1]).toMatchObject({
+      runId: "run-1",
+      backfillIds: expect.arrayContaining(["entry-0800"]),
+    });
+  });
+
+  it("logs structured error when pointer persist write fails", async () => {
+    setMockTime(8, 5);
+
+    const pendingStops = [
+      {
+        schedule_entry_id: "entry-0800",
+        schedule_entries: {
+          time: "08:00",
+          stop_lat: CAAB_LAT,
+          stop_lng: CAAB_LNG,
+          geofence_radius_m: 50,
+        },
+      },
+    ];
+    const allStops = [
+      { schedule_entry_id: "entry-0800", status: "passed", schedule_entries: { time: "08:00" } },
+    ];
+
+    const mock = createMockSupabase({ pendingStops, allStops, shifts: [{ id: "shift-1", ended_at: null }] });
+
+    // Override route_runs.update so pointer persist returns an error
+    const originalFrom = mock.from;
+    mock.from = vi.fn((table: string) => {
+      if (table === "route_runs") {
+        const base = originalFrom(table);
+        base.update = vi.fn((_payload: RouteRunUpdateCall) => ({
+          eq: vi.fn(() => {
+            return { error: { message: "pointer persist failed" } };
+          }),
+        }));
+        return base;
+      }
+      return originalFrom(table);
+    });
+
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await inferStopProgress(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mock as any,
+      "van-1",
+      VAN_AT_CAAB_LAT,
+      VAN_AT_CAAB_LNG,
+    );
+
+    const pointerCall = errorSpy.mock.calls.find(
+      (call) => call[0] === "inferStopProgress: pointer persist failed",
+    );
+    expect(pointerCall).toBeDefined();
+    expect(pointerCall![1]).toMatchObject({
+      runId: "run-1",
+      routeId: "route-1",
+      serviceDate: expect.any(String),
+    });
+  });
+});
