@@ -36,7 +36,7 @@ Stop progress is stricter and richer than before.
 - Pending stops are grouped by `stop_group_id` when present, otherwise by rounded coordinates — which fixes the old exact-coordinate-only repeated-stop behavior.
 - Within each group, the engine only considers entries inside the geofence and not more than 30 minutes early, then picks the closest scheduled time to "now".
 - Each passage gets `pass_source` and `pass_confidence`. Confidence is based on whether snapped/raw was used and how many raw pings entered the geofence in the last 5 minutes.
-- Backfill still exists, but it is now gated: it only runs if confidence is high enough or the gap is just one stop, and backfilled stops get lower confidence with `pass_source = "backfill"`.
+- Backfill still exists, but it is now gated: it only runs if confidence > 0.7 (requires multi-ping raw match), and backfilled stops get scaled confidence (0.7 for 1-stop gap, 0.5 for 2-3 stops, 0.3 otherwise) with `pass_source = "backfill"`.
 - The engine now persists `last_passed_stop_id`, `next_stop_id`, and `progress_updated_at` onto `route_runs`.
 
 ## What the Public API Actually Serves
@@ -50,12 +50,12 @@ The route APIs now separate run state from telemetry freshness.
   - `missing` — absent, in the future, or >= 60 minutes
 - Route progress is now assembled by `src/lib/tracking/resolve-route-progress.ts`, which:
   - Returns no progress for `waiting`, `idle`, or `completed`
-  - Validates the persisted `next_stop_id` against stop existence, pending state, and pointer freshness (`< 30 min`)
+  - Validates the persisted `next_stop_id` against stop existence, pending state, and pointer freshness (fresh up to 30 min, valid ceiling at 120 min)
   - Supports `legacy`, `shadow`, and `persisted` progress-source modes via `TRACKING_PROGRESS_SOURCE`
 
 ## Important Nuances
 
-- The system is writing persisted next-stop pointers, but unless `TRACKING_PROGRESS_SOURCE` is set to `shadow` or `persisted`, the read path still defaults to `legacy` selection logic.
+- The system now writes and reads persisted next-stop pointers by default (`persisted` mode). Legacy behavior is available via `TRACKING_PROGRESS_SOURCE=legacy`.
 - `trackingStatus` can be `stale` or `missing` while `isRunning` is still `true`. That is now intentional.
 - The confidence model for stop passage still counts raw recent pings, not snapped recent pings.
 - The new `segment` ETA fallback is a useful intermediate tier, but it is not a full remaining-path ETA yet.
