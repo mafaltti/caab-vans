@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 import { requireAuth } from "@/lib/api/auth";
 import { apiError, validationError } from "@/lib/api/errors";
 import { createServiceClient } from "@/lib/supabase/server";
+import { getTrackerHealthStatuses } from "@/lib/tracking/tracker-health";
 
 const createVanSchema = z.object({
   name: z.string().min(1, "Name is required").max(100, "Name too long"),
@@ -41,16 +42,33 @@ export async function GET() {
     driversByVan.set(a.van_id, list);
   }
 
-  const vans = (data ?? []).map((v) => ({
-    id: v.id,
-    name: v.name,
-    driverIds: driversByVan.get(v.id) ?? [],
-    ingestionToken: v.ingestion_token,
-    locationUrl: v.location_url,
-    locationUpdatedAt: v.location_updated_at,
-    lastGpsFixAt: v.last_gps_fix_at,
-    createdAt: v.created_at,
-  }));
+  const healthStatuses = await getTrackerHealthStatuses();
+  const healthMap = new Map(healthStatuses.map((h) => [h.vanId, h]));
+
+  const vans = (data ?? []).map((v) => {
+    const health = healthMap.get(v.id);
+    return {
+      id: v.id,
+      name: v.name,
+      driverIds: driversByVan.get(v.id) ?? [],
+      ingestionToken: v.ingestion_token,
+      locationUrl: v.location_url,
+      locationUpdatedAt: v.location_updated_at,
+      lastGpsFixAt: v.last_gps_fix_at,
+      createdAt: v.created_at,
+      trackerHealth: health
+        ? {
+            staleSinceMinutes: health.staleSinceMinutes,
+            bufferSize: health.latestBufferSize,
+            failureCount: health.latestFailureCount,
+            batteryLevel: health.latestBatteryLevel,
+            networkType: health.latestNetworkType,
+            isStale: health.isStale,
+            isUnhealthy: health.isUnhealthy,
+          }
+        : null,
+    };
+  });
 
   return NextResponse.json({ vans });
 }

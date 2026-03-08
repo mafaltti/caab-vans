@@ -2,7 +2,7 @@ import { DateTime } from "luxon";
 import { parseTime, STALENESS_THRESHOLD_MINUTES } from "@/lib/time";
 import { computeBearing, haversineDistanceMeters } from "@/lib/tracking/haversine";
 import { osrmRoute } from "@/lib/tracking/osrm";
-import { getTimeFactor, type RecentRun } from "@/lib/tracking/time-factors";
+import { getTimeFactor, REFERENCE_SPEED_MPS, type RecentRun } from "@/lib/tracking/time-factors";
 
 interface Stop {
   scheduleEntryId: string;
@@ -11,6 +11,7 @@ interface Stop {
   passedAt: string | null;
   stopLat?: number | null;
   stopLng?: number | null;
+  osrmDistanceM?: number | null;
 }
 
 export interface VanPosition {
@@ -27,7 +28,7 @@ interface EtaResult {
   delayMinutes: number | null;
   nextStopId: string | null;
   passedStopIds: string[];
-  etaSource: "gps" | "gps_osrm" | "schedule" | null;
+  etaSource: "gps" | "gps_osrm" | "segment" | "schedule" | null;
 }
 
 export const ROAD_FACTOR = 1.3;
@@ -216,6 +217,28 @@ export async function computeEta(args: {
       nextStopId,
       passedStopIds,
       etaSource,
+    };
+  }
+
+  // Segment-aware fallback: use stored OSRM distance when GPS is unavailable
+  const sortedPassedForSegment = [...passed].sort((a, b) => a.time.localeCompare(b.time));
+  const lastPassedForSegment = sortedPassedForSegment.length > 0 ? sortedPassedForSegment.at(-1)! : null;
+
+  if (lastPassedForSegment?.passedAt && nextStop.osrmDistanceM != null) {
+    const timeFactor = getTimeFactor(now.hour, now.weekday, routeId, recentRuns);
+    const travelMinutes = (nextStop.osrmDistanceM / REFERENCE_SPEED_MPS / 60) * timeFactor;
+    const etaDateTime = DateTime.fromISO(lastPassedForSegment.passedAt).plus({ minutes: travelMinutes });
+    const etaNextStopMinutes = Math.max(0, Math.ceil(etaDateTime.diff(now, "minutes").minutes));
+
+    const delay = DateTime.fromISO(lastPassedForSegment.passedAt).diff(parseTime(lastPassedForSegment.time), "minutes").minutes;
+
+    return {
+      etaNextStopISO: etaDateTime.toISO(),
+      etaNextStopMinutes,
+      delayMinutes: delay != null ? Math.round(delay) : null,
+      nextStopId,
+      passedStopIds,
+      etaSource: "segment",
     };
   }
 

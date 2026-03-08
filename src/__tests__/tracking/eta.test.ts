@@ -3,7 +3,7 @@ import { DateTime } from "luxon";
 
 import { computeEta, computeSmoothedSpeed } from "@/lib/tracking/eta";
 import type { VanPosition } from "@/lib/tracking/eta";
-import { getTimeFactor } from "@/lib/tracking/time-factors";
+import { getTimeFactor, REFERENCE_SPEED_MPS } from "@/lib/tracking/time-factors";
 
 const TZ = "America/Bahia";
 
@@ -929,5 +929,212 @@ describe("getTimeFactor", () => {
     // Sunday = weekday 7
     const result = getTimeFactor(8, 7, undefined, undefined);
     expect(result).toBe(0.95);
+  });
+});
+
+describe("segment-aware ETA fallback", () => {
+  // GPS conditions NOT met: no vanPosition provided (stale/no GPS)
+  // Segment fallback triggers when last passed stop has passedAt AND next stop has osrmDistanceM
+
+  it("uses segment calculation when GPS unavailable and osrmDistanceM is set", async () => {
+    // Use a known weekday (Monday) so timeFactor is deterministic
+    const now = DateTime.fromObject({ year: 2026, month: 3, day: 2, hour: 8, minute: 42 }, { zone: TZ });
+    const timeFactor = getTimeFactor(8, 1, undefined, undefined); // 1.4 on weekday hour 8
+
+    const passedAt = DateTime.fromObject(
+      { year: 2026, month: 3, day: 2, hour: 8, minute: 35 },
+      { zone: TZ },
+    ).toISO()!;
+
+    const osrmDistanceM = 5000; // 5 km between stops
+    const stops = [
+      {
+        scheduleEntryId: "a",
+        time: "08:30",
+        status: "passed" as const,
+        passedAt,
+      },
+      {
+        scheduleEntryId: "b",
+        time: "08:45",
+        status: "pending" as const,
+        passedAt: null,
+        osrmDistanceM,
+      },
+    ];
+
+    const result = await computeEta({ stops, now });
+
+    expect(result.etaSource).toBe("segment");
+    expect(result.nextStopId).toBe("b");
+    expect(result.etaNextStopMinutes).toBeGreaterThan(0);
+    expect(result.etaNextStopISO).not.toBeNull();
+
+    // Verify the math: travelMinutes = (5000 / 8.3 / 60) * 1.4
+    const expectedTravelMin = (osrmDistanceM / REFERENCE_SPEED_MPS / 60) * timeFactor;
+    const expectedEta = DateTime.fromISO(passedAt).plus({ minutes: expectedTravelMin });
+    const expectedMinutes = Math.max(0, Math.ceil(expectedEta.diff(now, "minutes").minutes));
+    expect(result.etaNextStopMinutes).toBe(expectedMinutes);
+  });
+
+  it("falls through to schedule fallback when osrmDistanceM is null", async () => {
+    const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+    const stops = [
+      {
+        scheduleEntryId: "a",
+        time: "08:30",
+        status: "passed" as const,
+        passedAt: DateTime.fromObject(
+          { hour: 8, minute: 35 },
+          { zone: TZ },
+        ).toISO()!,
+      },
+      {
+        scheduleEntryId: "b",
+        time: "08:45",
+        status: "pending" as const,
+        passedAt: null,
+        osrmDistanceM: null,
+      },
+    ];
+
+    const result = await computeEta({ stops, now });
+
+    expect(result.etaSource).toBe("schedule");
+  });
+
+  it("falls through to schedule when osrmDistanceM is undefined (not set)", async () => {
+    const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+    const stops = [
+      {
+        scheduleEntryId: "a",
+        time: "08:30",
+        status: "passed" as const,
+        passedAt: DateTime.fromObject(
+          { hour: 8, minute: 35 },
+          { zone: TZ },
+        ).toISO()!,
+      },
+      {
+        scheduleEntryId: "b",
+        time: "08:45",
+        status: "pending" as const,
+        passedAt: null,
+        // osrmDistanceM not set at all
+      },
+    ];
+
+    const result = await computeEta({ stops, now });
+
+    expect(result.etaSource).toBe("schedule");
+  });
+
+  it("GPS ETA takes priority over segment fallback", async () => {
+    const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+    const vanPosition: VanPosition = {
+      lat: -12.9714,
+      lng: -38.5124,
+      speedMps: 10,
+      lastGpsFixAt: DateTime.fromObject({ hour: 8, minute: 40 }, { zone: TZ }),
+    };
+
+    const stops = [
+      {
+        scheduleEntryId: "a",
+        time: "08:30",
+        status: "passed" as const,
+        passedAt: DateTime.fromObject(
+          { hour: 8, minute: 35 },
+          { zone: TZ },
+        ).toISO()!,
+        stopLat: -12.96,
+        stopLng: -38.52,
+      },
+      {
+        scheduleEntryId: "b",
+        time: "08:45",
+        status: "pending" as const,
+        passedAt: null,
+        stopLat: -12.9814,
+        stopLng: -38.4524,
+        osrmDistanceM: 5000,
+      },
+    ];
+
+    const result = await computeEta({ stops, now, vanPosition });
+
+    // GPS branch should be used, not segment
+    expect(result.etaSource).toBe("gps");
+  });
+
+  it("applies time factor to segment estimate", async () => {
+    // Sunday hour 8 has timeFactor = 0.95
+    const now = DateTime.fromObject({ year: 2026, month: 3, day: 1, hour: 8, minute: 42 }, { zone: TZ }); // Sunday
+    const timeFactor = getTimeFactor(8, 7, undefined, undefined); // 0.95
+    expect(timeFactor).toBe(0.95);
+
+    const passedAt = DateTime.fromObject(
+      { year: 2026, month: 3, day: 1, hour: 8, minute: 35 },
+      { zone: TZ },
+    ).toISO()!;
+
+    const osrmDistanceM = 5000;
+    const stops = [
+      {
+        scheduleEntryId: "a",
+        time: "08:30",
+        status: "passed" as const,
+        passedAt,
+      },
+      {
+        scheduleEntryId: "b",
+        time: "08:45",
+        status: "pending" as const,
+        passedAt: null,
+        osrmDistanceM,
+      },
+    ];
+
+    const result = await computeEta({ stops, now });
+
+    expect(result.etaSource).toBe("segment");
+
+    // Verify time factor is applied: travelMinutes = (5000 / 8.3 / 60) * 0.95
+    const expectedTravelMin = (osrmDistanceM / REFERENCE_SPEED_MPS / 60) * timeFactor;
+    const expectedEta = DateTime.fromISO(passedAt).plus({ minutes: expectedTravelMin });
+    const expectedMinutes = Math.max(0, Math.ceil(expectedEta.diff(now, "minutes").minutes));
+    expect(result.etaNextStopMinutes).toBe(expectedMinutes);
+  });
+
+  it("computes delay from last passed stop schedule vs actual time", async () => {
+    const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+
+    // Van passed stop 'a' 5 minutes late (08:35 instead of 08:30)
+    const passedAt = DateTime.fromObject(
+      { hour: 8, minute: 35 },
+      { zone: TZ },
+    ).toISO()!;
+
+    const stops = [
+      {
+        scheduleEntryId: "a",
+        time: "08:30",
+        status: "passed" as const,
+        passedAt,
+      },
+      {
+        scheduleEntryId: "b",
+        time: "08:45",
+        status: "pending" as const,
+        passedAt: null,
+        osrmDistanceM: 3000,
+      },
+    ];
+
+    const result = await computeEta({ stops, now });
+
+    expect(result.etaSource).toBe("segment");
+    expect(result.delayMinutes).toBe(5);
+    expect(result.passedStopIds).toEqual(["a"]);
   });
 });

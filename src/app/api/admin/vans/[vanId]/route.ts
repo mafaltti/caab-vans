@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 import { requireAuth } from "@/lib/api/auth";
 import { apiError, validationError } from "@/lib/api/errors";
 import { createServiceClient } from "@/lib/supabase/server";
+import { getTrackerHealthStatuses } from "@/lib/tracking/tracker-health";
 
 const updateVanSchema = z.object({
   name: z.string().min(1, "Name is required").max(100, "Name too long").optional(),
@@ -114,6 +115,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
   const driverIds = (assignments ?? []).map((a) => a.driver_id);
 
+  const healthStatuses = await getTrackerHealthStatuses();
+  const health = healthStatuses.find((h) => h.vanId === vanId);
+
   return NextResponse.json({
     van: {
       id: van.id,
@@ -123,6 +127,17 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       locationUrl: van.location_url,
       locationUpdatedAt: van.location_updated_at,
       createdAt: van.created_at,
+      trackerHealth: health
+        ? {
+            staleSinceMinutes: health.staleSinceMinutes,
+            bufferSize: health.latestBufferSize,
+            failureCount: health.latestFailureCount,
+            batteryLevel: health.latestBatteryLevel,
+            networkType: health.latestNetworkType,
+            isStale: health.isStale,
+            isUnhealthy: health.isUnhealthy,
+          }
+        : null,
     },
   });
 }

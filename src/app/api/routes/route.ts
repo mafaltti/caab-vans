@@ -11,6 +11,7 @@ import {
 } from "@/lib/time";
 import { computeEta, ROAD_FACTOR, resolveNextStop, type VanPosition } from "@/lib/tracking/eta";
 import { deriveRunStatus } from "@/lib/tracking/run-status";
+import { deriveTrackingStatus } from "@/lib/tracking/tracking-status";
 import { buildRecentRuns } from "@/lib/tracking/time-factors";
 import { DateTime } from "luxon";
 import type { ScheduleStatus } from "@/types";
@@ -130,7 +131,7 @@ export async function GET() {
 
     const { data: runData } = await supabase
       .from("route_runs")
-      .select("id")
+      .select("id, last_passed_stop_id, next_stop_id, progress_updated_at")
       .eq("route_id", route.id)
       .eq("service_date", serviceDate)
       .single();
@@ -222,6 +223,7 @@ export async function GET() {
                 passedAt: rs.passed_at,
                 stopLat: coords?.stopLat ?? null,
                 stopLng: coords?.stopLng ?? null,
+                osrmDistanceM: osrmDistances.get(rs.schedule_entry_id) ?? null,
               };
             }),
             now,
@@ -238,6 +240,11 @@ export async function GET() {
             shiftStartedAt: activeShift?.started_at ?? null,
             ...etaResult,
           };
+
+          // Use persisted progress pointers as primary source when available
+          if (runData.next_stop_id && progress) {
+            progress.nextStopId = runData.next_stop_id;
+          }
         } else {
           progress = {
             serviceDate,
@@ -254,8 +261,11 @@ export async function GET() {
       }
     }
 
-    const isRunning = withinWindow && locationFresh &&
+    const isRunning = withinWindow &&
       progress?.runStatus === "in_progress";
+
+    const trackingStatus = deriveTrackingStatus(van.last_gps_fix_at, now);
+    const isTrackingFresh = trackingStatus === "live";
 
     let nextStop = isRunning ? getNextStop(entryMapped, now) : null;
 
@@ -285,6 +295,8 @@ export async function GET() {
       id: route.id,
       name: route.name,
       isRunning,
+      trackingStatus,
+      isTrackingFresh,
       nextStop: nextStop
         ? {
             stopName: nextStop.stopName,
