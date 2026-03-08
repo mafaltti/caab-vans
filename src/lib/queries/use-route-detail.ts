@@ -12,7 +12,7 @@ async function fetchRouteDetail(
   routeId: string,
   signal?: AbortSignal,
 ): Promise<RouteDetailResponse> {
-  const res = await fetch(`/api/routes/${routeId}`, { signal });
+  const res = await fetch(`/api/routes/${routeId}?includeLastKnown=true`, { signal });
   if (!res.ok) {
     if (res.status === 404) {
       throw new Error("Route not found");

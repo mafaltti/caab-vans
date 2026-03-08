@@ -55,6 +55,9 @@ export function RouteCard({ route }: RouteCardProps) {
 
             {route.nextStop && (
               <div className="mt-3 rounded-xl bg-zinc-50 px-3 py-2.5 group-hover:bg-blue-50/50 transition-colors">
+                {route.nextStopMode === "last_known" && (
+                  <p className="text-xs text-zinc-500 mb-1">Última posição</p>
+                )}
                 <div className="flex items-center gap-2">
                   <MapPin className="size-3.5 shrink-0 text-zinc-400" />
                   <span className="truncate text-sm text-zinc-700">

@@ -15,6 +15,7 @@ type ScheduleTimelineProps = {
   etaMinutes?: number | null;
   serverTime?: string;
   runStatus?: RunStatus;
+  nextStopMode?: "live" | "last_known" | null;
   variant?: "card" | "inline";
 };
 
@@ -41,13 +42,6 @@ export function deriveTimelineStops(
     }));
   }
 
-  if (!isRunning) {
-    return schedule.map((entry) => ({
-      ...entry,
-      status: "neutral" as TimelineStopStatus,
-    }));
-  }
-
   if (passedStopIds && passedStopIds.length > 0) {
     const passedSet = new Set(passedStopIds);
     const currentIdx = inferredNextStopId
@@ -68,6 +62,13 @@ export function deriveTimelineStops(
           : ("future" as TimelineStopStatus),
       };
     });
+  }
+
+  if (!isRunning) {
+    return schedule.map((entry) => ({
+      ...entry,
+      status: "neutral" as TimelineStopStatus,
+    }));
   }
 
   if (!nextStopId) {
@@ -96,7 +97,7 @@ export function deriveTimelineStops(
   }));
 }
 
-function TimelineNode({ status, reducedMotion }: { status: TimelineStopStatus; reducedMotion: boolean }) {
+function TimelineNode({ status, reducedMotion, isLastKnown }: { status: TimelineStopStatus; reducedMotion: boolean; isLastKnown?: boolean }) {
   if (status === "past") {
     return (
       <div className="flex size-6 items-center justify-center rounded-full bg-zinc-100 border-2 border-white">
@@ -105,6 +106,13 @@ function TimelineNode({ status, reducedMotion }: { status: TimelineStopStatus; r
     );
   }
   if (status === "current") {
+    if (isLastKnown) {
+      return (
+        <div className="flex size-6 items-center justify-center rounded-full bg-zinc-100 border-2 border-zinc-400 shadow-sm shadow-zinc-200">
+          <div className="size-3 rounded-full bg-zinc-400" />
+        </div>
+      );
+    }
     return (
       <div className="flex size-6 items-center justify-center rounded-full bg-blue-100 border-2 border-blue-600 shadow-sm shadow-blue-200">
         <div className={`size-3 rounded-full bg-blue-600${reducedMotion ? "" : " animate-pulse"}`} />
@@ -125,6 +133,7 @@ export function ScheduleTimeline({
   etaMinutes,
   serverTime,
   runStatus,
+  nextStopMode,
   variant = "card",
 }: ScheduleTimelineProps) {
   const prefersReducedMotion = useReducedMotion();
@@ -181,13 +190,13 @@ export function ScheduleTimeline({
               }`}
             >
               <div className="relative z-10 shrink-0">
-                <TimelineNode status={stop.status} reducedMotion={!!prefersReducedMotion} />
+                <TimelineNode status={stop.status} reducedMotion={!!prefersReducedMotion} isLastKnown={nextStopMode === "last_known"} />
               </div>
               <div className="min-w-0 flex-1">
                 <p
                   className={`text-sm ${
                     stop.status === "current"
-                      ? "font-semibold text-blue-700"
+                      ? nextStopMode === "last_known" ? "font-semibold text-zinc-700" : "font-semibold text-blue-700"
                       : stop.status === "past"
                         ? "text-zinc-400"
                         : "text-zinc-700 group-hover:text-zinc-900 transition-colors"
@@ -196,8 +205,8 @@ export function ScheduleTimeline({
                   {stop.stopName}
                 </p>
                 {stop.status === "current" && (
-                  <p className="text-xs text-blue-500">
-                    Próxima parada
+                  <p className={`text-xs ${nextStopMode === "last_known" ? "text-zinc-500" : "text-blue-500"}`}>
+                    {nextStopMode === "last_known" ? "Última posição" : "Próxima parada"}
                   </p>
                 )}
                 {stop.status === "current" && etaMinutes != null && (
@@ -209,7 +218,7 @@ export function ScheduleTimeline({
               <span
                 className={`shrink-0 font-mono text-sm ${
                   stop.status === "current"
-                    ? "font-semibold text-blue-700"
+                    ? nextStopMode === "last_known" ? "font-semibold text-zinc-700" : "font-semibold text-blue-700"
                     : stop.status === "past"
                       ? "text-zinc-400"
                       : "text-zinc-700"

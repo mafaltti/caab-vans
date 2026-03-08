@@ -9,7 +9,7 @@ type RoutesResponse = {
 };
 
 async function fetchRoutes(signal?: AbortSignal): Promise<RoutesResponse> {
-  const res = await fetch("/api/routes", { signal });
+  const res = await fetch("/api/routes?includeLastKnown=true", { signal });
   if (!res.ok) {
     throw new Error("Failed to fetch routes");
   }

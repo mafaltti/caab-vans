@@ -246,6 +246,7 @@ export default function RouteDetailPage() {
               etaMinutes={route!.progress?.etaNextStopMinutes}
               serverTime={data?.serverTime}
               runStatus={route!.progress?.runStatus}
+              nextStopMode={route!.nextStopMode}
               variant="inline"
             />
           </RouteDetailSheet>
@@ -262,6 +263,7 @@ export default function RouteDetailPage() {
             etaMinutes={route!.nextStop?.id === route!.progress?.nextStopId ? route!.progress?.etaNextStopMinutes : undefined}
             etaISO={route!.nextStop?.id === route!.progress?.nextStopId ? route!.progress?.etaNextStopISO : undefined}
             runStatus={route!.progress?.runStatus}
+            nextStopMode={route!.nextStopMode}
           />
 
           {route!.isRunning && route!.van.lastLat != null && route!.van.lastLng != null && (
@@ -286,6 +288,7 @@ export default function RouteDetailPage() {
             etaMinutes={route!.progress?.etaNextStopMinutes}
             serverTime={data?.serverTime}
             runStatus={route!.progress?.runStatus}
+            nextStopMode={route!.nextStopMode}
           />
         </div>
       )}
