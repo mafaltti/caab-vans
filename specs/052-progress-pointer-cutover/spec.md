@@ -26,7 +26,7 @@ A passenger viewing a route (list or detail page) always sees the same next stop
 
 ### User Story 2 - Reliable Write Path with Observable Failures (Priority: P1)
 
-The system must reliably persist progress pointers (next stop and last passed stop) to the run record after each GPS ping, and failures must be logged with enough context to diagnose issues. Today, pointer writes are fire-and-forget with no error capture, making silent failures invisible.
+The system must reliably persist progress pointers (next stop and last passed stop) to the run record after each GPS ping, and failures must be logged with enough context to diagnose issues. All three write operations (geofence mark, backfill mark, pointer persist) now capture errors with structured logging, and geofence failures skip the success path to prevent cascading incorrect state.
 
 **Why this priority**: The cutover depends on trusting persisted pointers. If writes fail silently, the system serves stale data with no way to detect or recover. This must be hardened before the pointer becomes authoritative.
 

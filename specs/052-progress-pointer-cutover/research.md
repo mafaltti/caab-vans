@@ -6,7 +6,7 @@
 ## 1. ETA Target Selection — Current vs Required
 
 **Decision**: Add optional `targetStopId?: string` parameter to `computeEta`.
-**Rationale**: Current time-floor selection (`sortedPending[0]` at `eta.ts:88`) cannot honor a persisted pointer pointing to an overdue stop. The explicit parameter allows the resolver to pass the trusted pointer directly, bypassing internal selection when valid.
+**Rationale**: The write path now selects the first chronologically pending stop (no time-floor), and the explicit `targetStopId` parameter allows the resolver to pass the trusted pointer directly to `computeEta`, bypassing its internal time-based selection when valid.
 **Alternatives considered**:
 - Modify time-floor logic to consider overdue stops → rejected, changes existing behavior for all callers
 - Pass pointer externally and override ETA result's `nextStopId` → rejected, ETA would still compute for the wrong stop
@@ -21,8 +21,8 @@
 
 ## 3. Write Path Error Handling
 
-**Decision**: Capture and log errors from all three unchecked writes in `infer-stop-progress.ts`.
-**Rationale**: Geofence mark (line 266), backfill mark (line 321), and pointer persist (line 378) all lack error capture. The seed operation (line 115) already demonstrates the correct pattern: `const { error } = await supabase...`. Silent write failures make the cutover unsafe.
+**Decision**: Capture and log errors from all three writes in `infer-stop-progress.ts`, and skip the success path on geofence mark failure.
+**Rationale**: Geofence mark, backfill mark, and pointer persist now all capture errors with structured logging (run ID, route ID, service date, pointer values). On geofence failure the code skips `newlyPassedIds.push()` to prevent backfill and pointer updates for a stop that never persisted.
 **Alternatives considered**:
 - Add retry logic → rejected (YAGNI), fallback-to-legacy on read path is sufficient for now
 - Throw on write failure → rejected, would break tracking ingestion for transient errors
