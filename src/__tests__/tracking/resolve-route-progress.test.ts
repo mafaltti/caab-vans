@@ -372,9 +372,11 @@ describe("resolveRouteProgress", () => {
 
     expect(result).not.toBeNull();
     expect(result!.runStatus).toBe("waiting");
-    // waiting goes through the full ETA path (not early-returned)
-    // but since it's not "completed" or "idle", computeEta runs
-    expect(mockComputeEta).toHaveBeenCalledTimes(1);
+    // waiting is early-returned like completed/idle — no ETA, no nextStopId
+    expect(result!.nextStopId).toBeNull();
+    expect(result!.etaNextStopMinutes).toBeNull();
+    expect(result!.etaSource).toBeNull();
+    expect(mockComputeEta).not.toHaveBeenCalled();
   });
 
   it("pointer references deleted entry (not in entries array) falls back to legacy", async () => {

@@ -51,7 +51,7 @@ This feature requires **no database schema changes**. All columns already exist 
 
 ### Pointer Trust State Machine
 
-```
+```text
 ┌──────────┐    pointer exists     ┌───────────┐    entry exists     ┌───────────┐
 │  MISSING  │──── in route_runs ──→│  PRESENT   │─── in schedule  ──→│ VALIDATED  │
 └──────────┘                       └───────────┘    entries           └───────────┘
@@ -69,7 +69,7 @@ This feature requires **no database schema changes**. All columns already exist 
 
 ### Run Status (existing, unchanged)
 
-```
+```text
 waiting ──(first shift started)──→ in_progress ──(shift ended, within window)──→ idle
                                        │                                          │
                                        │                    (new shift started)───┘

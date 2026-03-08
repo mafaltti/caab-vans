@@ -143,7 +143,7 @@
 
 ### User Story Dependencies
 
-```
+```text
 US2 (write path) ──────────────────────────────────┐
                                                      ├──→ Phase 7 (polish)
 US3 (ETA target) ──→ US4 (resolver) ──┬──→ US1 ────┤
@@ -164,7 +164,7 @@ US3 (ETA target) ──→ US4 (resolver) ──┬──→ US1 ────┤
 
 ### Parallel Opportunities
 
-```
+```text
 Phase 2 (parallel):
   T003 (US2 — all write fixes in infer-stop-progress.ts)
   T005 (US3 — different file: eta.ts)

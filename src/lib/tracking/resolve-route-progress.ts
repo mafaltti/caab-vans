@@ -41,20 +41,32 @@ export async function resolveRouteProgress(args: {
   const { supabase, routeId, serviceDate, sortedEntries, vanId, vanPosition, now, times } = args;
 
   // 1. Fetch route_run for today
-  const { data: runData } = await supabase
+  const { data: runData, error: runError } = await supabase
     .from("route_runs")
     .select("id, last_passed_stop_id, next_stop_id, progress_updated_at")
     .eq("route_id", routeId)
     .eq("service_date", serviceDate)
     .single();
 
+  if (runError && runError.code !== "PGRST116") {
+    console.error("resolveRouteProgress: route_runs query failed", {
+      routeId, serviceDate, error: runError.message,
+    });
+  }
+
   if (!runData) return null;
 
   // 2. Fetch shifts and derive run status
-  const { data: shifts } = await supabase
+  const { data: shifts, error: shiftsError } = await supabase
     .from("route_shifts")
     .select("id, started_at, ended_at")
     .eq("run_id", runData.id);
+
+  if (shiftsError) {
+    console.error("resolveRouteProgress: route_shifts query failed", {
+      routeId, runId: runData.id, error: shiftsError.message,
+    });
+  }
 
   const shiftsArr = shifts ?? [];
   const sorted = [...times].sort();
@@ -65,8 +77,8 @@ export async function resolveRouteProgress(args: {
   const runStatus = deriveRunStatus(shiftsArr, isPastScheduleWindow);
   const activeShift = shiftsArr.find((s) => s.ended_at === null);
 
-  // 3. Early return for completed and idle runs (FR-011)
-  if (runStatus === "completed" || runStatus === "idle") {
+  // 3. Early return for completed, idle, and waiting runs (FR-011)
+  if (runStatus === "completed" || runStatus === "idle" || runStatus === "waiting") {
     return {
       serviceDate,
       runStatus,
@@ -81,10 +93,16 @@ export async function resolveRouteProgress(args: {
   }
 
   // 4. Fetch route_run_stops
-  const { data: runStops } = await supabase
+  const { data: runStops, error: runStopsError } = await supabase
     .from("route_run_stops")
     .select("schedule_entry_id, status, passed_at, schedule_entries!inner(time)")
     .eq("run_id", runData.id);
+
+  if (runStopsError) {
+    console.error("resolveRouteProgress: route_run_stops query failed", {
+      routeId, runId: runData.id, error: runStopsError.message,
+    });
+  }
 
   if (!runStops || runStops.length === 0) {
     return {
@@ -159,7 +177,7 @@ export async function resolveRouteProgress(args: {
     const pointerAge = runData.progress_updated_at
       ? now.diff(DateTime.fromISO(runData.progress_updated_at), "minutes").minutes
       : Infinity;
-    const pointerFresh = pointerAge < POINTER_STALENESS_MINUTES;
+    const pointerFresh = pointerAge >= 0 && pointerAge < POINTER_STALENESS_MINUTES;
 
     if (pointerExists && pointerIsPending && pointerFresh) {
       targetStopId = runData.next_stop_id;
