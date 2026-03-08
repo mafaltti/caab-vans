@@ -51,8 +51,8 @@ export function HeroCard({
     );
   }
 
-  // 1b. Last known position — not running, not waiting, have a last-known stop
-  if (!isRunning && nextStopMode === "last_known" && nextStop && runStatus !== "waiting") {
+  // 1b. Last known position — not running but have a last-known stop
+  if (!isRunning && nextStopMode === "last_known" && nextStop) {
     return (
       <div className="rounded-3xl bg-zinc-100 p-6 text-center">
         <MapPin className="mx-auto mb-2 size-6 text-zinc-400" />

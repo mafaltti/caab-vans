@@ -175,7 +175,8 @@ export async function GET(
   }
 
   // Populate last-known summary for non-running routes when requested
-  if (!isRunning && includeLastKnown && progress?.nextStopId) {
+  // Exclude waiting routes — they haven't started yet, so stale progress is misleading
+  if (!isRunning && includeLastKnown && progress?.nextStopId && progress.runStatus !== "waiting") {
     const resolved = resolveNextStop(sortedEntries, progress.nextStopId, formatTimeString);
     if (resolved) {
       nextStop = resolved.nextStop;
