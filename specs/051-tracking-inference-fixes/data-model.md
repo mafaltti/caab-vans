@@ -88,7 +88,7 @@ export type TrackingStatus = 'live' | 'stale' | 'missing';
 | Condition | Value | Meaning |
 |-----------|-------|---------|
 | `last_gps_fix_at` not null AND age < 10 min | `'live'` | GPS data fresh and reliable |
-| `last_gps_fix_at` not null AND age 10-60 min | `'stale'` | GPS data exists but outdated |
+| `last_gps_fix_at` not null AND age >= 10 and < 60 min | `'stale'` | GPS data exists but outdated |
 | `last_gps_fix_at` null OR age >= 60 min | `'missing'` | No usable GPS data |
 
 Constants:
@@ -137,7 +137,7 @@ Status remains `pending` -> `passed` (one-way, irreversible). `pass_source` and 
 
 ## Stop Grouping Logic
 
-```
+```text
 IF stop_group_id IS NOT NULL
   → group key = stop_group_id
 ELSE

@@ -25,7 +25,7 @@ Current response shape: `{ routes: RouteWithStatus[], serverTime: string }`
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `trackingStatus` | `"live" \| "stale" \| "missing"` | GPS telemetry quality indicator, independent of route lifecycle. `"live"` when last GPS fix < 10 min old, `"stale"` when 10-60 min old, `"missing"` when > 60 min old or no fix ever received. |
+| `trackingStatus` | `"live" \| "stale" \| "missing"` | GPS telemetry quality indicator, independent of route lifecycle. `"live"` when last GPS fix < 10 min old, `"stale"` when >= 10 and < 60 min old, `"missing"` when >= 60 min old or no fix ever received. |
 | `isTrackingFresh` | `boolean` | Convenience field: `true` when `trackingStatus === "live"`, `false` otherwise. |
 
 **Changed field semantics:**

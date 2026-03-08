@@ -32,7 +32,7 @@
 
 **⚠️ CRITICAL**: US1 depends on this
 
-- [x] T005 Create a `deriveTrackingStatus(lastGpsFixAt: string | null, now: DateTime): TrackingStatus` helper in `src/lib/tracking/tracking-status.ts` — define and export `TRACKING_LIVE_THRESHOLD_MINUTES = 10` and `TRACKING_STALE_THRESHOLD_MINUTES = 60` constants here (single source of truth for thresholds). Compute `'live'` when age < 10 min, `'stale'` when 10–60 min, `'missing'` when > 60 min or null. Use Luxon with America/Bahia timezone.
+- [x] T005 Create a `deriveTrackingStatus(lastGpsFixAt: string | null, now: DateTime): TrackingStatus` helper in `src/lib/tracking/tracking-status.ts` — define and export `TRACKING_LIVE_THRESHOLD_MINUTES = 10` and `TRACKING_STALE_THRESHOLD_MINUTES = 60` constants here (single source of truth for thresholds). Compute `'live'` when age < 10 min, `'stale'` when >= 10 and < 60 min, `'missing'` when >= 60 min or null. Use Luxon with America/Bahia timezone.
 
 **Checkpoint**: Foundation ready — user story implementation can now begin
 

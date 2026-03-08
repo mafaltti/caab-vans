@@ -227,7 +227,7 @@ export async function computeEta(args: {
   if (lastPassedForSegment?.passedAt && lastPassedForSegment.osrmDistanceM != null) {
     const timeFactor = getTimeFactor(now.hour, now.weekday, routeId, recentRuns);
     const travelMinutes = (lastPassedForSegment.osrmDistanceM / REFERENCE_SPEED_MPS / 60) * timeFactor;
-    const etaDateTime = DateTime.fromISO(lastPassedForSegment.passedAt).plus({ minutes: travelMinutes });
+    const etaDateTime = DateTime.fromISO(lastPassedForSegment.passedAt).setZone(now.zone).plus({ minutes: travelMinutes });
     const etaNextStopMinutes = Math.max(0, Math.ceil(etaDateTime.diff(now, "minutes").minutes));
 
     const delay = DateTime.fromISO(lastPassedForSegment.passedAt).diff(parseTime(lastPassedForSegment.time), "minutes").minutes;

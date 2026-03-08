@@ -11,7 +11,7 @@ The ETA system uses a multi-layer approach to estimate arrival times:
 3. **Time-of-day correction** — rush hour multipliers applied to base ETA
 4. **Nightly refinement** — automatic factor updates from historical trip data
 
-All three layers are **optional and progressive**. A fresh deployment works out of the box with sensible defaults. Each layer improves accuracy when enabled.
+All four layers are **optional and progressive**. A fresh deployment works out of the box with sensible defaults. Each layer improves accuracy when enabled.
 
 ## Layer 1: OSRM Road Distance
 

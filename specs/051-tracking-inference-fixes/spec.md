@@ -156,5 +156,5 @@ An admin wants to monitor tracker health across the fleet to proactively identif
 ### Session 2026-03-07
 
 - Q: What defines "consecutive pings" for backfill confidence gating? → A: Two pings within a 5-minute window inside the geofence (time-bounded, not just sequential).
-- Q: What thresholds define tracking status (live/stale/missing)? → A: Live < 10 min, Stale 10–60 min, Missing > 60 min or no fix ever.
+- Q: What thresholds define tracking status (live/stale/missing)? → A: Live < 10 min, Stale >= 10 and < 60 min, Missing >= 60 min or no fix ever.
 - Q: Should hybrid raw/snapped position policy be an explicit requirement with a defined threshold? → A: Yes — prefer raw GPS for stop passage when snap displacement exceeds 50m; prefer snapped otherwise.
