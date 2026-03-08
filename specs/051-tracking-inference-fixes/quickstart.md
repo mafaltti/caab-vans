@@ -16,7 +16,7 @@
 | Types | `src/types/index.ts` | Add `TrackingStatus`, `PassSource`, extend `RouteProgress`, `RouteWithStatus` |
 | Inference | `src/lib/tracking/infer-stop-progress.ts` | Confidence gating, stop grouping, hybrid position, persist progress |
 | ETA | `src/lib/tracking/eta.ts` | Segment-aware fallback tier |
-| Routes API | `src/app/api/routes/route.ts` | Decouple `isRunning`, add `trackingStatus`, read persisted pointers |
+| Routes API | `src/app/api/routes/route.ts` | Decouple `isRunning`, add `trackingStatus`, select persisted pointers (Phase 1 write-only) |
 | Routes API | `src/app/api/routes/[routeId]/route.ts` | Same as above |
 | Admin API | `src/app/api/admin/vans/route.ts` | Expose tracker health |
 | Tracking API | `src/app/api/tracking/[vanId]/route.ts` | Pass snapped coords to inference |
@@ -64,7 +64,7 @@ npm run dev
 7. **Persist progress** — Write pointers during ingestion
 8. **Segment ETA** — Add fallback tier to `computeEta`
 9. **Admin health** — Expose tracker health in admin van endpoints
-10. **Read persisted pointers** — Switch route APIs to read from `route_runs`
+10. **Select persisted pointers** — Route APIs select columns from `route_runs` (Phase 1 write-only, API computes fresh values)
 11. **Tests** — Extend test suites for each change (including API response shape tests)
 12. **Doc updates** — Update `docs/ETA-CONFIGURATION.md` to reflect segment-aware fallback
 

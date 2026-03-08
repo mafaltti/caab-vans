@@ -104,7 +104,7 @@
 
 ## Phase 6: User Story 4 — Persisted Progress State (Priority: P2)
 
-**Goal**: Write `last_passed_stop_id` and `next_stop_id` on the route run during ingestion and switch the routes API to read them as the primary source.
+**Goal**: Write `last_passed_stop_id` and `next_stop_id` on the route run during ingestion (Phase 1 — write-only). The API continues to compute fresh values; persisted pointers are for debugging and future Phase 2 cutover.
 
 **Independent Test**: Run stop inference, then query `route_runs` directly — `last_passed_stop_id` and `next_stop_id` must be populated and match API response.
 
@@ -115,10 +115,10 @@
 ### Implementation for User Story 4
 
 - [x] T024 [US4] Persist progress pointers in `src/lib/tracking/infer-stop-progress.ts` — at the end of the function (after computing `lastPassedStopId` and `nextStopId`), add a Supabase `update` call on `route_runs` setting `last_passed_stop_id`, `next_stop_id`, and `progress_updated_at` to `new Date().toISOString()` for the current `run.id`
-- [x] T025 [US4] Update `src/app/api/routes/route.ts` to read persisted progress — when fetching route run data, select `last_passed_stop_id`, `next_stop_id`, `progress_updated_at` from `route_runs`. Use `next_stop_id` as the primary source for `progress.nextStopId` instead of re-deriving from `route_run_stops`. Note: `passedStopIds` array must still be queried from `route_run_stops` (only pointers are persisted, not the full list). Fall back to current reconstruction if pointers are null (backward compatible)
-- [x] T026 [US4] Apply same read-side changes to `src/app/api/routes/[routeId]/route.ts` — identical to T025
+- [x] T025 [US4] Update `src/app/api/routes/route.ts` to select persisted progress columns — when fetching route run data, select `last_passed_stop_id`, `next_stop_id`, `progress_updated_at` from `route_runs` for debugging visibility. The API does NOT use these as the primary source (Phase 1 — write-only); it continues computing fresh values from `route_run_stops`. Phase 2 cutover deferred to avoid ETA/nextStopId mismatch risk.
+- [x] T026 [US4] Apply same select-side changes to `src/app/api/routes/[routeId]/route.ts` — identical to T025
 
-**Checkpoint**: US4 complete — single source of truth for progress state, API reads persisted pointers
+**Checkpoint**: US4 complete — progress pointers persisted during ingestion (Phase 1 write-only), API computes fresh values
 
 ---
 

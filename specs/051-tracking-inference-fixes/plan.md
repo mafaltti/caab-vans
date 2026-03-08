@@ -66,7 +66,7 @@ src/
 │       └── schedule-entry.ts                   # Accept stop_group_id
 ├── app/api/
 │   ├── routes/
-│   │   ├── route.ts                            # trackingStatus, isRunning decoupling, read persisted progress
+│   │   ├── route.ts                            # trackingStatus, isRunning decoupling, select persisted pointers (Phase 1 write-only)
 │   │   └── [routeId]/route.ts                  # Same changes as above
 │   ├── tracking/
 │   │   └── [vanId]/route.ts                    # Pass snapped coords to inference

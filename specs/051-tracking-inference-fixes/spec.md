@@ -59,7 +59,7 @@ A route visits the same physical location twice (e.g., a school at pickup and dr
 
 ### User Story 4 - Persisted Progress State Eliminates API Recomputation (Priority: P2)
 
-The routes API currently reconstructs "next stop" and "last passed stop" by querying all route_run_stops and recomputing progress on every request. With this fix, the ingestion pipeline persists progress pointers (last passed stop, next stop) directly on the route run, and the API reads them as the source of truth. This eliminates ambiguity about which component decided the current stop and makes debugging straightforward.
+The ingestion pipeline now persists progress pointers (last passed stop, next stop) directly on the route run during inference. The API continues to compute fresh values from `route_run_stops` on each request (Phase 1 — write-only). The persisted pointers serve as a debugging aid and single source of truth for what the inference decided, enabling a future Phase 2 cutover where the API reads them directly.
 
 **Why this priority**: This is a foundational improvement that simplifies the API, improves debuggability, and ensures a single source of truth for progress state. It supports all other inference improvements.
 
@@ -68,7 +68,7 @@ The routes API currently reconstructs "next stop" and "last passed stop" by quer
 **Acceptance Scenarios**:
 
 1. **Given** a stop is marked as passed during ingestion, **When** the inference completes, **Then** last passed stop and next stop pointers are updated on the route run record.
-2. **Given** the API receives a route request, **When** assembling progress data, **Then** it reads persisted progress pointers from the route run instead of recomputing them from individual stop records.
+2. **Given** the API receives a route request, **When** assembling progress data, **Then** persisted pointers on the route run match the freshly computed values (Phase 1 — write-only, API still computes fresh).
 3. **Given** no stops have been passed yet, **When** the API reads the route run, **Then** last passed stop is empty and next stop points to the first scheduled stop.
 
 ---
@@ -125,7 +125,7 @@ An admin wants to monitor tracker health across the fleet to proactively identif
 - **FR-005a**: System MUST use raw GPS position for geofence stop matching when the snap displacement (distance between raw and snapped coordinates) exceeds 50 meters, and prefer the snapped position otherwise.
 - **FR-006**: System MUST support a logical stop group identifier on schedule entries for repeated-stop grouping, falling back to coordinate-based grouping when the identifier is absent.
 - **FR-007**: System MUST persist last passed stop, next stop, and progress update timestamp on the route run during ingestion.
-- **FR-008**: System MUST use persisted progress pointers as the primary source when assembling route data for display, rather than recomputing from individual stop records.
+- **FR-008**: System MUST persist progress pointers during ingestion. The API currently computes fresh values from stop records (Phase 1 — write-only). A future Phase 2 may switch the API to read persisted pointers as the primary source.
 - **FR-009**: System MUST implement a segment-aware ETA fallback tier between GPS-based ETA and uniform schedule delay, using stored road distances and historical time factors.
 - **FR-010**: System MUST preserve the existing schedule delay fallback as the final safety net when no GPS, no stop coordinates, no passed stops, and no segment distance data are available.
 - **FR-011**: System MUST expose tracker health metrics (last GPS fix, staleness, buffer size, failure count, unhealthy flag) through admin van endpoints.
@@ -149,7 +149,7 @@ An admin wants to monitor tracker health across the fleet to proactively identif
 - **SC-004**: ETA accuracy improves for non-GPS scenarios — segment-aware fallback produces ETAs within 30% of actual arrival time for segments with known road distances.
 - **SC-005**: Admin users can identify unhealthy trackers within 30 seconds of viewing the fleet dashboard.
 - **SC-006**: All existing tracking test cases continue to pass (zero regressions), and new test cases cover each changed behavior.
-- **SC-007**: Route data assembly time does not degrade — reading persisted progress pointers is faster than or equal to recomputing from stop records.
+- **SC-007**: Persisted progress pointers match freshly computed values — ingestion writes correct `last_passed_stop_id` and `next_stop_id` on each inference run.
 
 ## Clarifications
 
