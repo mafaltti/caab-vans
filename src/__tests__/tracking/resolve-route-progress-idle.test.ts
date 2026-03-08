@@ -212,8 +212,10 @@ describe("resolveRouteProgress – idle suppression (FR-011)", () => {
 
     expect(result).not.toBeNull();
     expect(result!.runStatus).toBe("idle");
-    // Persisted pointer is expired → nextStopId must be null so the route
-    // handler does not label a schedule-derived guess as "last_known"
+    // Persisted pointer is expired → nextStopId and ETA must be null so the
+    // route handler does not label a schedule-derived guess as "last_known"
     expect(result!.nextStopId).toBeNull();
+    expect(result!.etaNextStopMinutes).toBeNull();
+    expect(result!.etaNextStopISO).toBeNull();
   });
 });

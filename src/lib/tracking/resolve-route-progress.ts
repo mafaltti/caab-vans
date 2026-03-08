@@ -277,7 +277,7 @@ export async function resolveRouteProgress(args: {
   // advertise a schedule guess as persisted "last_known" progress.
   const isNonRunning = runStatus !== "in_progress";
   if (includeLastKnown && isNonRunning && !targetStopId) {
-    etaResult = { ...etaResult, nextStopId: null };
+    etaResult = { ...etaResult, nextStopId: null, etaNextStopISO: null, etaNextStopMinutes: null };
   }
 
   return {

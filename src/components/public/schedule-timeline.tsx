@@ -209,7 +209,7 @@ export function ScheduleTimeline({
                     {nextStopMode === "last_known" ? "Última posição" : "Próxima parada"}
                   </p>
                 )}
-                {stop.status === "current" && etaMinutes != null && (
+                {stop.status === "current" && nextStopMode !== "last_known" && etaMinutes != null && (
                   <p className="text-xs text-blue-400">
                     ~{etaMinutes} min
                   </p>
