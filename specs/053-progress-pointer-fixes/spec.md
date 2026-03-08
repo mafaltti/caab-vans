@@ -2,7 +2,7 @@
 
 **Feature Branch**: `053-progress-pointer-fixes`
 **Created**: 2026-03-08
-**Status**: Draft
+**Status**: Implemented
 **Input**: Fix P1/P2 gaps from Phase 2 progress pointer gap analysis (doc 0086): segment ETA, legacy default, stale pointer regression, snap decision, confidence source, backfill gate, non-active state suppression.
 
 ## User Scenarios & Testing *(mandatory)*

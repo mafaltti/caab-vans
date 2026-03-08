@@ -58,7 +58,7 @@ This feature modifies **behavior only** — no database migrations or schema cha
 | lng | float8 | raw GPS longitude |
 | device_ts | timestamptz | device timestamp |
 
-**Used by**: FR-007 (confidence ping query — will use coordinate source consistent with passage detection).
+**Used by**: FR-007 (confidence ping query — uses raw pings; snapped-passage confidence capped at 0.8 to account for coordinate-source mismatch).
 
 ## New Constants (Code-Level)
 

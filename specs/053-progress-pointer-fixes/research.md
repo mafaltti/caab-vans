@@ -50,13 +50,13 @@ Beyond 2 hours: pointer is treated as invalid regardless of stop status.
 
 ### D5: Confidence Source Alignment Strategy
 
-**Decision**: When a snapped passage is detected, use snapped coordinates for the confidence ping-count query (compare recent pings against the stop using the same coordinate source that triggered the match). Keep the confidence score tiers unchanged.
+**Decision**: Cap snapped-passage confidence at 0.8 (both tiers) instead of re-snapping historical pings. Raw pings are still used for the confidence query, but snapped passages no longer receive inflated 1.0 confidence. Both snapped tiers (2+ pings and <2 pings) return 0.8. Raw passage tiers remain unchanged (0.9 / 0.7).
 
-**Rationale**: Using raw pings for a snapped passage means the evidence and the detection use different coordinate sources. Since the per-stop snap evaluation (D4) already tracks which source was used per stop, we can pass that through to the confidence calculation.
+**Rationale**: The full approach (snapping each recent ping for the confidence query) would require a complex per-ping snap pipeline. Capping confidence at 0.8 is a one-line change that removes the false "high confidence" label while keeping raw pings as a conservative evidence bar. Aligns with KISS.
 
 **Alternatives considered**:
+- Snap each recent ping for confidence query: Rejected — complex pipeline for marginal accuracy gain over the cap approach.
 - Document raw pings as intentional ground truth: Rejected — creates a logical inconsistency where "high confidence" can mean "no raw evidence supports this."
-- Penalize confidence when sources differ: Rejected — more complex and the per-stop snap from D4 makes this unnecessary.
 
 ### D6: Backfill Gate Tightening
 
