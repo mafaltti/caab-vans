@@ -48,6 +48,25 @@ adb install path/to/app.apk
 5. Unlock → Verify coordinates still updating
 6. Stop Tracking
 
+## Production Provisioning
+
+Use this flow when preparing a phone for a client deployment:
+
+1. Build and install the APK via EAS.
+2. In the app settings, enter:
+   - `API Base URL`: the public Next.js app URL, for example `https://APP_DOMAIN`
+   - `Van ID`: the UUID created in the admin panel
+   - `Ingestion Token`: the token generated for that van
+3. Open the diagnostics screen once and confirm logging is available.
+4. Start tracking and verify the server receives pings for the correct van.
+
+Important:
+
+- The app posts to the Next.js app domain, not directly to the Supabase gateway domain.
+- Battery optimization whitelisting is required on many Android devices for reliable background behavior.
+- Diagnostics can be exported from the in-app Diagnostics screen for support and incident review.
+- Client-specific branding, Sentry ownership, and observability changes are follow-up work outside this cleanup pass.
+
 ## Boot Restart
 
 After device reboot, battery death, or app update, tracking resumes automatically without user interaction. Implemented via an Expo config plugin that injects a native Android BroadcastReceiver (Direct Boot-aware).
@@ -71,6 +90,7 @@ If boot restart does not work after whitelisting, the existing app-launch auto-r
 - 401 errors: Verify ingestion token in Settings
 - OEM battery killers (Samsung, Xiaomi, Huawei): User must whitelist the app manually
 - Build fails: Update eas-cli (`npm install -g eas-cli@latest`), verify login (`eas whoami`)
+- Need logs for support: open `Settings -> Diagnostics` and export the diagnostic log
 
 ## Dependencies
 

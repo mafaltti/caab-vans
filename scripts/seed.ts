@@ -18,7 +18,7 @@ async function seed() {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  console.log("Creating initial superuser...");
+  console.log("Development bootstrap: creating fixed superuser credentials...");
 
   const { data, error } = await supabase.auth.admin.createUser({
     email: DEFAULT_EMAIL,
@@ -43,7 +43,7 @@ async function seed() {
   console.log(`  Email:    ${DEFAULT_EMAIL}`);
   console.log(`  Password: ${DEFAULT_PASSWORD}`);
   console.log(`  ID:       ${data.user.id}`);
-  console.log("\n  Change the password after first login!");
+  console.log("\n  Development-only helper. Do not use this command in production.");
 }
 
 seed();

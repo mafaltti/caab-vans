@@ -2,6 +2,8 @@
 
 # Vans CAAB — MVP PRD (2026-02-25)
 
+> Status note: this document captures the original MVP framing and includes legacy assumptions such as link-based ingestion. For current deployer guidance, use `docs/START-HERE.md`, `docs/DEPLOYMENT.md`, and `docs/OPERATIONS.md`.
+
 ## 1. Executive Summary
 - **Elevator Pitch (≤20 words):** Mobile web app to see running CAAB van routes, next scheduled stop/time, announcements, and a live location link.
 - **Problem Statement (2-3 sentences):** CAAB members struggle to quickly decide where/when to catch a van because operational info is fragmented. They need a single place to confirm which routes are running, the next scheduled stop/time, and access the van’s live location link.

@@ -1,181 +1,100 @@
-# CAAB Vans - Tech Stack & Infra Reference
+# CAAB Vans - Tech Stack and Infrastructure Reference
 
-## 1) Product Context (MVP)
+## Product Shape
 
-This project implements the MVP described in `docs/PRD-MVP.md`:
-- Mobile-first dashboard for CAAB transport status
-- Fixed routes/stops + countdowns
-- Lightweight filtering
+The system has three runtime pieces:
 
----
+1. Next.js web app with public pages, admin pages, and `/api/*` route handlers.
+2. Self-hosted Supabase for Postgres, Auth, Studio, and related services.
+3. Expo-based Android tracker app that posts GPS pings to the Next.js API.
 
-## 2) High-Level Architecture
+## Supported Deployment Model
 
-**Multi-client backend (Supabase self-hosted)**, with a **Next.js web app** that includes:
-- **Frontend** (portal UI)
-- **BFF** (Backend-for-Frontend) via Next.js Route Handlers (`/app/api/*`)
+The supported production topology is:
 
-Primary data access pattern:
-- Web UI → Next.js BFF (`/api/*`) → Supabase (Postgres)
-- (Future) Mobile app may call Supabase directly using anon key + RLS, OR consume the same BFF endpoints.
+- `infra/supabase/` via Docker Compose
+- Next.js app on the VPS via `systemd`
+- Caddy as the public entrypoint and TLS terminator
+- Optional `infra/osrm/` for road snapping and routing
 
-Non-goal:
-- Do NOT use Supabase Edge Functions.
+This repo does not currently support an app Docker Compose stack as the canonical path.
 
----
+## Stack
 
-## 3) Stack
+### Web App
 
-### 3.1 Web (Frontend + BFF)
-- **Next.js (App Router) + TypeScript**
-- **Tailwind CSS + shadcn/ui**: shadcn/ui (New York style, Neutral base, Lucide icons, Geist font). See **Design Direction** below.
-- **Motion** (smooth transitions and tap feedback)
-- **TanStack Query** (polling, caching, request dedupe)
-- **Zod** (validation for API inputs and internal ops)
-- **Luxon** (timezone correctness; force `America/Bahia`)
+- Next.js 16 App Router
+- React 19
+- TypeScript
+- Tailwind CSS 4
+- TanStack Query
+- Zod
+- Luxon
 
-#### Design Direction — Clean Utility / Modern Mobile App
-Built on shadcn/ui tokens and components; extended with Tailwind utilities for a polished mobile-first feel.
+### Backend and Data
 
-- **Color palette**
-  - Backgrounds: soft off-white (`bg-slate-50`) for reduced eye strain.
-  - Surfaces/cards: white (`bg-white`) for clear hierarchy.
-  - Primary text: high-contrast dark gray (`text-slate-900`); secondary: `text-slate-500`.
-  - Primary accent: blue (`blue-600`) for actions and active states.
-  - Semantic: emerald green for active/positive states; rose red for urgent/negative states.
-- **Typography**
-  - Geist Sans (`--font-geist-sans`) as the primary typeface.
-  - Hierarchy via font weight (`font-medium`, `font-bold`) and size rather than color variation.
-- **Shape & depth**
-  - Generous border radii (`rounded-2xl`, `rounded-3xl`) for a friendly, modern feel.
-  - Subtle shadows (`shadow-sm`, `shadow-md`) to lift interactive elements without heaviness.
-- **Interaction & motion**
-  - Motion library for tap feedback (`whileTap={{ scale: 0.96 }}`), screen transitions, and state animations.
-  - Keep animations short and purposeful — they should feel native, not decorative.
+- Supabase self-hosted
+- Postgres
+- GoTrue Auth
+- PostgREST
+- Kong gateway
+- Supabase Studio
 
-### 3.2 Backend (Self-hosted Supabase)
-- **Supabase official Docker self-host setup** (multi-client capable)
-- Components enabled:
-  - Postgres
-  - Auth
-  - Realtime
-  - Storage
-  - Studio
-- Explicit constraint:
-  - **Supabase Edge Functions must NOT be used** (skip/disable if present)
+### Tracker App
 
-### 3.3 Testing
-- **Vitest** (unit tests, jsdom environment)
-- Pure unit tests only — no integration or e2e tests
+- Expo SDK 55
+- React Native
+- expo-location
+- expo-task-manager
+- EAS Build
 
-### 3.4 Tooling
+### Tooling
+
 - ESLint
 - Prettier
+- Vitest
 
----
+## Architecture Constraints
 
-## 4) Infra & Deployment
+- Supabase Edge Functions are out of scope.
+- The service-role key is server-only.
+- The anon key is intentionally public.
+- Business logic for route status, progress, and ETA belongs in the BFF/server layer.
+- Canonical timezone is `America/Bahia`.
 
-### 4.1 Infrastructure Model
-- **One VPS**
-- **Two Docker Compose stacks** (two folders/projects):
-  1) `infra/supabase/` — Supabase self-host stack
-  2) `infra/app/` — Next.js app stack
+## Network and Exposure Rules
 
-- Reverse proxy:
-  - **Caddy** as the single public entrypoint (TLS termination + routing)
+Publicly exposed services:
 
-### 4.2 Networking & Exposure Rules
-- Expose to the internet:
-  - Caddy (ports 80/443)
-  - Supabase API gateway for multi-client direct access
-  - Studio should be protected (see Security section)
+- Caddy on `80/443`
+- Supabase gateway if client/browser access is needed
+- Studio only behind Basic auth
 
-- Never expose:
-  - Postgres port publicly
-  - Any internal-only services unintentionally
+Never expose publicly:
 
-### 4.3 Domains (suggested)
+- Postgres
+- internal service ports beyond the proxy boundary
 
-- `vans.danilocarneiro.com` → Next.js portal (public)
-- `api-vans.danilocarneiro.com` → Supabase gateway (public only if multi-client direct access is desired)
-- `studio.danilocarneiro.com` → Supabase Studio (must be protected)
+## Suggested Hostnames
 
----
+Use placeholders in deploy docs, then substitute real client values:
 
-## 5) Security Model
+- `APP_DOMAIN` for the public app
+- `API_DOMAIN` for the Supabase gateway
+- `STUDIO_DOMAIN` for Studio
 
-### 5.1 Supabase (Multi-client)
-- Treat the **anon key as public** (it will live in web/mobile clients if used directly).
-- All public access must be controlled by:
-  - **RLS policies**
-  - Auth roles/claims for staff-only write access
+Example:
 
-### 5.2 Service Role Key
-- The **service role key is server-only**:
-  - Allowed only in Next.js server runtime (Route Handlers) and secure ops scripts
-  - Never shipped to browsers or mobile apps
+```text
+APP_DOMAIN=vans.example.com
+API_DOMAIN=api-vans.example.com
+STUDIO_DOMAIN=studio-vans.example.com
+```
 
-### 5.3 Studio Access
-- Studio must be restricted via Basic auth at Caddy
+## Operational Expectations
 
----
+- Backups and monitoring are still operator responsibilities; they are not automated in this repo.
+- OSRM is optional. If omitted, ETA falls back to haversine-based estimation.
+- Tests are primarily unit tests; there is no e2e suite in the repo today.
 
-## 6) Time
-
-Timezone:
-- Canonical timezone: **America/Bahia**
-- All displayed times use `HH:mm` in that timezone.
-
----
-
-## 7) Data & Computation Responsibilities
-
-### 7.1 Where logic lives
-- Computed fields should be consistent:
-  - Prefer computing “next stop / isOutdated / status labels” in the **BFF** for consistency across clients.
-  - The UI can still run countdown timers locally for smooth updates.
-
----
-
-## 8) Repository Conventions (recommended)
-
-Suggested layout:
-- `docs/`
-  - `PRD-MVP.md`
-  - `TECH.md` (this file)
-- `infra/`
-  - `supabase/` (official self-host stack, env files)
-  - `caab-vans/` (app compose, caddy config if app owns proxy)
-- `apps/` (optional if you go monorepo later)
-  - `web/` (Next.js)
-
----
-
-## 9) Spec Kit Alignment
-
-This file is a reference. In Spec Kit terms:
-- `/speckit.constitution` must include:
-  - Stack constraints (Next.js + Supabase self-host)
-  - “No Edge Functions”
-  - Security constraints (service role never in client; Studio protected)
-  - Timezone + freshness requirements
-
-- `/speckit.plan` must decide:
-  - RLS policy approach for public read vs staff writes
-  - Deployment routing in Caddy (domains, paths)
-  - Backup strategy for Postgres/Storage volumes
-
----
-
-## 10) Operational Notes (MVP)
-
-Backups:
-- Postgres backups scheduled (daily minimum) + off-box storage
-- Storage volume backups if used
-
-Monitoring:
-- Basic container health checks
-- Alert on DB down / gateway down / app down
-
----
+For deployer steps, use [DEPLOYMENT.md](DEPLOYMENT.md). For ongoing reference, use [OPERATIONS.md](OPERATIONS.md).
