@@ -249,10 +249,6 @@ export async function GET(
           ...etaResult,
         };
 
-        // Use persisted progress pointers as primary source when available
-        if (runData.next_stop_id && progress) {
-          progress.nextStopId = runData.next_stop_id;
-        }
       } else {
         progress = {
           serviceDate,
