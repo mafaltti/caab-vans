@@ -159,7 +159,7 @@ describe("deriveTimelineStops", () => {
     expect(result[4].status).toBe("future");
   });
 
-  it("returns all neutral when not running", () => {
+  it("derives past/current/future for non-running route with passedStopIds", () => {
     const result = deriveTimelineStops(
       schedule,
       null,
@@ -169,8 +169,57 @@ describe("deriveTimelineStops", () => {
       "22:35",
     );
 
+    expect(result[0].status).toBe("past");
+    expect(result[1].status).toBe("past");
+    expect(result[2].status).toBe("past");
+    expect(result[3].status).toBe("past");
+    expect(result[4].status).toBe("current");
+  });
+
+  it("returns all neutral for non-running route without passedStopIds", () => {
+    const result = deriveTimelineStops(
+      schedule,
+      null,
+      false,
+      undefined,
+      undefined,
+      "22:35",
+    );
+
     for (const stop of result) {
       expect(stop.status).toBe("neutral");
+    }
+  });
+
+  it("still returns all-neutral for runStatus=waiting even with passedStopIds", () => {
+    const result = deriveTimelineStops(
+      schedule,
+      null,
+      false,
+      ["stop-2200"],
+      "stop-2240",
+      "22:35",
+      "waiting",
+    );
+
+    for (const stop of result) {
+      expect(stop.status).toBe("neutral");
+    }
+  });
+
+  it("still returns all-past for runStatus=completed", () => {
+    const result = deriveTimelineStops(
+      schedule,
+      null,
+      false,
+      ["stop-2200"],
+      "stop-2240",
+      "22:35",
+      "completed",
+    );
+
+    for (const stop of result) {
+      expect(stop.status).toBe("past");
     }
   });
 });

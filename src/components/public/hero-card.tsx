@@ -1,6 +1,6 @@
 "use client";
 
-import { Navigation, Clock, AlertTriangle } from "lucide-react";
+import { Navigation, Clock, AlertTriangle, MapPin } from "lucide-react";
 import { useReducedMotion } from "motion/react";
 import type { NextStop, RunStatus, ScheduleStatus } from "@/types";
 
@@ -13,6 +13,7 @@ type HeroCardProps = {
   etaMinutes?: number | null;
   etaISO?: string | null;
   runStatus?: RunStatus;
+  nextStopMode?: "live" | "last_known" | null;
 };
 
 function formatTimestamp(isoDate: string): string {
@@ -35,6 +36,7 @@ export function HeroCard({
   etaMinutes,
   etaISO,
   runStatus,
+  nextStopMode,
 }: HeroCardProps) {
   const prefersReducedMotion = useReducedMotion();
 
@@ -45,6 +47,22 @@ export function HeroCard({
         <p className="text-sm font-medium text-blue-600">
           Rota encerrada por hoje
         </p>
+      </div>
+    );
+  }
+
+  // 1b. Last known position — not running but have a last-known stop
+  if (!isRunning && nextStopMode === "last_known" && nextStop) {
+    return (
+      <div className="rounded-3xl bg-zinc-100 p-6 text-center">
+        <MapPin className="mx-auto mb-2 size-6 text-zinc-400" />
+        <p className="text-sm font-medium text-zinc-600">
+          Última posição conhecida
+        </p>
+        <p className="mt-2 text-lg font-semibold text-zinc-800">
+          {nextStop.stopName}
+        </p>
+        <p className="mt-1 text-sm text-zinc-400">às {nextStop.time}</p>
       </div>
     );
   }

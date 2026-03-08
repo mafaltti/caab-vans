@@ -151,6 +151,99 @@ describe("routes API derivation logic", () => {
       expect(["live", "stale", "missing"]).toContain(result.trackingStatus);
     });
   });
+
+  describe("last-known suppression for waiting routes", () => {
+    /**
+     * Mirrors the last-known gate in routes/route.ts lines 169-182:
+     * nextStop is populated from progress only when !isRunning, includeLastKnown,
+     * progress.nextStopId exists, AND progress.runStatus !== "waiting".
+     * nextStopMode is then "last_known" if nextStop was populated, null otherwise.
+     */
+    function deriveLastKnown(params: {
+      isRunning: boolean;
+      includeLastKnown: boolean;
+      runStatus: string | null;
+      nextStopId: string | null;
+    }): { nextStopPopulated: boolean; nextStopMode: "live" | "last_known" | null } {
+      const { isRunning, includeLastKnown, runStatus, nextStopId } = params;
+      let nextStopPopulated = false;
+
+      if (!isRunning && includeLastKnown && nextStopId && runStatus !== "waiting") {
+        nextStopPopulated = true;
+      }
+
+      const nextStopMode = isRunning
+        ? "live"
+        : (nextStopPopulated ? "last_known" : null);
+
+      return { nextStopPopulated, nextStopMode };
+    }
+
+    it("suppresses last-known for waiting routes with valid pointer", () => {
+      const result = deriveLastKnown({
+        isRunning: false,
+        includeLastKnown: true,
+        runStatus: "waiting",
+        nextStopId: "entry-b",
+      });
+      expect(result.nextStopPopulated).toBe(false);
+      expect(result.nextStopMode).toBeNull();
+    });
+
+    it("allows last-known for idle routes with valid pointer", () => {
+      const result = deriveLastKnown({
+        isRunning: false,
+        includeLastKnown: true,
+        runStatus: "idle",
+        nextStopId: "entry-b",
+      });
+      expect(result.nextStopPopulated).toBe(true);
+      expect(result.nextStopMode).toBe("last_known");
+    });
+
+    it("allows last-known for completed routes with valid pointer", () => {
+      const result = deriveLastKnown({
+        isRunning: false,
+        includeLastKnown: true,
+        runStatus: "completed",
+        nextStopId: "entry-b",
+      });
+      expect(result.nextStopPopulated).toBe(true);
+      expect(result.nextStopMode).toBe("last_known");
+    });
+
+    it("returns live mode for running routes regardless of includeLastKnown", () => {
+      const result = deriveLastKnown({
+        isRunning: true,
+        includeLastKnown: true,
+        runStatus: "in_progress",
+        nextStopId: "entry-b",
+      });
+      expect(result.nextStopMode).toBe("live");
+    });
+
+    it("returns null when includeLastKnown is false", () => {
+      const result = deriveLastKnown({
+        isRunning: false,
+        includeLastKnown: false,
+        runStatus: "idle",
+        nextStopId: "entry-b",
+      });
+      expect(result.nextStopPopulated).toBe(false);
+      expect(result.nextStopMode).toBeNull();
+    });
+
+    it("returns null when no pointer exists", () => {
+      const result = deriveLastKnown({
+        isRunning: false,
+        includeLastKnown: true,
+        runStatus: "idle",
+        nextStopId: null,
+      });
+      expect(result.nextStopPopulated).toBe(false);
+      expect(result.nextStopMode).toBeNull();
+    });
+  });
 });
 
 // ---------- Tracker Health Tests ----------
