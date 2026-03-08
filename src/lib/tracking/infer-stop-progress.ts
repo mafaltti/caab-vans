@@ -280,6 +280,7 @@ export async function inferStopProgress(
           scheduleEntryId: bestStop.schedule_entry_id,
           error: geofenceError.message,
         });
+        continue;
       }
 
       newlyPassedIds.push(bestStop.schedule_entry_id);
@@ -361,11 +362,8 @@ export async function inferStopProgress(
     });
   }
 
-  // Time floor: use current time (shifts track start separately)
-  const timeFloor = nowBahia().toFormat("HH:mm");
   const passedStopIds: string[] = [];
   let nextStopId: string | null = null;
-  let firstPendingId: string | null = null;
   let lastPassedStopId: string | null = null;
 
   if (allStops) {
@@ -374,18 +372,13 @@ export async function inferStopProgress(
         passedStopIds.push(stop.schedule_entry_id);
         lastPassedStopId = stop.schedule_entry_id;
       } else if (stop.status === "pending") {
-        if (firstPendingId === null) firstPendingId = stop.schedule_entry_id;
+        // Always use the first pending stop chronologically — including overdue
+        // stops. The read path (resolve-route-progress) trusts this pointer and
+        // computes ETA for it, so skipping overdue stops would break the cutover.
         if (nextStopId === null) {
-          const entry = stop.schedule_entries as unknown as { time: string };
-          if (entry.time >= timeFloor) {
-            nextStopId = stop.schedule_entry_id;
-          }
+          nextStopId = stop.schedule_entry_id;
         }
       }
-    }
-    // Fallback: if all pending stops are overdue, use the first pending stop
-    if (nextStopId === null && firstPendingId !== null) {
-      nextStopId = firstPendingId;
     }
   }
 

@@ -1027,8 +1027,8 @@ describe("inferStopProgress edge cases", () => {
 
     expect(mock._updates).toHaveLength(0);
     expect(mock._backfills).toHaveLength(0);
-    // timeFloor at 09:05, first pending stop with time >= "09:05" is stop-3 ("10:00")
-    expect(result.nextStopId).toBe("stop-3");
+    // First pending stop chronologically is stop-1 ("08:00") — overdue stops are kept
+    expect(result.nextStopId).toBe("stop-1");
   });
 
   it("early arrival window prevents matching future stop even with closest-in-time logic", async () => {

@@ -135,8 +135,7 @@ export async function GET() {
       times,
     });
 
-    const isRunning = withinWindow &&
-      progress?.runStatus === "in_progress";
+    const isRunning = progress?.runStatus === "in_progress";
 
     const trackingStatus = deriveTrackingStatus(van.last_gps_fix_at, now);
     const isTrackingFresh = trackingStatus === "live";
