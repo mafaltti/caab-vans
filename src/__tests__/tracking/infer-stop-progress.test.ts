@@ -125,6 +125,7 @@ function createMockSupabase(opts: {
   const updates: UpdateCall[] = [];
   const backfills: BackfillCall[] = [];
   const routeRunUpdates: RouteRunUpdateCall[] = [];
+  let pingsLimitSpy: ReturnType<typeof vi.fn> | null = null;
   const { pendingStops, allStops, stopCount = 10, shifts = [], pings = [] } = opts;
 
   // Helper: build a chainable mock that terminates with the given result
@@ -189,14 +190,17 @@ function createMockSupabase(opts: {
       }
       if (table === "van_location_pings") {
         const pingResult = { data: pings, error: null };
+        const limitSpy = vi.fn(() => pp);
         const pingProxy: Record<string, unknown> = {};
         const pp = new Proxy(pingProxy, {
           get(_target, prop) {
             if (prop === "then") return undefined;
             if (prop === "order") return () => pingResult;
+            if (prop === "limit") return limitSpy;
             return () => pp;
           },
         });
+        pingsLimitSpy = limitSpy;
         return pp;
       }
       if (table === "route_run_stops") {
@@ -277,6 +281,7 @@ function createMockSupabase(opts: {
     _updates: updates,
     _backfills: backfills,
     _routeRunUpdates: routeRunUpdates,
+    get _pingsLimitSpy() { return pingsLimitSpy; },
   };
 
   return mock;
@@ -2631,6 +2636,11 @@ describe("inferStopProgress evidence query hoisting", () => {
       VAN_AT_CAAB_LAT,
       VAN_AT_CAAB_LNG,
     );
+
+    // Primary assertion: .limit() must NOT be called on van_location_pings query
+    // (proves the 50-ping cap was removed, not just that confidence is stable)
+    expect(mock._pingsLimitSpy).not.toBeNull();
+    expect(mock._pingsLimitSpy).not.toHaveBeenCalled();
 
     expect(mock._updates).toHaveLength(1);
     expect(mock._updates[0].pass_confidence).toBe(0.9);

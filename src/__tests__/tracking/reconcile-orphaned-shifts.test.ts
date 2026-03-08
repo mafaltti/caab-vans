@@ -27,7 +27,9 @@ function createMockSupabase(openShifts: unknown[], closeError: unknown = null) {
           }),
           update: vi.fn(() => ({
             in: vi.fn((_field: string, ids: string[]) => {
-              closedIds.push(...ids);
+              if (closeError == null) {
+                closedIds.push(...ids);
+              }
               return { error: closeError };
             }),
           })),
