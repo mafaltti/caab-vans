@@ -51,7 +51,14 @@
       "Bash(cygpath:*)",
       "Bash(cat:*)",
       "Bash(do echo:*)",
-      "Bash(gh repo:*)"
+      "Bash(gh repo:*)",
+      "WebFetch(domain:blog.transitapp.com)",
+      "WebFetch(domain:www.uber.com)",
+      "Bash(python3:*)",
+      "Bash(sed:*)",
+      "Bash(npx supabase:*)",
+      "Bash(curl:*)",
+      "Bash(npm test:*)"
     ]
   }
 }

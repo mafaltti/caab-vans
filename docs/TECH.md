@@ -64,7 +64,11 @@ Built on shadcn/ui tokens and components; extended with Tailwind utilities for a
 - Explicit constraint:
   - **Supabase Edge Functions must NOT be used** (skip/disable if present)
 
-### 3.3 Tooling
+### 3.3 Testing
+- **Vitest** (unit tests, jsdom environment)
+- Pure unit tests only — no integration or e2e tests
+
+### 3.4 Tooling
 - ESLint
 - Prettier
 

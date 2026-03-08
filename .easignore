@@ -1,0 +1,30 @@
+# EAS Build: exclude everything not needed for the van-tracker Expo build
+# EAS archives from the git root, so we must exclude the web app and other dirs
+
+# Root-level web app (Next.js) — anchored with / to avoid matching inside apps/
+/node_modules/
+/src/
+/public/
+/scripts/
+/.next/
+
+# Infrastructure & docs
+infra/
+docs/
+specs/
+supabase/
+
+# Tracker build artifacts & caches
+apps/van-tracker/node_modules/
+apps/van-tracker/.expo/
+apps/van-tracker/dist/
+apps/van-tracker/android/
+apps/van-tracker/ios/
+
+# Git
+.git/
+
+# Misc
+*.apk
+*.aab
+*.tsbuildinfo
