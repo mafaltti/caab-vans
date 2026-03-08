@@ -271,6 +271,15 @@ export async function resolveRouteProgress(args: {
     etaResult = await computeEta(etaArgs);
   }
 
+  // When includeLastKnown brought us here for a non-running route but the
+  // persisted pointer was invalid/stale, the legacy fallback re-derives
+  // nextStopId from the schedule. Null it out so the route handler doesn't
+  // advertise a schedule guess as persisted "last_known" progress.
+  const isNonRunning = runStatus !== "in_progress";
+  if (includeLastKnown && isNonRunning && !targetStopId) {
+    etaResult = { ...etaResult, nextStopId: null };
+  }
+
   return {
     serviceDate,
     runStatus,
