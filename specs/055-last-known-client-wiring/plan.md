@@ -52,18 +52,28 @@ specs/055-last-known-client-wiring/
 
 ```text
 src/
-├── lib/queries/
-│   ├── use-routes.ts            # Add ?includeLastKnown=true
-│   └── use-route-detail.ts      # Add ?includeLastKnown=true
+├── lib/
+│   ├── queries/
+│   │   ├── use-routes.ts              # Add ?includeLastKnown=true
+│   │   └── use-route-detail.ts        # Add ?includeLastKnown=true
+│   └── tracking/
+│       └── resolve-route-progress.ts  # Null ETA fields in stale-pointer safeguard (Phase G)
+├── app/api/routes/
+│   ├── route.ts                       # Suppress last-known for waiting routes (Phase G)
+│   └── [routeId]/route.ts             # Suppress last-known for waiting routes (Phase G)
 ├── components/public/
-│   ├── schedule-timeline.tsx     # Reorder branches + gray dot for last-known
-│   ├── route-card.tsx            # Add "Última posição" label
-│   └── hero-card.tsx             # Add last-known early-return branch
+│   ├── schedule-timeline.tsx          # Reorder branches + gray dot + ETA guard
+│   ├── route-card.tsx                 # Add "Última posição" label + ETA guard
+│   └── hero-card.tsx                  # Add last-known early-return branch
 ├── app/(public)/routes/
-│   └── [routeId]/page.tsx        # Thread nextStopMode to HeroCard + ScheduleTimeline
-└── __tests__/components/
-    ├── schedule-timeline.test.ts # Update + add last-known test cases
-    └── route-card-last-known.test.ts  # New: label gating tests
+│   └── [routeId]/page.tsx             # Thread nextStopMode to HeroCard + ScheduleTimeline
+└── __tests__/
+    ├── components/
+    │   ├── schedule-timeline.test.ts  # Update + add last-known test cases
+    │   └── route-card-last-known.test.ts  # New: label gating tests
+    └── tracking/
+        ├── routes-api.test.ts                    # New: waiting-route suppression tests (Phase G)
+        └── resolve-route-progress-idle.test.ts   # Strengthen ETA null assertions (Phase G)
 ```
 
 **Structure Decision**: All changes fit within existing directory structure. No new directories or patterns needed.

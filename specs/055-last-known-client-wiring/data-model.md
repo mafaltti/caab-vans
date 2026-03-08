@@ -34,7 +34,7 @@ Already contains all fields needed for last-known display:
 
 No new state transitions. The `nextStopMode` field is computed server-side:
 
-```
+```text
 Route running     → nextStopMode = "live"
 Route not running → includeLastKnown=true → valid pointer → runStatus = "waiting" → nextStopMode = null (suppressed)
 Route not running → includeLastKnown=true → valid pointer → runStatus ≠ "waiting" → nextStopMode = "last_known"
@@ -44,7 +44,7 @@ Route not running → includeLastKnown=false                → nextStopMode = n
 
 ## Prop Flow (New)
 
-```
+```text
 useRoutes() / useRouteDetail()
   └─ ?includeLastKnown=true (query param)
        └─ RouteWithStatus.nextStopMode populated
