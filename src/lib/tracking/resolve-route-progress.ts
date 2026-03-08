@@ -17,6 +17,7 @@ export interface RouteProgress {
   etaNextStopMinutes: number | null;
   delayMinutes: number | null;
   etaSource: "gps" | "gps_osrm" | "segment" | "schedule" | null;
+  etaStatus: "estimated" | "overdue" | "none";
 }
 
 interface ScheduleEntry {
@@ -90,6 +91,7 @@ export async function resolveRouteProgress(args: {
       etaNextStopMinutes: null,
       delayMinutes: null,
       etaSource: null,
+      etaStatus: "none",
     };
   }
 
@@ -116,6 +118,7 @@ export async function resolveRouteProgress(args: {
       etaNextStopMinutes: null,
       delayMinutes: null,
       etaSource: null,
+      etaStatus: "none",
     };
   }
 

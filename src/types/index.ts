@@ -118,6 +118,7 @@ export type RouteProgress = {
   etaNextStopMinutes: number | null;
   delayMinutes: number | null;
   etaSource: "gps" | "gps_osrm" | "segment" | "schedule" | null;
+  etaStatus: "estimated" | "overdue" | "none";
 };
 
 export type RouteWithStatus = {
@@ -127,6 +128,7 @@ export type RouteWithStatus = {
   trackingStatus: TrackingStatus;
   isTrackingFresh: boolean;
   nextStop: NextStop | null;
+  nextStopMode: "live" | "last_known" | null;
   scheduleStatus: ScheduleStatus;
   totalStops: number;
   currentStopIndex: number | null;

@@ -161,8 +161,10 @@ describe("resolveRouteProgress – idle suppression (FR-011)", () => {
     expect(result!.nextStopId).toBe("entry-2");
     expect(result!.shiftStartedAt).toBe(shiftStartedAt);
     // ETA should be computed (schedule-based fallback since no GPS)
+    // Stop 08:30 is overdue at NOW (10:00) → etaStatus "overdue", minutes null
     expect(result!.etaNextStopISO).not.toBeNull();
-    expect(result!.etaNextStopMinutes).not.toBeNull();
+    expect(result!.etaStatus).toBe("overdue");
+    expect(result!.etaNextStopMinutes).toBeNull();
     expect(result!.etaSource).toBe("schedule");
   });
 });

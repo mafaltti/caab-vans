@@ -38,6 +38,7 @@ function makeRoute(overrides: Partial<{
     nextStop: overrides.nextStopId
       ? { id: overrides.nextStopId, stopName: "Stop A", time: "08:00" }
       : null,
+    nextStopMode: overrides.nextStopId ? "live" : null,
     scheduleStatus: "active",
     totalStops: 5,
     currentStopIndex: 1,
@@ -59,6 +60,7 @@ function makeRoute(overrides: Partial<{
           etaNextStopMinutes: overrides.etaNextStopMinutes ?? null,
           delayMinutes: null,
           etaSource: "gps",
+          etaStatus: "estimated",
         }
       : null,
     schedule: [

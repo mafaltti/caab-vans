@@ -193,7 +193,7 @@ function createMockSupabase(opts: {
         const pp = new Proxy(pingProxy, {
           get(_target, prop) {
             if (prop === "then") return undefined;
-            if (prop === "limit") return () => pingResult;
+            if (prop === "order") return () => pingResult;
             return () => pp;
           },
         });
@@ -1644,7 +1644,8 @@ describe("inferStopProgress confidence gating", () => {
 
     expect(mock._updates).toHaveLength(1);
     expect(mock._updates[0].pass_source).toBe("geofence_snapped");
-    expect(mock._updates[0].pass_confidence).toBe(0.8);
+    // Raw ~33m (inside 50m geofence) → base 0.85 + 0.10 (2 pings) = 0.95
+    expect(mock._updates[0].pass_confidence).toBe(0.95);
   });
 });
 
@@ -2133,7 +2134,7 @@ describe("inferStopProgress confidence source alignment", () => {
     vi.restoreAllMocks();
   });
 
-  it("snapped passage with 2+ pings gets confidence 0.8 (T027)", async () => {
+  it("snapped passage with 2+ pings gets confidence 0.95 (T027)", async () => {
     setMockTime(8, 5);
 
     const pendingStops = [
@@ -2180,7 +2181,8 @@ describe("inferStopProgress confidence source alignment", () => {
 
     expect(mock._updates).toHaveLength(1);
     expect(mock._updates[0].pass_source).toBe("geofence_snapped");
-    expect(mock._updates[0].pass_confidence).toBe(0.8);
+    // Raw ~33m (inside 50m geofence) → base 0.85 + 0.10 (2 pings) = 0.95
+    expect(mock._updates[0].pass_confidence).toBe(0.95);
   });
 
   it("raw passage with 2+ pings still gets confidence 0.9 (T028)", async () => {
@@ -2220,7 +2222,7 @@ describe("inferStopProgress confidence source alignment", () => {
     expect(mock._updates[0].pass_confidence).toBe(0.9);
   });
 
-  it("snapped passage with < 2 pings keeps confidence 0.8 (T029)", async () => {
+  it("snapped passage with < 2 pings and raw inside geofence gets confidence 0.85 (T029)", async () => {
     setMockTime(8, 5);
 
     const pendingStops = [
@@ -2264,7 +2266,8 @@ describe("inferStopProgress confidence source alignment", () => {
 
     expect(mock._updates).toHaveLength(1);
     expect(mock._updates[0].pass_source).toBe("geofence_snapped");
-    expect(mock._updates[0].pass_confidence).toBe(0.8);
+    // Raw ~33m (inside 50m geofence) → base 0.85, no ping bonus, no disp bonus
+    expect(mock._updates[0].pass_confidence).toBe(0.85);
   });
 });
 
@@ -2319,7 +2322,7 @@ describe("inferStopProgress backfill gate tightening", () => {
     expect(mock._backfills[0].pass_confidence).toBe(0.7); // 1-stop gap
   });
 
-  it("snapped passage (confidence 0.8) with gap=1 DOES trigger backfill (T034)", async () => {
+  it("snapped passage (confidence 0.85) with gap=1 DOES trigger backfill (T034)", async () => {
     setMockTime(9, 5);
 
     const pendingStops = [
@@ -2358,9 +2361,10 @@ describe("inferStopProgress backfill gate tightening", () => {
     expect(mock._updates).toHaveLength(1);
     expect(mock._updates[0].schedule_entry_id).toBe("stop-2");
     expect(mock._updates[0].pass_source).toBe("geofence_snapped");
-    expect(mock._updates[0].pass_confidence).toBe(0.8);
+    // Raw ~33m (inside 50m geofence) → base 0.85, no ping bonus, no disp bonus
+    expect(mock._updates[0].pass_confidence).toBe(0.85);
 
-    // 0.8 > 0.7, so backfill IS allowed
+    // 0.85 > 0.7, so backfill IS allowed
     expect(mock._backfills).toHaveLength(1);
     expect(mock._backfills[0].schedule_entry_ids).toEqual(["stop-1"]);
   });
@@ -2578,5 +2582,371 @@ describe("write error logging", () => {
       routeId: "route-1",
       serviceDate: expect.any(String),
     });
+  });
+});
+
+describe("inferStopProgress evidence query hoisting", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("T004: >50 pings in window produces deterministic confidence 0.90", async () => {
+    setMockTime(8, 5);
+
+    const pendingStops = [
+      {
+        schedule_entry_id: "entry-0800",
+        schedule_entries: {
+          time: "08:00",
+          stop_lat: CAAB_LAT,
+          stop_lng: CAAB_LNG,
+          geofence_radius_m: 50,
+        },
+      },
+    ];
+    const allStops = [
+      {
+        schedule_entry_id: "entry-0800",
+        status: "passed",
+        schedule_entries: { time: "08:00" },
+      },
+    ];
+
+    // 60 pings all inside geofence
+    const pings = Array.from({ length: 60 }, () => ({
+      lat: VAN_AT_CAAB_LAT,
+      lng: VAN_AT_CAAB_LNG,
+    }));
+
+    const mock = createMockSupabase({
+      pendingStops,
+      allStops,
+      shifts: [{ id: "shift-1", ended_at: null }],
+      pings,
+    });
+    await inferStopProgress(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mock as any,
+      "van-1",
+      VAN_AT_CAAB_LAT,
+      VAN_AT_CAAB_LNG,
+    );
+
+    expect(mock._updates).toHaveLength(1);
+    expect(mock._updates[0].pass_confidence).toBe(0.9);
+  });
+
+  it("T005: evidence is fetched exactly once per invocation with multiple coord groups", async () => {
+    setMockTime(8, 5);
+
+    // Two stops at different coordinates — two coordinate groups
+    const pendingStops = [
+      {
+        schedule_entry_id: "stop-a",
+        schedule_entries: {
+          time: "08:00",
+          stop_lat: CAAB_LAT,
+          stop_lng: CAAB_LNG,
+          geofence_radius_m: 50,
+        },
+      },
+      {
+        schedule_entry_id: "stop-b",
+        schedule_entries: {
+          time: "08:00",
+          stop_lat: -12.980,
+          stop_lng: -38.520,
+          geofence_radius_m: 50,
+        },
+      },
+    ];
+    const allStops = [
+      {
+        schedule_entry_id: "stop-a",
+        status: "passed",
+        schedule_entries: { time: "08:00" },
+      },
+      {
+        schedule_entry_id: "stop-b",
+        status: "pending",
+        schedule_entries: { time: "08:00" },
+      },
+    ];
+
+    const mock = createMockSupabase({
+      pendingStops,
+      allStops,
+      shifts: [{ id: "shift-1", ended_at: null }],
+      pings: [{ lat: VAN_AT_CAAB_LAT, lng: VAN_AT_CAAB_LNG }],
+    });
+    await inferStopProgress(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mock as any,
+      "van-1",
+      VAN_AT_CAAB_LAT,
+      VAN_AT_CAAB_LNG,
+    );
+
+    // Count how many times van_location_pings was queried
+    const pingCalls = mock.from.mock.calls.filter(
+      (call: string[]) => call[0] === "van_location_pings",
+    );
+    expect(pingCalls).toHaveLength(1);
+  });
+
+  it("T006: 2 raw pings in geofence produces confidence 0.90", async () => {
+    setMockTime(8, 5);
+
+    const pendingStops = [
+      {
+        schedule_entry_id: "entry-0800",
+        schedule_entries: {
+          time: "08:00",
+          stop_lat: CAAB_LAT,
+          stop_lng: CAAB_LNG,
+          geofence_radius_m: 50,
+        },
+      },
+    ];
+    const allStops = [
+      {
+        schedule_entry_id: "entry-0800",
+        status: "passed",
+        schedule_entries: { time: "08:00" },
+      },
+    ];
+
+    // Exactly 2 pings inside geofence
+    const pings = [
+      { lat: VAN_AT_CAAB_LAT, lng: VAN_AT_CAAB_LNG },
+      { lat: VAN_AT_CAAB_LAT + 0.00001, lng: VAN_AT_CAAB_LNG + 0.00001 },
+    ];
+
+    const mock = createMockSupabase({
+      pendingStops,
+      allStops,
+      shifts: [{ id: "shift-1", ended_at: null }],
+      pings,
+    });
+    await inferStopProgress(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mock as any,
+      "van-1",
+      VAN_AT_CAAB_LAT,
+      VAN_AT_CAAB_LNG,
+    );
+
+    expect(mock._updates).toHaveLength(1);
+    expect(mock._updates[0].pass_confidence).toBe(0.9);
+  });
+});
+
+// --- Monotonic snapped confidence tests (US4) ---
+
+describe("inferStopProgress monotonic snapped confidence", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  // Snapped coordinates: close to stop but snapped position is even closer
+  // Raw position is OUTSIDE 50m geofence, snapped is INSIDE
+  const STOP_LAT = -12.9714;
+  const STOP_LNG = -38.5124;
+  // Raw: ~52m from stop (outside 50m geofence, but within 50m snap displacement of SNAPPED_NEAR)
+  const RAW_OUTSIDE_LAT = -12.97187;
+  const RAW_OUTSIDE_LNG = -38.5124;
+  // Snapped: ~5m from stop (inside 50m geofence)
+  const SNAPPED_NEAR_LAT = -12.97143;
+  const SNAPPED_NEAR_LNG = -38.51237;
+  // Raw: ~20m from stop (inside 50m geofence)
+  const RAW_INSIDE_LAT = -12.97158;
+  const RAW_INSIDE_LNG = -38.5124;
+  // Snapped: ~13m from raw outside (displacement ≤15m), ~48m from stop (inside geofence)
+  const SNAPPED_LOW_DISP_LAT = -12.97183;
+  const SNAPPED_LOW_DISP_LNG = -38.5124;
+
+  function makeSnappedPendingStop() {
+    return [{
+      schedule_entry_id: "entry-0800",
+      schedule_entries: {
+        time: "08:00",
+        stop_lat: STOP_LAT,
+        stop_lng: STOP_LNG,
+        geofence_radius_m: 50,
+      },
+    }];
+  }
+
+  function makeAllStopsPassed() {
+    return [{
+      schedule_entry_id: "entry-0800",
+      status: "passed",
+      schedule_entries: { time: "08:00" },
+    }];
+  }
+
+  // T027: snapped match with raw outside geofence returns 0.65
+  it("snapped match with raw outside geofence returns confidence 0.65", async () => {
+    setMockTime(8, 5);
+    const mock = createMockSupabase({
+      pendingStops: makeSnappedPendingStop(),
+      allStops: makeAllStopsPassed(),
+      shifts: [{ id: "shift-1", ended_at: null }],
+      pings: [], // no confirming pings
+    });
+
+    await inferStopProgress(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mock as any,
+      "van-1",
+      RAW_OUTSIDE_LAT, RAW_OUTSIDE_LNG,
+      SNAPPED_NEAR_LAT, SNAPPED_NEAR_LNG,
+    );
+
+    expect(mock._updates).toHaveLength(1);
+    expect(mock._updates[0].pass_confidence).toBe(0.65);
+    expect(mock._updates[0].pass_source).toBe("geofence_snapped");
+  });
+
+  // T028: snapped match with raw inside geofence returns 0.85
+  it("snapped match with raw inside geofence returns confidence 0.85", async () => {
+    setMockTime(8, 5);
+    const mock = createMockSupabase({
+      pendingStops: makeSnappedPendingStop(),
+      allStops: makeAllStopsPassed(),
+      shifts: [{ id: "shift-1", ended_at: null }],
+      pings: [], // no confirming pings
+    });
+
+    await inferStopProgress(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mock as any,
+      "van-1",
+      RAW_INSIDE_LAT, RAW_INSIDE_LNG,
+      SNAPPED_NEAR_LAT, SNAPPED_NEAR_LNG,
+    );
+
+    expect(mock._updates).toHaveLength(1);
+    // Raw inside + snapped inside, but snapped is closer so used for geofence
+    // But since raw is ALSO inside, base is 0.85
+    expect(mock._updates[0].pass_confidence).toBe(0.85);
+  });
+
+  // T029: snapped match with 2+ confirming pings adds +0.10 (capped at 0.95)
+  it("snapped match with 2+ confirming pings adds 0.10 bonus", async () => {
+    setMockTime(8, 5);
+    const mock = createMockSupabase({
+      pendingStops: makeSnappedPendingStop(),
+      allStops: makeAllStopsPassed(),
+      shifts: [{ id: "shift-1", ended_at: null }],
+      pings: [
+        { lat: STOP_LAT + 0.00001, lng: STOP_LNG + 0.00001 },
+        { lat: STOP_LAT - 0.00001, lng: STOP_LNG - 0.00001 },
+      ], // 2 pings inside geofence
+    });
+
+    await inferStopProgress(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mock as any,
+      "van-1",
+      RAW_OUTSIDE_LAT, RAW_OUTSIDE_LNG,
+      SNAPPED_NEAR_LAT, SNAPPED_NEAR_LNG,
+    );
+
+    expect(mock._updates).toHaveLength(1);
+    // base 0.65 (raw outside) + 0.10 (2+ pings) = 0.75
+    expect(mock._updates[0].pass_confidence).toBe(0.75);
+  });
+
+  // T030: snapped match with snap displacement ≤15m adds +0.05
+  it("snapped match with low snap displacement adds 0.05 bonus", async () => {
+    setMockTime(8, 5);
+    const mock = createMockSupabase({
+      pendingStops: makeSnappedPendingStop(),
+      allStops: makeAllStopsPassed(),
+      shifts: [{ id: "shift-1", ended_at: null }],
+      pings: [],
+    });
+
+    // Raw outside, snapped close (low displacement ~10m between raw and snapped)
+    await inferStopProgress(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mock as any,
+      "van-1",
+      RAW_OUTSIDE_LAT, RAW_OUTSIDE_LNG,
+      SNAPPED_LOW_DISP_LAT, SNAPPED_LOW_DISP_LNG,
+    );
+
+    expect(mock._updates).toHaveLength(1);
+    // base 0.65 (raw outside) + 0.05 (low displacement) = 0.70
+    expect(mock._updates[0].pass_confidence).toBe(0.70);
+  });
+
+  // T031: monotonic property — progressively stronger evidence never decreases confidence
+  it("confidence is monotonically increasing with stronger evidence", async () => {
+    setMockTime(8, 5);
+
+    // Level 1: snapped only, raw outside, no pings, high displacement
+    const mock1 = createMockSupabase({
+      pendingStops: makeSnappedPendingStop(),
+      allStops: makeAllStopsPassed(),
+      shifts: [{ id: "shift-1", ended_at: null }],
+      pings: [],
+    });
+    await inferStopProgress(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mock1 as any, "van-1", RAW_OUTSIDE_LAT, RAW_OUTSIDE_LNG, SNAPPED_NEAR_LAT, SNAPPED_NEAR_LNG,
+    );
+    const conf1 = mock1._updates[0].pass_confidence!;
+
+    // Level 2: snapped, raw outside, low displacement
+    setMockTime(8, 5);
+    const mock2 = createMockSupabase({
+      pendingStops: makeSnappedPendingStop(),
+      allStops: makeAllStopsPassed(),
+      shifts: [{ id: "shift-1", ended_at: null }],
+      pings: [],
+    });
+    await inferStopProgress(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mock2 as any, "van-1", RAW_OUTSIDE_LAT, RAW_OUTSIDE_LNG, SNAPPED_LOW_DISP_LAT, SNAPPED_LOW_DISP_LNG,
+    );
+    const conf2 = mock2._updates[0].pass_confidence!;
+
+    // Level 3: snapped, raw outside, 2+ pings
+    setMockTime(8, 5);
+    const mock3 = createMockSupabase({
+      pendingStops: makeSnappedPendingStop(),
+      allStops: makeAllStopsPassed(),
+      shifts: [{ id: "shift-1", ended_at: null }],
+      pings: [
+        { lat: STOP_LAT + 0.00001, lng: STOP_LNG + 0.00001 },
+        { lat: STOP_LAT - 0.00001, lng: STOP_LNG - 0.00001 },
+      ],
+    });
+    await inferStopProgress(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mock3 as any, "van-1", RAW_OUTSIDE_LAT, RAW_OUTSIDE_LNG, SNAPPED_NEAR_LAT, SNAPPED_NEAR_LNG,
+    );
+    const conf3 = mock3._updates[0].pass_confidence!;
+
+    // Level 4: snapped, raw inside
+    setMockTime(8, 5);
+    const mock4 = createMockSupabase({
+      pendingStops: makeSnappedPendingStop(),
+      allStops: makeAllStopsPassed(),
+      shifts: [{ id: "shift-1", ended_at: null }],
+      pings: [],
+    });
+    await inferStopProgress(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mock4 as any, "van-1", RAW_INSIDE_LAT, RAW_INSIDE_LNG, SNAPPED_NEAR_LAT, SNAPPED_NEAR_LNG,
+    );
+    const conf4 = mock4._updates[0].pass_confidence!;
+
+    // Verify monotonic: conf1 <= conf2 <= conf3 <= conf4
+    expect(conf1).toBeLessThanOrEqual(conf2); // 0.65 <= 0.70
+    expect(conf2).toBeLessThanOrEqual(conf3); // 0.70 <= 0.75
+    expect(conf3).toBeLessThanOrEqual(conf4); // 0.75 <= 0.85
   });
 });

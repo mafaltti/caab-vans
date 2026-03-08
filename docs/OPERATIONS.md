@@ -16,6 +16,18 @@ Primary flow:
 - Web UI -> Next.js BFF -> Supabase
 - Tracker app -> Next.js tracking endpoints -> Supabase
 
+## Supported Topology
+
+The supported deployment shape for this repo is:
+
+- `infra/supabase/` via Docker Compose
+- Next.js app via `systemd`
+- Caddy in front of the app, Supabase gateway, and Studio
+- Optional `infra/osrm/`
+- Tracker app distributed with EAS
+
+`infra/caab-vans/` is not part of the supported deployment path.
+
 ## Environment Variables
 
 ### Root App and Script Env (`.env.local`)
@@ -30,7 +42,7 @@ Primary flow:
 | `OSRM_ROUTE_TIMEOUT_MS` | No | Server | Route timeout override |
 | `OSRM_MATCH_TIMEOUT_MS` | No | Server | Match timeout override |
 | `NEXT_PUBLIC_TILE_URL` | No | Client | Optional tile source |
-| `DEBUG_ETA` | No | Server | Verbose ETA logging |
+| `DEBUG_ETA` | No | Server | Verbose ETA comparison logging |
 | `TRACKING_PROGRESS_SOURCE` | No | Server | `legacy`, `shadow`, or `persisted` |
 | `APP_URL` | No | Scripts | Used by `simulate-tracking.ts` |
 | `BOOTSTRAP_SUPERUSER_EMAIL` | No | Scripts | Required only by `npm run auth:bootstrap` |
@@ -38,19 +50,21 @@ Primary flow:
 
 ### Supabase Env (`infra/supabase/.env`)
 
-Key variables:
-
 | Variable | Notes |
 |----------|-------|
 | `POSTGRES_PASSWORD` | Database password |
+| `POSTGRES_DB` | Defaults to `postgres` |
+| `POSTGRES_PORT` | Recommended `5433` |
 | `JWT_SECRET` | Shared JWT secret |
+| `JWT_EXP` | JWT expiration in seconds |
 | `ANON_KEY` | Public anon key |
 | `SERVICE_ROLE_KEY` | Service role key |
 | `API_EXTERNAL_URL` | Public gateway URL |
 | `SITE_URL` | Public app URL |
 | `KONG_HTTP_PORT` | Defaults to `54321` |
-| `POSTGRES_PORT` | Defaults to `5432`; production docs recommend `5433` |
-| `STUDIO_PORT` | Defaults to `54324` |
+| `STUDIO_PORT` | Recommended `54324` |
+| `PGRST_PORT` | Defaults to `3001` |
+| `GOTRUE_PORT` | Defaults to `9999` |
 | `DISABLE_SIGNUP` | Keep `true` |
 
 ### OSRM Env (`infra/osrm/.env`)
@@ -58,6 +72,18 @@ Key variables:
 | Variable | Notes |
 |----------|-------|
 | `OSRM_PORT` | Defaults to `5000` |
+
+## Standard Local Ports
+
+| Service | Default |
+|---------|---------|
+| Next.js app | `3000` |
+| Kong / Supabase gateway | `54321` |
+| Postgres | `5433` |
+| Supabase Studio | `54324` |
+| PostgREST | `3001` |
+| GoTrue | `9999` |
+| OSRM | `5000` |
 
 ## Infrastructure
 
@@ -80,7 +106,7 @@ Services included:
 - Studio
 - Postgres Meta
 
-Studio defaults to `http://localhost:54324` locally.
+Studio defaults to `http://localhost:54324` when using the checked-in example env.
 
 ### OSRM
 
@@ -101,15 +127,6 @@ cd infra/osrm
 ./scripts/update-data.sh
 ```
 
-### Supported Production Shape
-
-- Supabase via Docker Compose
-- Next.js app via `systemd`
-- Caddy in front of app, gateway, and Studio
-- Optional OSRM on the same VPS
-
-`infra/caab-vans/` is not part of the supported deployment path.
-
 ## Database Schema
 
 The live schema is represented by the SQL files in `supabase/migrations/`.
@@ -127,6 +144,15 @@ High-level tables:
 | `route_run_stops` | Stop progress for a run |
 | `van_drivers` | Driver assignments |
 | `route_shifts` | Driver shift windows |
+
+Notable columns and functions added after the initial schema:
+
+- `schedule_entries.stop_lat`, `stop_lng`, `geofence_radius_m`, `osrm_distance_m`, `stop_group_id`
+- `route_run_stops.pass_source`, `pass_confidence`
+- `route_runs.last_passed_stop_id`, `next_stop_id`, `progress_updated_at`
+- `van_location_pings.buffer_size`, `failure_count`, `battery_level`, `network_type`
+- `vans.last_lat`, `last_lng`, `last_speed_mps`, `snapped_lat`, `snapped_lng`, `last_gps_fix_at`
+- RPC: `update_van_position(...)` for atomic latest-position writes
 
 Operational patterns:
 
@@ -158,6 +184,56 @@ Operational patterns:
 - `POST /api/tracking/:vanId`
 - `POST /api/tracking-batch/:vanId`
 - `POST /api/ingest/:vanId`
+
+Tracking auth and rate limits:
+
+- `x-ingestion-token` header is required for all three endpoints
+- `/api/tracking/:vanId` and `/api/tracking-batch/:vanId` are limited to 25 requests/minute per van
+- `/api/ingest/:vanId` is limited to 10 requests/minute per van
+
+Tracker GPS payload contract:
+
+```json
+{
+  "deviceId": "uuid",
+  "lat": -12.97,
+  "lng": -38.50,
+  "accuracy": 12.3,
+  "speed": 8.5,
+  "heading": 180,
+  "ts": 1772074800000,
+  "bufferSize": 0,
+  "failureCount": 0,
+  "batteryLevel": 0.76,
+  "networkType": "wifi"
+}
+```
+
+Batch tracking payload contract:
+
+```json
+{
+  "points": [
+    {
+      "deviceId": "uuid",
+      "lat": -12.97,
+      "lng": -38.50,
+      "accuracy": 12.3,
+      "speed": 8.5,
+      "heading": 180,
+      "ts": 1772074800000
+    }
+  ]
+}
+```
+
+Legacy location-url ingest contract:
+
+```json
+{
+  "message": "Van location: https://maps.google.com/..."
+}
+```
 
 ### Event Logging
 
@@ -191,7 +267,7 @@ Direct scripts:
 | `scripts/compute-time-factors.ts` | Generate `data/time-factors.json` |
 | `scripts/simulate-tracking.ts` | Send simulated GPS traffic |
 
-`npm run db:migrate:docker` is legacy and should not be used for normal workflows.
+`npm run db:migrate:docker` is a legacy helper that only pipes `00001_initial_schema.sql` into the `supabase-db-1` container. Do not use it for normal workflows.
 
 ## ETA and Tracking Notes
 
@@ -228,6 +304,8 @@ Client polling hooks live in:
 - Active flag stored in `auth.users.app_metadata.is_active`
 - Tracking endpoints use `x-ingestion-token`
 - Middleware guards `/admin/*` and `/driver/*`
+- Only `superuser` can manage users
+- The API prevents deactivating or demoting the last active superuser
 
 The in-repo rate limiter is in-memory and process-local.
 
@@ -240,6 +318,11 @@ The in-repo rate limiter is in-memory and process-local.
 3. Run `npm run db:migrate`.
 4. Optionally run `npm run db:seed` for development-only bootstrap work.
 5. Start the app with `npm run dev`.
+
+Seed output:
+
+- Email: `admin@caab.org.br`
+- Password: `caab2026!`
 
 ### Production Bring-Up
 
@@ -254,7 +337,64 @@ Use [DEPLOYMENT.md](DEPLOYMENT.md). The supported sequence is:
 7. Caddy
 8. Optional OSRM
 
-### After Changing Stops
+### Application Release Procedure
+
+For normal updates:
+
+```bash
+cd /opt/caab-vans
+git fetch --all
+git checkout <target-branch-or-commit>
+npm ci
+npm run db:migrate
+npm run build
+sudo systemctl restart caab-vans
+```
+
+Restart the app whenever `.env.local` changes.
+
+### Database Backup
+
+Create a logical backup from the Supabase compose directory:
+
+```bash
+cd /opt/caab-vans/infra/supabase
+docker compose exec -T db pg_dump -U postgres -d postgres > /var/backups/caab-vans-$(date +%F).sql
+```
+
+Recommended cadence:
+
+- Before every production deploy
+- Before manual SQL maintenance
+- On a regular schedule outside the app repo
+
+### Database Restore
+
+Restore into a maintenance window:
+
+```bash
+cd /opt/caab-vans/infra/supabase
+cat /var/backups/caab-vans-YYYY-MM-DD.sql | docker compose exec -T db psql -U postgres -d postgres
+```
+
+If you restore over a live app database, restart the app afterwards so pooled connections are reset.
+
+### Ping Retention Cleanup
+
+There is no automated retention job in the repo for `van_location_pings`. To prune old data manually:
+
+```sql
+DELETE FROM van_location_pings
+WHERE received_at < now() - interval '90 days';
+```
+
+Follow large deletions with:
+
+```sql
+VACUUM ANALYZE van_location_pings;
+```
+
+### After Changing Stops or Stop Coordinates
 
 Run:
 
@@ -262,7 +402,53 @@ Run:
 npx tsx scripts/precompute-stop-distances.ts
 ```
 
-Optionally recalibrate time factors if enough route history exists.
+Then optionally recalibrate time factors if enough route history exists:
+
+```bash
+npx tsx scripts/compute-time-factors.ts
+```
+
+### Tracker Fleet Operations
+
+Important current behaviors from `apps/van-tracker/`:
+
+- The app sends the live point first to `/api/tracking/:vanId`, then flushes buffered points to `/api/tracking-batch/:vanId`.
+- Buffered points are kept for up to 24 hours and capped at 100 points.
+- After 3 consecutive `401` responses, the tracker pauses auth-sensitive sends until settings are corrected.
+- Admin van responses expose tracker health. A van is marked stale after 10 minutes without GPS, and unhealthy when it is stale, buffer size is over 20, or failure count is over 3.
+- Ingestion token rotation is handled by the van edit API (`regenerateToken`). Re-provision the device immediately after rotating a token.
+- Support logs can be exported from the tracker Diagnostics screen.
+
+### OSRM Operations
+
+- Bring up the stack from `infra/osrm/` only if you want road-snapped positions and OSRM routing.
+- Refresh Nordeste data with `infra/osrm/scripts/update-data.sh`.
+- Changing OSRM env vars requires restarting the app process because the env is read at process start.
+- If OSRM is unavailable, ETA falls back automatically to haversine-based distance.
+
+### ETA Operations
+
+- `TRACKING_PROGRESS_SOURCE=legacy` is the current safe default.
+- `TRACKING_PROGRESS_SOURCE=shadow` computes both legacy and persisted stop pointers and logs mismatches.
+- `TRACKING_PROGRESS_SOURCE=persisted` uses stored stop pointers when valid and falls back to legacy when they are stale or invalid.
+- `data/time-factors.json` is environment-specific generated data. It is read on each API request, so replacing the file does not require an app restart.
+
+### Logs and Debugging
+
+Useful commands:
+
+```bash
+sudo systemctl status caab-vans
+sudo journalctl -u caab-vans -n 200 --no-pager
+cd /opt/caab-vans/infra/supabase && docker compose ps
+cd /opt/caab-vans/infra/osrm && docker compose logs --tail=100 osrm
+```
+
+Optional debug aids:
+
+- Set `DEBUG_ETA=1` to emit structured ETA comparison logs
+- Use `apps/van-tracker` Diagnostics export for field incidents
+- Use `scripts/simulate-tracking.ts` to send synthetic pings against a configured app URL
 
 ### Quality Gates
 
@@ -280,6 +466,24 @@ Tracker workspace:
 ```bash
 cd apps/van-tracker
 npm run check
+```
+
+### Orphaned Shift Reconciliation
+
+The reconciliation script auto-closes shifts that are past their schedule window and inactive:
+
+```bash
+# Dry run (log candidates, no mutations)
+DRY_RUN=1 npx tsx scripts/reconcile-orphaned-shifts.ts
+
+# Live run
+npx tsx scripts/reconcile-orphaned-shifts.ts
+```
+
+Schedule via cron or systemd timer every 5 minutes:
+
+```cron
+*/5 * * * * cd /path/to/caab-vans && npx tsx scripts/reconcile-orphaned-shifts.ts >> /var/log/reconcile-shifts.log 2>&1
 ```
 
 ## Known Limitations
