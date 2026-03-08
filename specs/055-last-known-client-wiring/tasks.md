@@ -165,7 +165,16 @@ Task T010: "Test completed status returns all-past"
 
 - [P] tasks = different files, no dependencies
 - [Story] label maps task to specific user story for traceability
-- All changes are client-side only — no backend modifications needed
 - The `nextStopMode` field already exists in `RouteWithStatus` type — no type changes needed
 - Commit after each phase for clean git history
 - The existing test "returns all neutral when not running" (T007) must be updated BEFORE new tests are added to avoid confusion
+
+## Post-Implementation: Review-Driven Fixes
+
+The following additional tasks were identified during PR review and implemented after the initial task plan:
+
+- [x] T020 In `src/app/api/routes/route.ts` and `src/app/api/routes/[routeId]/route.ts`, add `progress.runStatus !== "waiting"` guard to the last-known population block. Prevents waiting routes from showing stale progress.
+- [x] T021 In `src/lib/tracking/resolve-route-progress.ts`, null `etaNextStopMinutes` and `etaNextStopISO` alongside `nextStopId` in the stale-pointer safeguard (line ~280). Prevents leaked ETA for invalid pointers.
+- [x] T022 In `src/components/public/route-card.tsx` and `src/components/public/schedule-timeline.tsx`, add `nextStopMode !== "last_known"` guard to ETA rendering blocks. Defense-in-depth against ETA display in last-known mode.
+- [x] T023 In `src/__tests__/tracking/routes-api.test.ts`, add 6 tests for waiting-route last-known suppression logic (pure function extraction mirroring route handler gate).
+- [x] T024 In `src/__tests__/tracking/resolve-route-progress-idle.test.ts`, strengthen idle test to assert `etaNextStopMinutes` and `etaNextStopISO` are null when pointer is stale.
