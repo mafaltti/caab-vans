@@ -234,7 +234,10 @@ export async function computeEta(args: {
     };
   }
 
-  // Segment-aware fallback: use stored OSRM distance when GPS is unavailable
+  // Segment-aware fallback: use stored OSRM distance when GPS is unavailable.
+  // Known limitation: osrmDistanceM is the distance from the last passed stop
+  // to its immediate successor only. When targetStopId is a non-successor stop,
+  // the ETA is approximate. Accumulating multi-segment distances is a future enhancement.
   const sortedPassedForSegment = [...passed].sort((a, b) => a.time.localeCompare(b.time));
   const lastPassedForSegment = sortedPassedForSegment.length > 0 ? sortedPassedForSegment.at(-1)! : null;
 
