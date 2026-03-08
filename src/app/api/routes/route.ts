@@ -166,6 +166,20 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Populate last-known summary for non-running routes when requested
+    if (!isRunning && includeLastKnown && progress?.nextStopId) {
+      const resolved = resolveNextStop(sortedEntries, progress.nextStopId, formatTimeString);
+      if (resolved) {
+        nextStop = resolved.nextStop;
+        currentStopIndex = resolved.currentStopIndex;
+        nextStopEntry = resolved.nextStopEntry;
+      }
+    }
+
+    const nextStopMode = isRunning
+      ? "live"
+      : (nextStop ? "last_known" : null);
+
     return {
       id: route.id,
       name: route.name,
@@ -179,6 +193,7 @@ export async function GET(request: NextRequest) {
             id: nextStopEntry?.id ?? null,
           }
         : null,
+      nextStopMode,
       scheduleStatus,
       totalStops,
       currentStopIndex:

@@ -29,6 +29,7 @@ interface EtaResult {
   nextStopId: string | null;
   passedStopIds: string[];
   etaSource: "gps" | "gps_osrm" | "segment" | "schedule" | null;
+  etaStatus: "estimated" | "overdue" | "none";
 }
 
 export const ROAD_FACTOR = 1.3;
@@ -73,7 +74,7 @@ export async function computeEta(args: {
   if (targetStopId) {
     const target = pending.find((s) => s.scheduleEntryId === targetStopId);
     if (!target) {
-      return { etaNextStopISO: null, etaNextStopMinutes: null, delayMinutes: null, nextStopId: null, passedStopIds, etaSource: null };
+      return { etaNextStopISO: null, etaNextStopMinutes: null, delayMinutes: null, nextStopId: null, passedStopIds, etaSource: null, etaStatus: "none" };
     }
     nextStop = target;
     nextStopId = target.scheduleEntryId;
@@ -98,6 +99,7 @@ export async function computeEta(args: {
         nextStopId: null,
         passedStopIds,
         etaSource: null,
+        etaStatus: "none",
       };
     }
 
@@ -237,6 +239,7 @@ export async function computeEta(args: {
       nextStopId,
       passedStopIds,
       etaSource,
+      etaStatus: "estimated",
     };
   }
 
@@ -270,9 +273,22 @@ export async function computeEta(args: {
         const timeFactor = getTimeFactor(now.hour, now.weekday, routeId, recentRuns);
         const travelMinutes = (accumulatedDistance / REFERENCE_SPEED_MPS / 60) * timeFactor;
         const etaDateTime = DateTime.fromISO(lastPassedForSegment.passedAt).setZone(now.zone).plus({ minutes: travelMinutes });
-        const etaNextStopMinutes = Math.max(0, Math.ceil(etaDateTime.diff(now, "minutes").minutes));
 
         const delay = DateTime.fromISO(lastPassedForSegment.passedAt).diff(parseTime(lastPassedForSegment.time), "minutes").minutes;
+
+        if (etaDateTime <= now) {
+          return {
+            etaNextStopISO: etaDateTime.toISO(),
+            etaNextStopMinutes: null,
+            delayMinutes: delay != null ? Math.round(delay) : null,
+            nextStopId,
+            passedStopIds,
+            etaSource: "segment",
+            etaStatus: "overdue",
+          };
+        }
+
+        const etaNextStopMinutes = Math.ceil(etaDateTime.diff(now, "minutes").minutes);
 
         return {
           etaNextStopISO: etaDateTime.toISO(),
@@ -281,6 +297,7 @@ export async function computeEta(args: {
           nextStopId,
           passedStopIds,
           etaSource: "segment",
+          etaStatus: "estimated",
         };
       }
     }
@@ -313,10 +330,19 @@ function scheduleDelayFallback(
     etaDateTime = parseTime(nextStop.time).plus({ minutes: delay });
   }
 
-  const etaNextStopMinutes = Math.max(
-    0,
-    Math.ceil(etaDateTime.diff(now, "minutes").minutes),
-  );
+  if (etaDateTime <= now) {
+    return {
+      etaNextStopISO: etaDateTime.toISO(),
+      etaNextStopMinutes: null,
+      delayMinutes: delay != null ? Math.round(delay) : null,
+      nextStopId,
+      passedStopIds,
+      etaSource: "schedule",
+      etaStatus: "overdue",
+    };
+  }
+
+  const etaNextStopMinutes = Math.ceil(etaDateTime.diff(now, "minutes").minutes);
 
   return {
     etaNextStopISO: etaDateTime.toISO(),
@@ -325,6 +351,7 @@ function scheduleDelayFallback(
     nextStopId,
     passedStopIds,
     etaSource: "schedule",
+    etaStatus: "estimated",
   };
 }
 

@@ -1192,11 +1192,12 @@ describe("explicit targetStopId", () => {
     const resultNoTarget = await computeEta({ stops, now });
     expect(resultNoTarget.nextStopId).toBe("b");
 
-    // With target → valid ETA for the overdue pending stop
+    // With target → overdue ETA for the overdue pending stop
     const result = await computeEta({ stops, now, targetStopId: "b" });
     expect(result.nextStopId).toBe("b");
-    expect(result.etaNextStopMinutes).not.toBeNull();
-    expect(result.etaSource).not.toBeNull();
+    expect(result.etaStatus).toBe("overdue");
+    expect(result.etaNextStopMinutes).toBeNull();
+    expect(result.etaSource).toBe("schedule");
   });
 
   it("target differs from time-based selection → target wins", async () => {
@@ -1562,5 +1563,154 @@ describe("route-order fallback (T016)", () => {
     expect(result.nextStopId).toBe("b");
     expect(result.etaSource).toBe("schedule");
     expect(result.passedStopIds).toEqual(["a"]);
+  });
+});
+
+describe("etaStatus field", () => {
+  // T018: overdue segment ETA
+  it("returns etaStatus 'overdue' and null minutes for overdue segment ETA", async () => {
+    // Setup: last stop passed long ago, segment predicts arrival in the past
+    // Use stops with osrmDistanceM so segment branch is used
+    const now = DateTime.fromObject({ hour: 14, minute: 0 }, { zone: TZ });
+    const stops = [
+      {
+        scheduleEntryId: "a",
+        time: "08:00",
+        status: "passed" as const,
+        passedAt: DateTime.fromObject({ hour: 8, minute: 5 }, { zone: TZ }).toISO()!,
+        stopLat: -12.96,
+        stopLng: -38.52,
+        osrmDistanceM: 5000,
+      },
+      {
+        scheduleEntryId: "b",
+        time: "08:30",
+        status: "pending" as const,
+        passedAt: null,
+        stopLat: -12.97,
+        stopLng: -38.51,
+        osrmDistanceM: null,
+      },
+    ];
+
+    const result = await computeEta({ stops, now });
+
+    expect(result.etaStatus).toBe("overdue");
+    expect(result.etaNextStopMinutes).toBeNull();
+    expect(result.etaSource).toBe("segment");
+    expect(result.nextStopId).toBe("b");
+  });
+
+  // T019: overdue schedule ETA
+  it("returns etaStatus 'overdue' and null minutes for overdue schedule ETA", async () => {
+    // Stop was due at 08:45, last passed at 08:35 (5 min delay), so predicted = 08:50
+    // Now is 09:00, so predicted <= now => overdue
+    const now = DateTime.fromObject({ hour: 9, minute: 0 }, { zone: TZ });
+    const stops = [
+      {
+        scheduleEntryId: "a",
+        time: "08:30",
+        status: "passed" as const,
+        passedAt: DateTime.fromObject({ hour: 8, minute: 35 }, { zone: TZ }).toISO()!,
+      },
+      {
+        scheduleEntryId: "b",
+        time: "08:45",
+        status: "pending" as const,
+        passedAt: null,
+      },
+    ];
+
+    const result = await computeEta({ stops, now });
+
+    expect(result.etaStatus).toBe("overdue");
+    expect(result.etaNextStopMinutes).toBeNull();
+    expect(result.etaSource).toBe("schedule");
+    expect(result.nextStopId).toBe("b");
+  });
+
+  // T020: GPS branch at stop returns 0 and "estimated"
+  it("returns etaStatus 'estimated' and 0 minutes for GPS branch at stop", async () => {
+    const STOP_LAT = -12.9814;
+    const STOP_LNG = -38.4524;
+    const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+    const vanPosition: VanPosition = {
+      lat: STOP_LAT,
+      lng: STOP_LNG,
+      speedMps: 10,
+      lastGpsFixAt: DateTime.fromObject({ hour: 8, minute: 40 }, { zone: TZ }),
+    };
+    const stops = [
+      {
+        scheduleEntryId: "a",
+        time: "08:30",
+        status: "passed" as const,
+        passedAt: DateTime.fromObject({ hour: 8, minute: 35 }, { zone: TZ }).toISO()!,
+        stopLat: -12.96,
+        stopLng: -38.52,
+      },
+      {
+        scheduleEntryId: "b",
+        time: "08:45",
+        status: "pending" as const,
+        passedAt: null,
+        stopLat: STOP_LAT,
+        stopLng: STOP_LNG,
+      },
+    ];
+
+    const result = await computeEta({ stops, now, vanPosition });
+
+    expect(result.etaStatus).toBe("estimated");
+    expect(result.etaNextStopMinutes).toBe(0);
+    expect(result.etaSource).toBe("gps");
+  });
+
+  // T021: valid future ETA returns "estimated"
+  it("returns etaStatus 'estimated' for valid future schedule ETA", async () => {
+    const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+    const stops = [
+      {
+        scheduleEntryId: "a",
+        time: "08:30",
+        status: "passed" as const,
+        passedAt: DateTime.fromObject({ hour: 8, minute: 35 }, { zone: TZ }).toISO()!,
+      },
+      {
+        scheduleEntryId: "b",
+        time: "08:45",
+        status: "pending" as const,
+        passedAt: null,
+      },
+    ];
+
+    const result = await computeEta({ stops, now });
+
+    expect(result.etaStatus).toBe("estimated");
+    expect(result.etaNextStopMinutes).toBeGreaterThan(0);
+    expect(result.etaSource).toBe("schedule");
+  });
+
+  // T021b: no next stop returns "none"
+  it("returns etaStatus 'none' when all stops are passed", async () => {
+    const now = DateTime.fromObject({ hour: 9, minute: 0 }, { zone: TZ });
+    const stops = [
+      {
+        scheduleEntryId: "a",
+        time: "08:30",
+        status: "passed" as const,
+        passedAt: "2026-03-01T08:32:00-03:00",
+      },
+      {
+        scheduleEntryId: "b",
+        time: "08:45",
+        status: "passed" as const,
+        passedAt: "2026-03-01T08:48:00-03:00",
+      },
+    ];
+
+    const result = await computeEta({ stops, now });
+
+    expect(result.etaStatus).toBe("none");
   });
 });

@@ -161,8 +161,59 @@ describe("resolveRouteProgress – idle suppression (FR-011)", () => {
     expect(result!.nextStopId).toBe("entry-2");
     expect(result!.shiftStartedAt).toBe(shiftStartedAt);
     // ETA should be computed (schedule-based fallback since no GPS)
+    // Stop 08:30 is overdue at NOW (10:00) → etaStatus "overdue", minutes null
     expect(result!.etaNextStopISO).not.toBeNull();
-    expect(result!.etaNextStopMinutes).not.toBeNull();
+    expect(result!.etaStatus).toBe("overdue");
+    expect(result!.etaNextStopMinutes).toBeNull();
     expect(result!.etaSource).toBe("schedule");
+  });
+
+  it("includeLastKnown with invalid pointer does not advertise schedule guess as last_known", async () => {
+    process.env.TRACKING_PROGRESS_SOURCE = "persisted";
+
+    const supabase = mockSupabase({
+      routeRun: {
+        id: "run-1",
+        next_stop_id: "entry-2",
+        last_passed_stop_id: "entry-1",
+        // Pointer expired — progress_updated_at is far in the past
+        progress_updated_at: NOW.minus({ hours: 24 }).toISO(),
+      },
+      shifts: [
+        // Ended shift → idle
+        { id: "shift-1", started_at: NOW.minus({ hours: 4 }).toISO(), ended_at: NOW.minus({ hours: 2 }).toISO() },
+      ],
+      runStops: [
+        { schedule_entry_id: "entry-1", status: "passed", passed_at: NOW.minus({ hours: 4 }).toISO(), schedule_entries: { time: "08:00" } },
+        { schedule_entry_id: "entry-2", status: "pending", passed_at: null, schedule_entries: { time: "08:30" } },
+        { schedule_entry_id: "entry-3", status: "pending", passed_at: null, schedule_entries: { time: "09:00" } },
+      ],
+      pings: [],
+    });
+
+    // Use later times so isPastScheduleWindow is false → idle
+    const laterTimes = ["08:00", "08:30", "11:00"];
+    const laterEntries = [
+      ...SORTED_ENTRIES.slice(0, 2),
+      { id: "entry-3", stop_name: "Stop C", time: "11:00", stop_lat: -12.99, stop_lng: -38.53 },
+    ];
+
+    const result = await resolveRouteProgress({
+      supabase,
+      routeId: "route-1",
+      serviceDate: SERVICE_DATE,
+      sortedEntries: laterEntries,
+      vanId: "van-1",
+      vanPosition: null,
+      now: NOW,
+      times: laterTimes,
+      includeLastKnown: true,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.runStatus).toBe("idle");
+    // Persisted pointer is expired → nextStopId must be null so the route
+    // handler does not label a schedule-derived guess as "last_known"
+    expect(result!.nextStopId).toBeNull();
   });
 });

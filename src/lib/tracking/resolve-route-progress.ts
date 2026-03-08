@@ -17,6 +17,7 @@ export interface RouteProgress {
   etaNextStopMinutes: number | null;
   delayMinutes: number | null;
   etaSource: "gps" | "gps_osrm" | "segment" | "schedule" | null;
+  etaStatus: "estimated" | "overdue" | "none";
 }
 
 interface ScheduleEntry {
@@ -90,6 +91,7 @@ export async function resolveRouteProgress(args: {
       etaNextStopMinutes: null,
       delayMinutes: null,
       etaSource: null,
+      etaStatus: "none",
     };
   }
 
@@ -116,6 +118,7 @@ export async function resolveRouteProgress(args: {
       etaNextStopMinutes: null,
       delayMinutes: null,
       etaSource: null,
+      etaStatus: "none",
     };
   }
 
@@ -266,6 +269,15 @@ export async function resolveRouteProgress(args: {
   } else {
     // legacy mode — no targetStopId
     etaResult = await computeEta(etaArgs);
+  }
+
+  // When includeLastKnown brought us here for a non-running route but the
+  // persisted pointer was invalid/stale, the legacy fallback re-derives
+  // nextStopId from the schedule. Null it out so the route handler doesn't
+  // advertise a schedule guess as persisted "last_known" progress.
+  const isNonRunning = runStatus !== "in_progress";
+  if (includeLastKnown && isNonRunning && !targetStopId) {
+    etaResult = { ...etaResult, nextStopId: null };
   }
 
   return {

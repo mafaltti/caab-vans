@@ -23,6 +23,7 @@ const EMPTY_PROGRESS: StopProgress = {
 
 export const SNAP_DISPLACEMENT_THRESHOLD_M = 50;
 export const CONFIDENCE_PING_WINDOW_MINUTES = 5;
+export const SNAP_LOW_DISPLACEMENT_THRESHOLD_M = 15;
 
 export async function inferStopProgress(
   supabase: SupabaseClient,
@@ -178,6 +179,18 @@ export async function inferStopProgress(
       coordGroups.get(coordKey)!.push(stop);
     }
 
+    // Pre-fetch recent pings once for confidence scoring across all groups
+    const windowStart = new Date(
+      Date.now() - CONFIDENCE_PING_WINDOW_MINUTES * 60 * 1000,
+    ).toISOString();
+
+    const { data: allRecentPings } = await supabase
+      .from("van_location_pings")
+      .select("lat, lng")
+      .eq("van_id", vanId)
+      .gte("device_ts", windowStart)
+      .order("device_ts", { ascending: false });
+
     // For each group: check geofence per entry, then pick closest-in-time
     for (const [, group] of coordGroups) {
       // Filter entries within their individual geofence AND early arrival window
@@ -237,20 +250,10 @@ export async function inferStopProgress(
       const bestEntry = bestStop.schedule_entries as unknown as {
         stop_lat: number; stop_lng: number; geofence_radius_m: number;
       };
-      const windowStart = new Date(
-        Date.now() - CONFIDENCE_PING_WINDOW_MINUTES * 60 * 1000,
-      ).toISOString();
-
-      const { data: recentPings } = await supabase
-        .from("van_location_pings")
-        .select("lat, lng")
-        .eq("van_id", vanId)
-        .gte("device_ts", windowStart)
-        .limit(50);
 
       let pingsInGeofence = 0;
-      if (recentPings) {
-        for (const ping of recentPings) {
+      if (allRecentPings) {
+        for (const ping of allRecentPings) {
           const pingDist = haversineDistanceMeters(
             ping.lat, ping.lng,
             bestEntry.stop_lat, bestEntry.stop_lng,
@@ -264,10 +267,28 @@ export async function inferStopProgress(
       const useSnappedForThisStop = perStopSnap.get(bestStop.schedule_entry_id) ?? false;
 
       let confidence: number;
-      if (pingsInGeofence >= 2) {
-        confidence = useSnappedForThisStop ? 0.8 : 0.9;
+      if (useSnappedForThisStop) {
+        // Tiered snapped confidence: base depends on raw position
+        const rawDist = haversineDistanceMeters(lat, lng, bestEntry.stop_lat, bestEntry.stop_lng);
+        const rawInsideGeofence = rawDist <= bestEntry.geofence_radius_m;
+        confidence = rawInsideGeofence ? 0.85 : 0.65;
+
+        // Bonus: 2+ confirming pings in geofence
+        if (pingsInGeofence >= 2) {
+          confidence += 0.10;
+        }
+
+        // Bonus: snap displacement ≤15m
+        const snapDisp = haversineDistanceMeters(lat, lng, snappedLat!, snappedLng!);
+        if (snapDisp <= SNAP_LOW_DISPLACEMENT_THRESHOLD_M) {
+          confidence += 0.05;
+        }
+
+        // Cap at 0.95 and round to avoid floating-point artifacts
+        confidence = Math.round(Math.min(confidence, 0.95) * 100) / 100;
       } else {
-        confidence = useSnappedForThisStop ? 0.8 : 0.7;
+        // Raw confidence unchanged
+        confidence = pingsInGeofence >= 2 ? 0.90 : 0.70;
       }
 
       const passSource = useSnappedForThisStop ? "geofence_snapped" : "geofence_raw";
