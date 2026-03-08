@@ -470,21 +470,78 @@ npm run check
 
 ### Orphaned Shift Reconciliation
 
-The reconciliation script auto-closes shifts that are past their schedule window and inactive:
+Shifts can become orphaned (stuck with `ended_at IS NULL`) when a driver's app crashes, loses connectivity, or the driver forgets to end the shift. The reconciliation script detects and auto-closes these stale shifts.
+
+**Closure criteria** (both must be true):
+- Route is past its last scheduled stop by **≥ 90 minutes**
+- No activity (GPS ping, progress update, or shift start) for **≥ 30 minutes**
+
+**Required environment variables:**
 
 ```bash
-# Dry run (log candidates, no mutations)
+NEXT_PUBLIC_SUPABASE_URL=https://api-vans.example.com
+SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
+```
+
+**Usage:**
+
+```bash
+# Dry run — logs candidates as JSON, no database mutations
 DRY_RUN=1 npx tsx scripts/reconcile-orphaned-shifts.ts
 
-# Live run
+# Live run — closes orphaned shifts and logs results
 npx tsx scripts/reconcile-orphaned-shifts.ts
+
+# Via npm script
+npm run tracking:reconcile-shifts
 ```
 
-Schedule via cron or systemd timer every 5 minutes:
+**Output format:** Structured JSON lines to stdout. Each run emits `reconcile_start`, then either `reconcile_candidates` + `reconcile_done` (with `closedCount`) or `reconcile_dry_run`. Pipe to a log file for audit.
 
+**Scheduling (recommended: every 5 minutes):**
+
+Cron:
 ```cron
-*/5 * * * * cd /path/to/caab-vans && npx tsx scripts/reconcile-orphaned-shifts.ts >> /var/log/reconcile-shifts.log 2>&1
+*/5 * * * * cd /opt/caab-vans && npx tsx scripts/reconcile-orphaned-shifts.ts >> /var/log/caab-vans/reconcile-shifts.log 2>&1
 ```
+
+Systemd timer (alternative):
+```ini
+# /etc/systemd/system/reconcile-shifts.timer
+[Unit]
+Description=Reconcile orphaned van shifts
+
+[Timer]
+OnCalendar=*:0/5
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+```ini
+# /etc/systemd/system/reconcile-shifts.service
+[Unit]
+Description=Reconcile orphaned van shifts
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/caab-vans
+ExecStart=/usr/bin/npx tsx scripts/reconcile-orphaned-shifts.ts
+Environment=NEXT_PUBLIC_SUPABASE_URL=https://api-vans.example.com
+EnvironmentFile=/opt/caab-vans/.env.local
+StandardOutput=append:/var/log/caab-vans/reconcile-shifts.log
+StandardError=append:/var/log/caab-vans/reconcile-shifts.log
+```
+
+Enable with `systemctl enable --now reconcile-shifts.timer`.
+
+**First-time setup checklist:**
+1. Ensure `.env.local` (or equivalent) has both `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`
+2. Run a dry run to verify connectivity and see current candidates
+3. Run a live run manually and confirm results in Supabase Studio
+4. Set up the cron job or systemd timer
+5. Verify log output appears after the first scheduled run
 
 ## Known Limitations
 
