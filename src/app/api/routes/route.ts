@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import {
   nowBahia,
@@ -15,7 +15,7 @@ import { resolveRouteProgress } from "@/lib/tracking/resolve-route-progress";
 import { DateTime } from "luxon";
 import type { ScheduleStatus } from "@/types";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const supabase = createServiceClient();
   const now = nowBahia();
   const currentTime = formatTime(now);
@@ -58,6 +58,7 @@ export async function GET() {
   }
 
   const serviceDate = todayBahiaDate();
+  const includeLastKnown = request.nextUrl.searchParams.get("includeLastKnown") === "true";
 
   const result = await Promise.all((routes ?? []).map(async (route) => {
     const van = route.van as unknown as {
@@ -133,6 +134,7 @@ export async function GET() {
       vanPosition,
       now,
       times,
+      includeLastKnown,
     });
 
     const isRunning = progress?.runStatus === "in_progress";

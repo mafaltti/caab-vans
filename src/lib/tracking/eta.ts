@@ -84,7 +84,13 @@ export async function computeEta(args: {
       : now.toFormat("HH:mm");
     const futurePending = pending.filter((s) => s.time >= timeFloor);
 
-    if (futurePending.length === 0) {
+    let selectedPending: Stop[];
+    if (futurePending.length > 0) {
+      selectedPending = futurePending;
+    } else if (pending.length > 0) {
+      // Route-order fallback: all stops overdue, use first pending by schedule order
+      selectedPending = pending;
+    } else {
       return {
         etaNextStopISO: null,
         etaNextStopMinutes: null,
@@ -95,7 +101,7 @@ export async function computeEta(args: {
       };
     }
 
-    const sortedPending = [...futurePending].sort((a, b) =>
+    const sortedPending = [...selectedPending].sort((a, b) =>
       a.time.localeCompare(b.time),
     );
     nextStop = sortedPending[0];
@@ -235,28 +241,49 @@ export async function computeEta(args: {
   }
 
   // Segment-aware fallback: use stored OSRM distance when GPS is unavailable.
-  // Known limitation: osrmDistanceM is the distance from the last passed stop
-  // to its immediate successor only. When targetStopId is a non-successor stop,
-  // the ETA is approximate. Accumulating multi-segment distances is a future enhancement.
-  const sortedPassedForSegment = [...passed].sort((a, b) => a.time.localeCompare(b.time));
+  // Sum osrmDistanceM across all intermediate stops between last-passed and target.
+  const sortedAllForSegment = [...stops].sort((a, b) => a.time.localeCompare(b.time));
+  const sortedPassedForSegment = sortedAllForSegment.filter((s) => s.status === "passed");
   const lastPassedForSegment = sortedPassedForSegment.length > 0 ? sortedPassedForSegment.at(-1)! : null;
 
-  if (lastPassedForSegment?.passedAt && lastPassedForSegment.osrmDistanceM != null) {
-    const timeFactor = getTimeFactor(now.hour, now.weekday, routeId, recentRuns);
-    const travelMinutes = (lastPassedForSegment.osrmDistanceM / REFERENCE_SPEED_MPS / 60) * timeFactor;
-    const etaDateTime = DateTime.fromISO(lastPassedForSegment.passedAt).setZone(now.zone).plus({ minutes: travelMinutes });
-    const etaNextStopMinutes = Math.max(0, Math.ceil(etaDateTime.diff(now, "minutes").minutes));
+  if (lastPassedForSegment?.passedAt) {
+    const lastPassedIdx = sortedAllForSegment.findIndex(
+      (s) => s.scheduleEntryId === lastPassedForSegment.scheduleEntryId,
+    );
+    const nextStopIdx = sortedAllForSegment.findIndex(
+      (s) => s.scheduleEntryId === nextStopId,
+    );
 
-    const delay = DateTime.fromISO(lastPassedForSegment.passedAt).diff(parseTime(lastPassedForSegment.time), "minutes").minutes;
+    if (lastPassedIdx !== -1 && nextStopIdx !== -1 && nextStopIdx > lastPassedIdx) {
+      let accumulatedDistance = 0;
+      let allSegmentsPresent = true;
 
-    return {
-      etaNextStopISO: etaDateTime.toISO(),
-      etaNextStopMinutes,
-      delayMinutes: delay != null ? Math.round(delay) : null,
-      nextStopId,
-      passedStopIds,
-      etaSource: "segment",
-    };
+      for (let i = lastPassedIdx; i < nextStopIdx; i++) {
+        if (sortedAllForSegment[i].osrmDistanceM == null) {
+          allSegmentsPresent = false;
+          break;
+        }
+        accumulatedDistance += sortedAllForSegment[i].osrmDistanceM!;
+      }
+
+      if (allSegmentsPresent && accumulatedDistance > 0) {
+        const timeFactor = getTimeFactor(now.hour, now.weekday, routeId, recentRuns);
+        const travelMinutes = (accumulatedDistance / REFERENCE_SPEED_MPS / 60) * timeFactor;
+        const etaDateTime = DateTime.fromISO(lastPassedForSegment.passedAt).setZone(now.zone).plus({ minutes: travelMinutes });
+        const etaNextStopMinutes = Math.max(0, Math.ceil(etaDateTime.diff(now, "minutes").minutes));
+
+        const delay = DateTime.fromISO(lastPassedForSegment.passedAt).diff(parseTime(lastPassedForSegment.time), "minutes").minutes;
+
+        return {
+          etaNextStopISO: etaDateTime.toISO(),
+          etaNextStopMinutes,
+          delayMinutes: delay != null ? Math.round(delay) : null,
+          nextStopId,
+          passedStopIds,
+          etaSource: "segment",
+        };
+      }
+    }
   }
 
   return scheduleDelayFallback(stops, passed, nextStop, nextStopId, passedStopIds, now);

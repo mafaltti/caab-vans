@@ -17,7 +17,7 @@ import { DateTime } from "luxon";
 import type { ScheduleStatus } from "@/types";
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ routeId: string }> },
 ) {
   const { routeId } = await params;
@@ -116,6 +116,7 @@ export async function GET(
   }));
 
   const serviceDate = todayBahiaDate();
+  const includeLastKnown = request.nextUrl.searchParams.get("includeLastKnown") === "true";
 
   const hasSnapped = van.snapped_lat != null && van.snapped_lng != null;
   const vanPosition: VanPosition | null =
@@ -141,6 +142,7 @@ export async function GET(
     vanPosition,
     now,
     times,
+    includeLastKnown,
   });
 
   const isRunning = progress?.runStatus === "in_progress";

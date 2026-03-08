@@ -337,8 +337,8 @@ describe("resolveRouteProgress — progress source modes (T018)", () => {
     expect(consoleSpy).not.toHaveBeenCalled();
   });
 
-  // --- Test 5: persisted mode, stale pointer ---
-  it("persisted mode, stale pointer — falls back to legacy, log emitted", async () => {
+  // --- Test 5: persisted mode, stale pointer (35 min) — now valid under two-tier model ---
+  it("persisted mode, stale pointer (35 min) — still valid under 120 min ceiling", async () => {
     process.env.TRACKING_PROGRESS_SOURCE = "persisted";
 
     mockComputeEta.mockImplementation(() =>
@@ -354,21 +354,13 @@ describe("resolveRouteProgress — progress source modes (T018)", () => {
     const result = await resolveRouteProgress(makeArgs(supabase));
 
     expect(result).not.toBeNull();
-    // Falls back to legacy (no targetStopId)
+    // 35 min is within 120 min ceiling — pointer IS valid
     expect(mockComputeEta).toHaveBeenCalledTimes(1);
     const callArgs = mockComputeEta.mock.calls[0][0];
-    expect(callArgs.targetStopId).toBeUndefined();
+    expect(callArgs.targetStopId).toBe("entry-b");
 
-    // Fallback log emitted
-    expect(consoleSpy).toHaveBeenCalledTimes(1);
-    const logPayload = JSON.parse(consoleSpy.mock.calls[0][0] as string);
-    expect(logPayload).toMatchObject({
-      event: "progress_source_fallback",
-      routeId: ROUTE_ID,
-      runId: RUN_ID,
-      runStatus: "in_progress",
-      reason: "pointer_stale_or_not_pending",
-    });
+    // No fallback log since pointer is valid
+    expect(consoleSpy).not.toHaveBeenCalled();
   });
 
   // --- Test 6: persisted mode, missing pointer ---
@@ -398,7 +390,7 @@ describe("resolveRouteProgress — progress source modes (T018)", () => {
   });
 
   // --- Test 7: invalid env var value ---
-  it("invalid env var value — defaults to legacy mode", async () => {
+  it("invalid env var value — defaults to persisted mode", async () => {
     process.env.TRACKING_PROGRESS_SOURCE = "bogus_value";
 
     mockComputeEta.mockImplementation(() =>
@@ -414,12 +406,12 @@ describe("resolveRouteProgress — progress source modes (T018)", () => {
     const result = await resolveRouteProgress(makeArgs(supabase));
 
     expect(result).not.toBeNull();
-    // Legacy mode: single computeEta call, no targetStopId
+    // Persisted mode (default): computeEta called with targetStopId
     expect(mockComputeEta).toHaveBeenCalledTimes(1);
     const callArgs = mockComputeEta.mock.calls[0][0];
-    expect(callArgs.targetStopId).toBeUndefined();
+    expect(callArgs.targetStopId).toBe("entry-b");
 
-    // No shadow or fallback logs
+    // No fallback logs (pointer is valid)
     expect(consoleSpy).not.toHaveBeenCalled();
   });
 
@@ -455,9 +447,27 @@ describe("resolveRouteProgress — progress source modes (T018)", () => {
     });
   });
 
-  // --- Edge: env var undefined defaults to legacy ---
-  it("undefined env var — defaults to legacy mode", async () => {
+  // --- T008: env var undefined defaults to persisted ---
+  it("undefined env var — defaults to persisted mode", async () => {
     delete process.env.TRACKING_PROGRESS_SOURCE;
+
+    const supabase = buildSupabase({
+      runData: activeRunData({ next_stop_id: "entry-b" }),
+      shifts: activeShifts(),
+      runStops: standardRunStops(),
+    });
+
+    await resolveRouteProgress(makeArgs(supabase));
+
+    expect(mockComputeEta).toHaveBeenCalledTimes(1);
+    const callArgs = mockComputeEta.mock.calls[0][0];
+    expect(callArgs.targetStopId).toBe("entry-b");
+    expect(consoleSpy).not.toHaveBeenCalled();
+  });
+
+  // --- T009: explicit legacy mode ---
+  it("explicit TRACKING_PROGRESS_SOURCE=legacy uses legacy mode (no targetStopId)", async () => {
+    process.env.TRACKING_PROGRESS_SOURCE = "legacy";
 
     const supabase = buildSupabase({
       runData: activeRunData({ next_stop_id: "entry-b" }),
@@ -471,5 +481,117 @@ describe("resolveRouteProgress — progress source modes (T018)", () => {
     const callArgs = mockComputeEta.mock.calls[0][0];
     expect(callArgs.targetStopId).toBeUndefined();
     expect(consoleSpy).not.toHaveBeenCalled();
+  });
+
+  // --- T009b: explicit shadow mode ---
+  it("explicit TRACKING_PROGRESS_SOURCE=shadow computes both and serves legacy", async () => {
+    process.env.TRACKING_PROGRESS_SOURCE = "shadow";
+
+    mockComputeEta.mockImplementation(() =>
+      Promise.resolve(defaultEtaResult("entry-b")),
+    );
+
+    const supabase = buildSupabase({
+      runData: activeRunData({ next_stop_id: "entry-b" }),
+      shifts: activeShifts(),
+      runStops: standardRunStops(),
+    });
+
+    const result = await resolveRouteProgress(makeArgs(supabase));
+
+    expect(result).not.toBeNull();
+    // Shadow mode calls computeEta twice
+    expect(mockComputeEta).toHaveBeenCalledTimes(2);
+    // First call: legacy (no targetStopId)
+    expect(mockComputeEta.mock.calls[0][0].targetStopId).toBeUndefined();
+    // Second call: persisted (with targetStopId)
+    expect(mockComputeEta.mock.calls[1][0].targetStopId).toBe("entry-b");
+    // Legacy result is served
+    expect(result!.nextStopId).toBe("entry-b");
+  });
+
+  // --- T012: pointer at 35 min (stale but within ceiling) still valid ---
+  it("pointer at 35 min (stale but within ceiling) still targets pointed stop", async () => {
+    delete process.env.TRACKING_PROGRESS_SOURCE; // default = persisted
+
+    mockComputeEta.mockImplementation(() =>
+      Promise.resolve(defaultEtaResult("entry-b")),
+    );
+
+    const supabase = buildSupabase({
+      runData: activeRunData({ progress_updated_at: staleTimestamp() }), // 35 min ago
+      shifts: activeShifts(),
+      runStops: standardRunStops(),
+    });
+
+    const result = await resolveRouteProgress(makeArgs(supabase));
+
+    expect(result).not.toBeNull();
+    expect(mockComputeEta).toHaveBeenCalledTimes(1);
+    const callArgs = mockComputeEta.mock.calls[0][0];
+    expect(callArgs.targetStopId).toBe("entry-b");
+    expect(consoleSpy).not.toHaveBeenCalled();
+  });
+
+  // --- T013: pointer at 119 min still valid ---
+  it("pointer at 119 min still targets pointed stop", async () => {
+    delete process.env.TRACKING_PROGRESS_SOURCE; // default = persisted
+
+    mockComputeEta.mockImplementation(() =>
+      Promise.resolve(defaultEtaResult("entry-b")),
+    );
+
+    const now = makeNow();
+    const timestamp119 = now.minus({ minutes: 119 }).toISO()!;
+
+    const supabase = buildSupabase({
+      runData: activeRunData({ progress_updated_at: timestamp119 }),
+      shifts: activeShifts(),
+      runStops: standardRunStops(),
+    });
+
+    const result = await resolveRouteProgress(makeArgs(supabase, now));
+
+    expect(result).not.toBeNull();
+    expect(mockComputeEta).toHaveBeenCalledTimes(1);
+    const callArgs = mockComputeEta.mock.calls[0][0];
+    expect(callArgs.targetStopId).toBe("entry-b");
+    expect(consoleSpy).not.toHaveBeenCalled();
+  });
+
+  // --- T014: pointer at 121 min is expired ---
+  it("pointer at 121 min is expired — falls back to legacy (no targetStopId)", async () => {
+    delete process.env.TRACKING_PROGRESS_SOURCE; // default = persisted
+
+    mockComputeEta.mockImplementation(() =>
+      Promise.resolve(defaultEtaResult("entry-b")),
+    );
+
+    const now = makeNow();
+    const timestamp121 = now.minus({ minutes: 121 }).toISO()!;
+
+    const supabase = buildSupabase({
+      runData: activeRunData({ progress_updated_at: timestamp121 }),
+      shifts: activeShifts(),
+      runStops: standardRunStops(),
+    });
+
+    const result = await resolveRouteProgress(makeArgs(supabase, now));
+
+    expect(result).not.toBeNull();
+    expect(mockComputeEta).toHaveBeenCalledTimes(1);
+    const callArgs = mockComputeEta.mock.calls[0][0];
+    expect(callArgs.targetStopId).toBeUndefined();
+
+    // Fallback log emitted with pointer_expired reason
+    expect(consoleSpy).toHaveBeenCalledTimes(1);
+    const logPayload = JSON.parse(consoleSpy.mock.calls[0][0] as string);
+    expect(logPayload).toMatchObject({
+      event: "progress_source_fallback",
+      routeId: ROUTE_ID,
+      runId: RUN_ID,
+      runStatus: "in_progress",
+      reason: "pointer_expired",
+    });
   });
 });

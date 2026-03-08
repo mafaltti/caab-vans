@@ -213,13 +213,13 @@ describe("resolveRouteProgress", () => {
     expect(result!.nextStopId).toBe("entry-b");
     expect(result!.etaSource).toBe("schedule");
 
-    // In legacy mode (default), computeEta is called without targetStopId
+    // In persisted mode (default), computeEta is called with targetStopId
     expect(mockComputeEta).toHaveBeenCalledTimes(1);
     const callArgs = mockComputeEta.mock.calls[0][0];
-    expect(callArgs.targetStopId).toBeUndefined();
+    expect(callArgs.targetStopId).toBe("entry-b");
   });
 
-  it("falls back to legacy ETA when pointer is null", async () => {
+  it("falls back to legacy ETA when pointer is null (persisted mode, no pointer)", async () => {
     const supabase = buildSupabase({
       runData: {
         id: RUN_ID,
@@ -235,13 +235,13 @@ describe("resolveRouteProgress", () => {
 
     expect(result).not.toBeNull();
     expect(result!.runStatus).toBe("in_progress");
-    // Legacy computeEta decides the next stop
+    // Persisted mode (default) with null pointer → falls back to legacy computeEta
     expect(mockComputeEta).toHaveBeenCalledTimes(1);
     const callArgs = mockComputeEta.mock.calls[0][0];
     expect(callArgs.targetStopId).toBeUndefined();
   });
 
-  it("falls back to legacy when pointer is stale (> 30 min ago)", async () => {
+  it("pointer at 45 min is stale but valid under 120 min ceiling", async () => {
     const staleTimestamp = makeNow()
       .minus({ minutes: 45 })
       .toISO()!;
@@ -261,14 +261,40 @@ describe("resolveRouteProgress", () => {
 
     expect(result).not.toBeNull();
     expect(result!.runStatus).toBe("in_progress");
-    // In legacy mode the staleness just means targetStopId is not set,
-    // but legacy doesn't use targetStopId anyway — verify no targetStopId passed
+    // Default is persisted mode; 45 min is within 120 min ceiling → pointer valid
+    expect(mockComputeEta).toHaveBeenCalledTimes(1);
+    const callArgs = mockComputeEta.mock.calls[0][0];
+    expect(callArgs.targetStopId).toBe("entry-b");
+  });
+
+  it("falls back when pointer is expired (> 120 min ago)", async () => {
+    const expiredTimestamp = makeNow()
+      .minus({ minutes: 125 })
+      .toISO()!;
+
+    const supabase = buildSupabase({
+      runData: {
+        id: RUN_ID,
+        last_passed_stop_id: "entry-a",
+        next_stop_id: "entry-b",
+        progress_updated_at: expiredTimestamp,
+      },
+      shifts: [{ id: "shift-1", started_at: "2026-03-07T08:00:00-03:00", ended_at: null }],
+      runStops: standardRunStops(),
+    });
+
+    const result = await resolveRouteProgress(makeArgs(supabase));
+
+    expect(result).not.toBeNull();
+    expect(result!.runStatus).toBe("in_progress");
+    // Pointer expired (> 120 min) → falls back to legacy (no targetStopId)
     expect(mockComputeEta).toHaveBeenCalledTimes(1);
     const callArgs = mockComputeEta.mock.calls[0][0];
     expect(callArgs.targetStopId).toBeUndefined();
   });
 
-  it("falls back to legacy when pointer references an ID not in schedule entries", async () => {
+  it("falls back when pointer references an ID not in schedule entries", async () => {
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const freshTimestamp = makeNow()
       .minus({ minutes: 2 })
       .toISO()!;
@@ -288,9 +314,11 @@ describe("resolveRouteProgress", () => {
 
     expect(result).not.toBeNull();
     expect(result!.runStatus).toBe("in_progress");
+    // Persisted mode (default) with invalid pointer → falls back
     expect(mockComputeEta).toHaveBeenCalledTimes(1);
     const callArgs = mockComputeEta.mock.calls[0][0];
     expect(callArgs.targetStopId).toBeUndefined();
+    consoleSpy.mockRestore();
   });
 
   it("returns null nextStopId and null ETA for completed run", async () => {
@@ -380,6 +408,7 @@ describe("resolveRouteProgress", () => {
   });
 
   it("pointer references deleted entry (not in entries array) falls back to legacy", async () => {
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const freshTimestamp = makeNow()
       .minus({ minutes: 1 })
       .toISO()!;
@@ -415,9 +444,11 @@ describe("resolveRouteProgress", () => {
     expect(mockComputeEta).toHaveBeenCalledTimes(1);
     const callArgs = mockComputeEta.mock.calls[0][0];
     expect(callArgs.targetStopId).toBeUndefined();
+    consoleSpy.mockRestore();
   });
 
   it("pointer that is valid but stop already passed is treated as invalid", async () => {
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const freshTimestamp = makeNow()
       .minus({ minutes: 2 })
       .toISO()!;
@@ -441,6 +472,7 @@ describe("resolveRouteProgress", () => {
     expect(mockComputeEta).toHaveBeenCalledTimes(1);
     const callArgs = mockComputeEta.mock.calls[0][0];
     expect(callArgs.targetStopId).toBeUndefined();
+    consoleSpy.mockRestore();
   });
 
   it("resolver nextStopId matches resolveNextStop output (consistency invariant)", async () => {
@@ -466,5 +498,125 @@ describe("resolveRouteProgress", () => {
     const resolved = resolveNextStop(ENTRIES, result!.nextStopId!, formatTimeString);
     expect(resolved).not.toBeNull();
     expect(resolved!.nextStopEntry.id).toBe(result!.nextStopId);
+  });
+
+  it("completed run with includeLastKnown=true returns progress", async () => {
+    mockComputeEta.mockImplementation(() => Promise.resolve(defaultEtaResult()));
+
+    const supabase = buildSupabase({
+      runData: {
+        id: RUN_ID,
+        last_passed_stop_id: "entry-c",
+        next_stop_id: null,
+        progress_updated_at: makeNow().minus({ minutes: 5 }).toISO()!,
+      },
+      shifts: [
+        {
+          id: "shift-1",
+          started_at: "2026-03-07T08:00:00-03:00",
+          ended_at: "2026-03-07T09:30:00-03:00",
+        },
+      ],
+      runStops: standardRunStops(),
+    });
+
+    const args = { ...makeArgs(supabase), includeLastKnown: true };
+    const result = await resolveRouteProgress(args);
+
+    expect(result).not.toBeNull();
+    expect(result!.runStatus).toBe("completed");
+    // With includeLastKnown, computeEta IS called (not early-returned)
+    expect(mockComputeEta).toHaveBeenCalled();
+  });
+
+  it("completed run without includeLastKnown returns null values (existing behavior)", async () => {
+    const supabase = buildSupabase({
+      runData: {
+        id: RUN_ID,
+        last_passed_stop_id: "entry-c",
+        next_stop_id: null,
+        progress_updated_at: makeNow().minus({ minutes: 5 }).toISO()!,
+      },
+      shifts: [
+        {
+          id: "shift-1",
+          started_at: "2026-03-07T08:00:00-03:00",
+          ended_at: "2026-03-07T09:30:00-03:00",
+        },
+      ],
+    });
+
+    const result = await resolveRouteProgress(makeArgs(supabase));
+
+    expect(result).not.toBeNull();
+    expect(result!.runStatus).toBe("completed");
+    expect(result!.nextStopId).toBeNull();
+    expect(result!.etaSource).toBeNull();
+    expect(mockComputeEta).not.toHaveBeenCalled();
+  });
+
+  it("active run ignores includeLastKnown flag (always returns progress)", async () => {
+    mockComputeEta.mockImplementation(() => Promise.resolve(defaultEtaResult()));
+
+    const supabase = buildSupabase({
+      runData: {
+        id: RUN_ID,
+        last_passed_stop_id: "entry-a",
+        next_stop_id: "entry-b",
+        progress_updated_at: makeNow().minus({ minutes: 5 }).toISO()!,
+      },
+      shifts: [{ id: "shift-1", started_at: "2026-03-07T08:00:00-03:00", ended_at: null }],
+      runStops: standardRunStops(),
+    });
+
+    const args = { ...makeArgs(supabase), includeLastKnown: true };
+    const result = await resolveRouteProgress(args);
+
+    expect(result).not.toBeNull();
+    expect(result!.runStatus).toBe("in_progress");
+    expect(mockComputeEta).toHaveBeenCalled();
+  });
+
+  // --- T015: stale pointer targeting already-passed stop falls back to next pending by route order ---
+  it("stale pointer targeting already-passed stop falls back to next pending by route order", async () => {
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    // Pointer points to entry-a which is already passed
+    // Even though pointer is fresh, the stop is not pending → invalid
+    // Default persisted mode should fall back to legacy (next pending by route order)
+    mockComputeEta.mockImplementation(() =>
+      Promise.resolve(defaultEtaResult("entry-b")),
+    );
+
+    const supabase = buildSupabase({
+      runData: {
+        id: RUN_ID,
+        last_passed_stop_id: "entry-a",
+        next_stop_id: "entry-a", // points to already-passed stop
+        progress_updated_at: makeNow().minus({ minutes: 5 }).toISO()!,
+      },
+      shifts: [{ id: "shift-1", started_at: "2026-03-07T08:00:00-03:00", ended_at: null }],
+      runStops: standardRunStops(), // entry-a is passed, entry-b and entry-c pending
+    });
+
+    const result = await resolveRouteProgress(makeArgs(supabase));
+
+    expect(result).not.toBeNull();
+    expect(result!.runStatus).toBe("in_progress");
+    // Pointer to passed stop is invalid → falls back to legacy ETA
+    expect(mockComputeEta).toHaveBeenCalledTimes(1);
+    const callArgs = mockComputeEta.mock.calls[0][0];
+    expect(callArgs.targetStopId).toBeUndefined();
+    // Legacy ETA picks next pending by route order → entry-b
+    expect(result!.nextStopId).toBe("entry-b");
+
+    // Fallback log emitted
+    expect(consoleSpy).toHaveBeenCalledTimes(1);
+    const logPayload = JSON.parse(consoleSpy.mock.calls[0][0] as string);
+    expect(logPayload).toMatchObject({
+      event: "progress_source_fallback",
+      reason: "pointer_stale_or_not_pending",
+    });
+    consoleSpy.mockRestore();
   });
 });

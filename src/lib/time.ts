@@ -13,6 +13,7 @@ export function todayBahiaDate(): string {
 export const STALENESS_THRESHOLD_MINUTES = 10;
 export const EARLY_ARRIVAL_WINDOW_MINUTES = 30;
 export const POINTER_STALENESS_MINUTES = 30;
+export const POINTER_ABSOLUTE_CEILING_MINUTES = 120;
 
 export function isLocationFresh(dt: DateTime): boolean {
   const now = nowBahia();

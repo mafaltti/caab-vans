@@ -1,7 +1,7 @@
 import { DateTime } from "luxon";
 import { SupabaseClient } from "@supabase/supabase-js";
 
-import { POINTER_STALENESS_MINUTES } from "@/lib/time";
+import { POINTER_ABSOLUTE_CEILING_MINUTES } from "@/lib/time";
 import { computeEta, ROAD_FACTOR, type VanPosition } from "@/lib/tracking/eta";
 import { deriveRunStatus } from "@/lib/tracking/run-status";
 import { buildRecentRuns } from "@/lib/tracking/time-factors";
@@ -37,8 +37,9 @@ export async function resolveRouteProgress(args: {
   vanPosition: VanPosition | null;
   now: DateTime;
   times: string[];
+  includeLastKnown?: boolean;
 }): Promise<RouteProgress | null> {
-  const { supabase, routeId, serviceDate, sortedEntries, vanId, vanPosition, now, times } = args;
+  const { supabase, routeId, serviceDate, sortedEntries, vanId, vanPosition, now, times, includeLastKnown } = args;
 
   // 1. Fetch route_run for today
   const { data: runData, error: runError } = await supabase
@@ -78,7 +79,7 @@ export async function resolveRouteProgress(args: {
   const activeShift = shiftsArr.find((s) => s.ended_at === null);
 
   // 3. Early return for completed, idle, and waiting runs (FR-011)
-  if (runStatus === "completed" || runStatus === "idle" || runStatus === "waiting") {
+  if ((runStatus === "completed" || runStatus === "idle" || runStatus === "waiting") && !includeLastKnown) {
     return {
       serviceDate,
       runStatus,
@@ -165,7 +166,7 @@ export async function resolveRouteProgress(args: {
 
   const recentRuns = buildRecentRuns(passedStops, ROAD_FACTOR, osrmDistances);
 
-  // 7. Validate persisted pointer
+  // 7. Validate persisted pointer (two-tier staleness)
   const entryIds = new Set(sortedEntries.map((e) => e.id));
   let targetStopId: string | undefined;
 
@@ -177,9 +178,9 @@ export async function resolveRouteProgress(args: {
     const pointerAge = runData.progress_updated_at
       ? now.diff(DateTime.fromISO(runData.progress_updated_at), "minutes").minutes
       : Infinity;
-    const pointerFresh = pointerAge >= 0 && pointerAge < POINTER_STALENESS_MINUTES;
+    const pointerWithinCeiling = pointerAge >= 0 && pointerAge < POINTER_ABSOLUTE_CEILING_MINUTES;
 
-    if (pointerExists && pointerIsPending && pointerFresh) {
+    if (pointerExists && pointerIsPending && pointerWithinCeiling) {
       targetStopId = runData.next_stop_id;
     }
   }
@@ -241,9 +242,17 @@ export async function resolveRouteProgress(args: {
     } else {
       // Fallback to legacy when pointer is invalid/missing/stale
       if (runData.next_stop_id) {
-        const reason = !entryIds.has(runData.next_stop_id)
-          ? "pointer_invalid"
-          : "pointer_stale_or_not_pending";
+        const pointerAge = runData.progress_updated_at
+          ? now.diff(DateTime.fromISO(runData.progress_updated_at), "minutes").minutes
+          : Infinity;
+        let reason: string;
+        if (!entryIds.has(runData.next_stop_id)) {
+          reason = "pointer_invalid";
+        } else if (pointerAge >= POINTER_ABSOLUTE_CEILING_MINUTES) {
+          reason = "pointer_expired";
+        } else {
+          reason = "pointer_stale_or_not_pending";
+        }
         console.log(JSON.stringify({
           event: "progress_source_fallback",
           routeId,
@@ -268,6 +277,6 @@ export async function resolveRouteProgress(args: {
 }
 
 function parseProgressSource(value: string | undefined): "legacy" | "shadow" | "persisted" {
-  if (value === "shadow" || value === "persisted") return value;
-  return "legacy";
+  if (value === "shadow" || value === "legacy") return value;
+  return "persisted";
 }
