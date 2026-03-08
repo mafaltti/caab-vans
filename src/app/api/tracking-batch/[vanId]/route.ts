@@ -184,6 +184,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           vanId,
           newestUpserted.lat,
           newestUpserted.lng,
+          snappedLat,
+          snappedLng,
         );
       } catch (error) {
         console.error("Stop inference failed:", error);

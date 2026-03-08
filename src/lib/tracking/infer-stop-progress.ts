@@ -21,11 +21,16 @@ const EMPTY_PROGRESS: StopProgress = {
   lastPassedStopId: null,
 };
 
+export const SNAP_DISPLACEMENT_THRESHOLD_M = 50;
+export const CONFIDENCE_PING_WINDOW_MINUTES = 5;
+
 export async function inferStopProgress(
   supabase: SupabaseClient,
   vanId: string,
   lat: number,
   lng: number,
+  snappedLat?: number | null,
+  snappedLng?: number | null,
 ): Promise<StopProgress> {
   // 1. Find route for this van
   const { data: route, error: routeError } = await supabase
@@ -126,7 +131,7 @@ export async function inferStopProgress(
   const { data: pendingStops, error: pendingError } = await supabase
     .from("route_run_stops")
     .select(
-      "schedule_entry_id, status, passed_at, schedule_entries!inner(time, stop_lat, stop_lng, geofence_radius_m)",
+      "schedule_entry_id, status, passed_at, schedule_entries!inner(time, stop_lat, stop_lng, geofence_radius_m, stop_group_id)",
     )
     .eq("run_id", run.id)
     .eq("status", "pending")
@@ -140,8 +145,26 @@ export async function inferStopProgress(
     });
   }
 
-  // 6. Check geofence for each pending stop — closest-in-time matching
+  // 6. Determine effective coordinates (hybrid raw/snapped)
+  const hasSnapped = snappedLat != null && snappedLng != null;
+  let useSnapped = false;
+  let effectiveLat = lat;
+  let effectiveLng = lng;
+
+  if (hasSnapped) {
+    const snapDisplacement = haversineDistanceMeters(
+      lat, lng, snappedLat!, snappedLng!,
+    );
+    if (snapDisplacement <= SNAP_DISPLACEMENT_THRESHOLD_M) {
+      useSnapped = true;
+      effectiveLat = snappedLat!;
+      effectiveLng = snappedLng!;
+    }
+  }
+
+  // Check geofence for each pending stop — closest-in-time matching
   const newlyPassedIds: string[] = [];
+  const newlyPassedConfidence = new Map<string, number>();
   const now = nowBahia();
 
   if (pendingStops) {
@@ -153,33 +176,30 @@ export async function inferStopProgress(
         stop_lat: number;
         stop_lng: number;
         geofence_radius_m: number;
+        stop_group_id: string | null;
       };
-      const coordKey = `${entry.stop_lat.toFixed(6)},${entry.stop_lng.toFixed(6)}`;
+      const coordKey = entry.stop_group_id ?? `${entry.stop_lat.toFixed(6)},${entry.stop_lng.toFixed(6)}`;
       if (!coordGroups.has(coordKey)) coordGroups.set(coordKey, []);
       coordGroups.get(coordKey)!.push(stop);
     }
 
-    // For each coordinate group: check geofence, then pick closest-in-time
+    // For each group: check geofence per entry, then pick closest-in-time
     for (const [, group] of coordGroups) {
-      const firstEntry = group[0].schedule_entries as unknown as {
-        time: string;
-        stop_lat: number;
-        stop_lng: number;
-        geofence_radius_m: number;
-      };
-
-      // Geofence check (same coords for all in group)
-      const distance = haversineDistanceMeters(
-        lat,
-        lng,
-        firstEntry.stop_lat,
-        firstEntry.stop_lng,
-      );
-      if (distance > firstEntry.geofence_radius_m) continue;
-
-      // Filter by early arrival window
+      // Filter entries within their individual geofence AND early arrival window
       const eligible = group.filter((stop) => {
-        const entry = stop.schedule_entries as unknown as { time: string };
+        const entry = stop.schedule_entries as unknown as {
+          time: string;
+          stop_lat: number;
+          stop_lng: number;
+          geofence_radius_m: number;
+        };
+        const distance = haversineDistanceMeters(
+          effectiveLat,
+          effectiveLng,
+          entry.stop_lat,
+          entry.stop_lng,
+        );
+        if (distance > entry.geofence_radius_m) return false;
         const stopTime = parseTime(entry.time);
         return now >= stopTime.minus({ minutes: EARLY_ARRIVAL_WINDOW_MINUTES });
       });
@@ -205,25 +225,71 @@ export async function inferStopProgress(
         }
       }
 
-      // Mark as passed
+      // Compute confidence score based on recent pings in geofence
+      const bestEntry = bestStop.schedule_entries as unknown as {
+        stop_lat: number; stop_lng: number; geofence_radius_m: number;
+      };
+      const windowStart = new Date(
+        Date.now() - CONFIDENCE_PING_WINDOW_MINUTES * 60 * 1000,
+      ).toISOString();
+
+      const { data: recentPings } = await supabase
+        .from("van_location_pings")
+        .select("lat, lng")
+        .eq("van_id", vanId)
+        .gte("device_ts", windowStart)
+        .limit(50);
+
+      let pingsInGeofence = 0;
+      if (recentPings) {
+        for (const ping of recentPings) {
+          const pingDist = haversineDistanceMeters(
+            ping.lat, ping.lng,
+            bestEntry.stop_lat, bestEntry.stop_lng,
+          );
+          if (pingDist <= bestEntry.geofence_radius_m) {
+            pingsInGeofence++;
+          }
+        }
+      }
+
+      let confidence: number;
+      if (pingsInGeofence >= 2) {
+        confidence = useSnapped ? 1.0 : 0.9;
+      } else {
+        confidence = useSnapped ? 0.8 : 0.7;
+      }
+
+      const passSource = useSnapped ? "geofence_snapped" : "geofence_raw";
+
+      // Mark as passed with confidence metadata
       await supabase
         .from("route_run_stops")
-        .update({ status: "passed", passed_at: new Date().toISOString() })
+        .update({
+          status: "passed",
+          passed_at: new Date().toISOString(),
+          pass_source: passSource,
+          pass_confidence: confidence,
+        })
         .eq("run_id", run.id)
         .eq("schedule_entry_id", bestStop.schedule_entry_id);
 
       newlyPassedIds.push(bestStop.schedule_entry_id);
+      newlyPassedConfidence.set(bestStop.schedule_entry_id, confidence);
     }
   }
 
-  // 6b. Chronological backfill: mark all earlier pending stops as passed
+  // 6b. Confidence-gated chronological backfill
   if (newlyPassedIds.length > 0 && pendingStops) {
-    // Find the max scheduled time among newly passed stops
+    // Find the max scheduled time and confidence among newly passed stops
     let maxPassedTime = "";
+    let maxPassedConfidence = 0;
     for (const stop of pendingStops) {
       if (newlyPassedIds.includes(stop.schedule_entry_id)) {
         const entry = stop.schedule_entries as unknown as { time: string };
         if (entry.time > maxPassedTime) maxPassedTime = entry.time;
+        const conf = newlyPassedConfidence.get(stop.schedule_entry_id) ?? 0;
+        if (conf > maxPassedConfidence) maxPassedConfidence = conf;
       }
     }
 
@@ -238,11 +304,31 @@ export async function inferStopProgress(
     }
 
     if (backfillIds.length > 0) {
-      await supabase
-        .from("route_run_stops")
-        .update({ status: "passed", passed_at: new Date().toISOString() })
-        .eq("run_id", run.id)
-        .in("schedule_entry_id", backfillIds);
+      const gap = backfillIds.length;
+      // Gate: only backfill if confidence > 0.7 (requires snapped or multi-ping) OR gap is 1 stop
+      const shouldBackfill = maxPassedConfidence > 0.7 || gap <= 1;
+
+      if (shouldBackfill) {
+        let backfillConfidence: number;
+        if (gap <= 1) {
+          backfillConfidence = 0.7;
+        } else if (gap <= 3) {
+          backfillConfidence = 0.5;
+        } else {
+          backfillConfidence = 0.3;
+        }
+
+        await supabase
+          .from("route_run_stops")
+          .update({
+            status: "passed",
+            passed_at: new Date().toISOString(),
+            pass_source: "backfill",
+            pass_confidence: backfillConfidence,
+          })
+          .eq("run_id", run.id)
+          .in("schedule_entry_id", backfillIds);
+      }
     }
   }
 
@@ -285,6 +371,18 @@ export async function inferStopProgress(
     if (nextStopId === null && firstPendingId !== null) {
       nextStopId = firstPendingId;
     }
+  }
+
+  // Persist progress pointers on the route_run
+  if (lastPassedStopId !== null || nextStopId !== null) {
+    await supabase
+      .from("route_runs")
+      .update({
+        last_passed_stop_id: lastPassedStopId,
+        next_stop_id: nextStopId,
+        progress_updated_at: new Date().toISOString(),
+      })
+      .eq("id", run.id);
   }
 
   return { passedStopIds, nextStopId, lastPassedStopId };

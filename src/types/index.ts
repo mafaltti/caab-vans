@@ -1,3 +1,9 @@
+// Tracking status types
+
+export type TrackingStatus = "live" | "stale" | "missing";
+
+export type PassSource = "geofence_raw" | "geofence_snapped" | "backfill" | "manual";
+
 // Database entity types (matching data-model.md)
 
 export type Route = {
@@ -34,6 +40,7 @@ export type ScheduleEntry = {
   stop_lat: number | null;
   stop_lng: number | null;
   geofence_radius_m: number;
+  stop_group_id: string | null;
   created_at: string;
 };
 
@@ -73,6 +80,9 @@ export type RouteRun = {
   id: string;
   route_id: string;
   service_date: string;
+  last_passed_stop_id: string | null;
+  next_stop_id: string | null;
+  progress_updated_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -82,6 +92,8 @@ export type RouteRunStop = {
   schedule_entry_id: string;
   status: "pending" | "passed";
   passed_at: string | null;
+  pass_source: PassSource | null;
+  pass_confidence: number | null;
 };
 
 // Computed types (BFF response shapes)
@@ -105,13 +117,15 @@ export type RouteProgress = {
   etaNextStopISO: string | null;
   etaNextStopMinutes: number | null;
   delayMinutes: number | null;
-  etaSource: "gps" | "gps_osrm" | "schedule" | null;
+  etaSource: "gps" | "gps_osrm" | "segment" | "schedule" | null;
 };
 
 export type RouteWithStatus = {
   id: string;
   name: string;
   isRunning: boolean;
+  trackingStatus: TrackingStatus;
+  isTrackingFresh: boolean;
   nextStop: NextStop | null;
   scheduleStatus: ScheduleStatus;
   totalStops: number;

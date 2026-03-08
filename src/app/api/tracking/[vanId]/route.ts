@@ -172,7 +172,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   if (updated) {
     try {
-      await inferStopProgress(supabase, vanId, lat, lng);
+      await inferStopProgress(supabase, vanId, lat, lng, snappedLat, snappedLng);
     } catch (error) {
       console.error("Stop inference failed:", error);
     }

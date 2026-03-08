@@ -10,6 +10,7 @@ export const createScheduleEntrySchema = z.object({
   time: z.string().regex(timePattern, "Time must be in HH:mm format"),
   stopLat: z.number().min(-90).max(90).nullable().optional(),
   stopLng: z.number().min(-180).max(180).nullable().optional(),
+  stopGroupId: z.string().max(100).nullable().optional(),
 });
 
 export const updateScheduleEntrySchema = z.object({
@@ -20,4 +21,5 @@ export const updateScheduleEntrySchema = z.object({
   time: z.string().regex(timePattern, "Time must be in HH:mm format"),
   stopLat: z.number().min(-90).max(90).nullable().optional(),
   stopLng: z.number().min(-180).max(180).nullable().optional(),
+  stopGroupId: z.string().max(100).nullable().optional(),
 });

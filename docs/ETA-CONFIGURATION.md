@@ -4,13 +4,14 @@ How the ETA system works and how to configure it for optimal accuracy.
 
 ## Overview
 
-The ETA system uses a three-layer approach to estimate arrival times:
+The ETA system uses a multi-layer approach to estimate arrival times:
 
 1. **OSRM road distance** — real driving distance between van and next stop
-2. **Time-of-day correction** — rush hour multipliers applied to base ETA
-3. **Nightly refinement** — automatic factor updates from historical trip data
+2. **Segment-aware fallback** — stored OSRM distances when GPS is unavailable
+3. **Time-of-day correction** — rush hour multipliers applied to base ETA
+4. **Nightly refinement** — automatic factor updates from historical trip data
 
-All three layers are **optional and progressive**. A fresh deployment works out of the box with sensible defaults. Each layer improves accuracy when enabled.
+All four layers are **optional and progressive**. A fresh deployment works out of the box with sensible defaults. Each layer improves accuracy when enabled.
 
 ## Layer 1: OSRM Road Distance
 
@@ -33,7 +34,8 @@ OSRM_BASE_URL=http://localhost:5000
 | OSRM configured and responding | `gps_osrm` | Road distance from OSRM `/route` |
 | OSRM configured but down/slow (>100ms) | `gps` | Haversine × 1.3 (automatic fallback) |
 | OSRM not configured | `gps` | Haversine × 1.3 (same as before) |
-| No GPS / van stopped / stale position | `schedule` | Schedule time + observed delay |
+| No GPS but OSRM segment distances stored | `segment` | Segment distance / reference speed × time factor |
+| No GPS / no segment data / van stopped | `schedule` | Schedule time + observed delay |
 
 ### Requirements
 
@@ -49,7 +51,43 @@ OSRM_BASE_URL=http://localhost:5000
 
 ---
 
-## Layer 2: Time-of-Day Correction Factors
+## Layer 2: Segment-Aware Fallback
+
+### What it does
+
+When GPS is unavailable (stale or missing) but stops have been passed, uses stored per-segment OSRM road distances to estimate travel time to the next stop. Fills the gap between GPS-based ETA and schedule-delay fallback.
+
+### How it works
+
+The computation is: `travelMinutes = (osrmDistanceM / REFERENCE_SPEED_MPS / 60) × timeFactor`, where:
+
+- `osrmDistanceM` — pre-computed road distance from `schedule_entries.osrm_distance_m`
+- `REFERENCE_SPEED_MPS` — 8.3 m/s (~30 km/h), typical urban van speed
+- `timeFactor` — time-of-day correction from Layer 3
+
+ETA is anchored to the last passed stop's actual passage time: `lastPassedStop.passedAt + travelMinutes`.
+
+### When it activates
+
+| Condition | Result |
+|-----------|--------|
+| GPS fresh + moving | GPS branch used (Layer 1) |
+| GPS stale + last stop passed + `osrm_distance_m` available | **Segment fallback** |
+| GPS stale + no segment data | Schedule fallback |
+| No stops passed yet | Schedule fallback |
+
+### ETA source priority chain
+
+| Priority | Source | Condition |
+|----------|--------|-----------|
+| 1 | `gps_osrm` | Fresh GPS + OSRM reachable |
+| 2 | `gps` | Fresh GPS + haversine fallback |
+| 3 | `segment` | GPS unavailable, road distance known |
+| 4 | `schedule` | Final fallback — scheduled time + delay |
+
+---
+
+## Layer 3: Time-of-Day Correction Factors
 
 ### What it does
 
@@ -94,7 +132,7 @@ This captures day-specific anomalies (rain, events, unusual congestion) without 
 
 ---
 
-## Layer 3: Nightly Factor Refinement
+## Layer 4: Nightly Factor Refinement
 
 ### What it does
 
@@ -180,10 +218,11 @@ Nothing to do. The system works with haversine + hardcoded rush hour factors.
 
 ### Monitoring
 
-Check the `etaSource` field in API responses to verify OSRM is being used:
-- `"gps_osrm"` — OSRM is working
+Check the `etaSource` field in API responses to verify which layer is active:
+- `"gps_osrm"` — OSRM is working (best accuracy)
 - `"gps"` — falling back to haversine (check OSRM availability)
-- `"schedule"` — no GPS data available (normal when van is stopped)
+- `"segment"` — GPS unavailable, using stored segment distances
+- `"schedule"` — no GPS or segment data available (normal when van is stopped)
 
 Server logs emit structured `eta_comparison` JSON events that include both haversine and OSRM distances side-by-side, useful for accuracy analysis:
 
