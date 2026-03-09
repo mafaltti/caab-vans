@@ -1757,7 +1757,7 @@ describe("etaStatus field", () => {
       expect(result.etaSource).toBe("segment");
       expect(result.nextStopId).toBe("b");
       expect(result.etaStatus).toBe("estimated");
-      expect(result.etaNextStopMinutes).not.toBeNull();
+      expect(result.etaNextStopMinutes).toBeGreaterThanOrEqual(0);
     });
 
     it("T002: on-time van with segment fallback returns 'estimated' when scheduled time is in the future", async () => {
@@ -1792,7 +1792,7 @@ describe("etaStatus field", () => {
       expect(result.etaSource).toBe("segment");
       expect(result.nextStopId).toBe("b");
       expect(result.etaStatus).toBe("estimated");
-      expect(result.etaNextStopMinutes).not.toBeNull();
+      expect(result.etaNextStopMinutes).toBeGreaterThanOrEqual(0);
     });
 
     it("T003: segment fallback returns 'overdue' when both ETA and scheduled time have passed", async () => {
@@ -1861,7 +1861,7 @@ describe("etaStatus field", () => {
       expect(result.etaSource).toBe("schedule");
       expect(result.nextStopId).toBe("b");
       expect(result.etaStatus).toBe("estimated");
-      expect(result.etaNextStopMinutes).not.toBeNull();
+      expect(result.etaNextStopMinutes).toBeGreaterThanOrEqual(0);
     });
 
     it("T006: schedule fallback returns 'overdue' when both ETA and scheduled time have passed", async () => {

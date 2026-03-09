@@ -292,7 +292,7 @@ export async function computeEta(args: {
           };
         }
 
-        const etaNextStopMinutes = Math.ceil(etaDateTime.diff(now, "minutes").minutes);
+        const etaNextStopMinutes = Math.max(0, Math.ceil(etaDateTime.diff(now, "minutes").minutes));
 
         return {
           etaNextStopISO: etaDateTime.toISO(),
@@ -350,7 +350,7 @@ function scheduleDelayFallback(
     };
   }
 
-  const etaNextStopMinutes = Math.ceil(etaDateTime.diff(now, "minutes").minutes);
+  const etaNextStopMinutes = Math.max(0, Math.ceil(etaDateTime.diff(now, "minutes").minutes));
 
   return {
     etaNextStopISO: etaDateTime.toISO(),
