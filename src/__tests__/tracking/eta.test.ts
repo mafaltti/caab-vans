@@ -1691,6 +1691,36 @@ describe("etaStatus field", () => {
     expect(result.etaSource).toBe("schedule");
   });
 
+  // T022: UI contract — overdue returns etaStatus "overdue" with null etaNextStopMinutes
+  it("overdue ETA returns etaStatus 'overdue' with null etaNextStopMinutes (UI contract)", async () => {
+    // stops: a passed 5 min late, b pending and already past scheduled time
+    const stops = [
+      {
+        scheduleEntryId: "a",
+        time: "08:30",
+        status: "passed" as const,
+        passedAt: DateTime.fromObject(
+          { hour: 8, minute: 35 },
+          { zone: TZ },
+        ).toISO()!,
+      },
+      {
+        scheduleEntryId: "b",
+        time: "08:45",
+        status: "pending" as const,
+        passedAt: null,
+      },
+    ];
+    // now is 08:55 — predicted ETA was 08:50 (08:45 + 5min delay), which is in the past
+    const now = DateTime.fromObject({ hour: 8, minute: 55 }, { zone: TZ });
+
+    const result = await computeEta({ stops, now });
+
+    expect(result.etaStatus).toBe("overdue");
+    expect(result.etaNextStopMinutes).toBeNull();
+    expect(result.nextStopId).toBe("b");
+  });
+
   // T021b: no next stop returns "none"
   it("returns etaStatus 'none' when all stops are passed", async () => {
     const now = DateTime.fromObject({ hour: 9, minute: 0 }, { zone: TZ });

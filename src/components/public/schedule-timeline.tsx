@@ -13,6 +13,7 @@ type ScheduleTimelineProps = {
   passedStopIds?: string[];
   inferredNextStopId?: string | null;
   etaMinutes?: number | null;
+  etaStatus?: "estimated" | "overdue" | "none";
   serverTime?: string;
   runStatus?: RunStatus;
   nextStopMode?: "live" | "last_known" | null;
@@ -131,6 +132,7 @@ export function ScheduleTimeline({
   passedStopIds,
   inferredNextStopId,
   etaMinutes,
+  etaStatus,
   serverTime,
   runStatus,
   nextStopMode,
@@ -212,6 +214,11 @@ export function ScheduleTimeline({
                 {stop.status === "current" && nextStopMode !== "last_known" && etaMinutes != null && (
                   <p className="text-xs text-blue-400">
                     ~{etaMinutes} min
+                  </p>
+                )}
+                {stop.status === "current" && nextStopMode !== "last_known" && etaStatus === "overdue" && etaMinutes == null && (
+                  <p className="text-xs text-amber-600 font-medium">
+                    Atrasado
                   </p>
                 )}
               </div>

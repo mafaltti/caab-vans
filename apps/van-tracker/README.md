@@ -1,20 +1,27 @@
 # CAAB Van Tracker
 
-Standalone Expo + TypeScript Android app that sends device GPS coordinates to the CAAB Vans backend endpoint. Uses expo-location + expo-task-manager as an Android foreground service.
+Standalone Expo + TypeScript Android app that sends device GPS coordinates to the CAAB Vans backend. It uses `expo-location` plus `expo-task-manager` as an Android foreground service.
 
 ## Prerequisites
 
-- Node.js 18+
+- Node.js 22 recommended (match the root workspace)
 - npm
 - EAS CLI: `npm install -g eas-cli`
-- Expo account (run `eas login`)
+- Expo account (`eas login`)
 - Android device with USB debugging enabled (API 31+ recommended)
+- Android SDK only if you want local Android builds
 
 ## Install
 
 ```bash
 cd apps/van-tracker
 npm install
+```
+
+Validation:
+
+```bash
+npm run check
 ```
 
 ## EAS Setup
@@ -28,36 +35,65 @@ eas build --platform android --profile development --local
 
 ## Build Profiles
 
-- `development`: Dev client APK with hot reload support
-- `preview`: APK for internal testing
+Profiles are defined in `eas.json`:
+
+- `development`: dev-client APK for interactive development
+- `preview`: APK for internal testing and side-loading
+- `production`: default EAS production profile
+
+Use `preview` or `production` builds for real locked-screen testing. Expo Go is not sufficient for background tracking or boot-restart behavior.
 
 ## Run on Device
 
 ```bash
-npx expo start
-# Install APK on device via:
+npx expo start --dev-client
 adb install path/to/app.apk
 ```
 
+## Runtime Settings
+
+The app is configured from the in-app Settings screen:
+
+- `API Base URL`: public Next.js app URL, for example `https://APP_DOMAIN`
+- `Van ID`: UUID from the admin panel
+- `Ingestion Token`: token generated for that van
+
+Storage details:
+
+- `Ingestion Token` is stored in SecureStore
+- `API Base URL` and `Van ID` are stored in AsyncStorage
+
 ## Testing Background Tracking
 
-1. Open app → Settings → Enter API Base URL, Van ID, Ingestion Token
-2. Home → Start Tracking → Grant all permissions
-3. Verify status shows "TRACKING" and coordinates update
-4. Lock screen → Wait 1-2 min → Check server for continued pings
-5. Unlock → Verify coordinates still updating
-6. Stop Tracking
+1. Open the app and fill in Settings.
+2. Start tracking and grant all permissions.
+3. Verify status shows tracking and coordinates update.
+4. Lock the screen for 1-2 minutes.
+5. Confirm the backend still receives pings.
+6. Stop tracking.
+
+## Runtime Behavior
+
+Current behavior from the implementation:
+
+- Starts Android foreground-service tracking through `expo-location`
+- High-accuracy mode uses a 5 second interval and 10 meter distance interval
+- Battery saver switches to balanced accuracy and 10 second updates when battery drops below 20%, then returns to high accuracy above 25%
+- Drops inaccurate points over 50m, duplicate timestamps, and stale fixes
+- Throttles near-duplicate sends to avoid over-posting
+- Buffers up to 100 unsent points for 24 hours
+- Sends the newest point first to `/api/tracking/:vanId`, then flushes buffered points to `/api/tracking-batch/:vanId`
+- Backs off after network or server failures
+- Pauses auth-sensitive sends after 3 consecutive `401` responses until settings are corrected
+- Stores a capped diagnostics log that can be exported from the Diagnostics screen
 
 ## Production Provisioning
 
-Use this flow when preparing a phone for a client deployment:
+Use this flow when preparing a phone for a deployment:
 
 1. Build and install the APK via EAS.
-2. In the app settings, enter:
-   - `API Base URL`: the public Next.js app URL, for example `https://APP_DOMAIN`
-   - `Van ID`: the UUID created in the admin panel
-   - `Ingestion Token`: the token generated for that van
-3. Open the diagnostics screen once and confirm logging is available.
+2. Enter the runtime settings listed above.
+3. Open the Diagnostics screen once and confirm logging is available.
 4. Start tracking and verify the server receives pings for the correct van.
 
 Important:
@@ -65,15 +101,17 @@ Important:
 - The app posts to the Next.js app domain, not directly to the Supabase gateway domain.
 - Battery optimization whitelisting is required on many Android devices for reliable background behavior.
 - Diagnostics can be exported from the in-app Diagnostics screen for support and incident review.
-- Client-specific branding, Sentry ownership, and observability changes are follow-up work outside this cleanup pass.
 
 ## Boot Restart
 
-After device reboot, battery death, or app update, tracking resumes automatically without user interaction. Implemented via an Expo config plugin that injects a native Android BroadcastReceiver (Direct Boot-aware).
+After device reboot, battery death, or app update, tracking resumes automatically without user interaction. This is implemented via the custom Expo config plugin at `plugins/withBootRestart.js`, which injects a native Android `BroadcastReceiver`.
 
-**Requirements**: EAS Build (config plugins don't work with Expo Go).
+Requirements:
 
-**OEM Battery Optimization Whitelisting** — required for boot restart to work reliably:
+- EAS Build (config plugins do not work with Expo Go)
+- Battery optimization whitelisting on many OEM Android builds
+
+OEM battery optimization whitelisting:
 
 | Manufacturer | Path |
 |---|---|
@@ -81,25 +119,31 @@ After device reboot, battery death, or app update, tracking resumes automaticall
 | Xiaomi | Settings > Battery > App battery saver > CAAB Tracker > No restrictions |
 | Huawei | Settings > Battery > App launch > CAAB Tracker > Manual > enable all toggles |
 
-If boot restart does not work after whitelisting, the existing app-launch auto-resume serves as fallback (open the app manually).
+If boot restart does not work after whitelisting, the existing app-launch auto-resume serves as fallback.
+
+## Sentry
+
+`app.json` currently includes the `@sentry/react-native/expo` plugin with the `carneiro / caab-tracker` project configuration. If you ship this app under a different owner, update that config before building.
 
 ## Troubleshooting
 
-- No location after screen lock: Disable battery optimization for the app
-- Permission denied: Reinstall app to reset permissions
-- 401 errors: Verify ingestion token in Settings
-- OEM battery killers (Samsung, Xiaomi, Huawei): User must whitelist the app manually
-- Build fails: Update eas-cli (`npm install -g eas-cli@latest`), verify login (`eas whoami`)
-- Need logs for support: open `Settings -> Diagnostics` and export the diagnostic log
+- No location after screen lock: disable battery optimization for the app
+- Permission denied: reinstall the app to reset permissions
+- 401 errors: verify the ingestion token in Settings
+- Persistent buffering: inspect Diagnostics and verify network reachability to the app domain
+- OEM battery killers (Samsung, Xiaomi, Huawei): whitelist the app manually
+- Build fails: update `eas-cli`, verify `eas whoami`, and confirm the account has access to the project
+- Need support logs: open `Settings -> Diagnostics` and export the diagnostic log
 
 ## Dependencies
 
 | Package | Purpose |
 |---------|---------|
-| expo-location | GPS tracking (foreground + background) |
-| expo-task-manager | Background task registration |
-| expo-crypto | UUID generation for device ID |
-| expo-dev-client | Development build support |
-| @react-native-async-storage/async-storage | Local key-value persistence |
-| @react-native-community/netinfo | Network connectivity detection |
-| expo-router | File-based navigation |
+| `expo-location` | GPS tracking (foreground + background) |
+| `expo-task-manager` | Background task registration |
+| `expo-crypto` | UUID generation for device ID |
+| `expo-dev-client` | Development build support |
+| `expo-secure-store` | Secure storage for the ingestion token |
+| `@react-native-async-storage/async-storage` | Local key-value persistence |
+| `@react-native-community/netinfo` | Network connectivity detection |
+| `expo-router` | File-based navigation |

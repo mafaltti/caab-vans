@@ -28,6 +28,8 @@ This repo does not currently support an app Docker Compose stack as the canonica
 - TypeScript
 - Tailwind CSS 4
 - TanStack Query
+- MapLibre GL
+- motion
 - Zod
 - Luxon
 
@@ -46,6 +48,9 @@ This repo does not currently support an app Docker Compose stack as the canonica
 - React Native
 - expo-location
 - expo-task-manager
+- expo-secure-store
+- expo-battery
+- @sentry/react-native
 - EAS Build
 
 ### Tooling
@@ -59,8 +64,10 @@ This repo does not currently support an app Docker Compose stack as the canonica
 - Supabase Edge Functions are out of scope.
 - The service-role key is server-only.
 - The anon key is intentionally public.
+- Tracker devices authenticate with per-van `x-ingestion-token`, not Supabase Auth.
 - Business logic for route status, progress, and ETA belongs in the BFF/server layer.
 - Canonical timezone is `America/Bahia`.
+- `data/time-factors.json` is generated runtime data, not committed configuration.
 
 ## Network and Exposure Rules
 
@@ -95,6 +102,8 @@ STUDIO_DOMAIN=studio-vans.example.com
 
 - Backups and monitoring are still operator responsibilities; they are not automated in this repo.
 - OSRM is optional. If omitted, ETA falls back to haversine-based estimation.
+- The app-level rate limiter is in-memory and process-local.
+- Tracker background behavior depends on Android battery-optimization whitelisting.
 - Tests are primarily unit tests; there is no e2e suite in the repo today.
 
 For deployer steps, use [DEPLOYMENT.md](DEPLOYMENT.md). For ongoing reference, use [OPERATIONS.md](OPERATIONS.md).

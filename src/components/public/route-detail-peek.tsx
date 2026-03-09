@@ -8,6 +8,7 @@ interface RouteDetailPeekProps {
   nextStopName: string;
   scheduledTime: string;
   etaMinutes: number | null;
+  etaStatus?: "estimated" | "overdue" | "none";
   totalStops: number;
   passedCount: number;
   firstStopLabel: string;
@@ -18,6 +19,7 @@ export function RouteDetailPeek({
   nextStopName,
   scheduledTime,
   etaMinutes,
+  etaStatus,
   totalStops,
   passedCount,
   firstStopLabel,
@@ -47,6 +49,14 @@ export function RouteDetailPeek({
             </span>
             <span className="mt-0.5 text-[0.65rem] font-semibold uppercase tracking-wider text-blue-600">
               min
+            </span>
+          </div>
+        )}
+        {etaStatus === "overdue" && etaMinutes == null && (
+          <div className="flex shrink-0 flex-col items-center justify-center rounded-2xl bg-amber-50 px-3.5 py-2.5">
+            <Clock className="size-5 text-amber-600" />
+            <span className="mt-0.5 text-[0.65rem] font-semibold uppercase tracking-wider text-amber-600">
+              Atrasado
             </span>
           </div>
         )}

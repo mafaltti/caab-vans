@@ -76,6 +76,14 @@ export function RouteCard({ route }: RouteCardProps) {
                     </span>
                   </div>
                 )}
+                {route.nextStopMode !== "last_known" && route.progress?.etaStatus === "overdue" && route.nextStop?.id === route.progress.nextStopId && (
+                  <div className="mt-1.5 flex items-center gap-1.5 px-0.5">
+                    <Clock className="size-3 text-amber-600" />
+                    <span className="text-xs text-amber-600 font-medium">
+                      Atrasado
+                    </span>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>

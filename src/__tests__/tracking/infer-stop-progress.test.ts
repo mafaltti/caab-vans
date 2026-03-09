@@ -190,12 +190,12 @@ function createMockSupabase(opts: {
       }
       if (table === "van_location_pings") {
         const pingResult = { data: pings, error: null };
-        const limitSpy = vi.fn(() => pp);
+        const limitSpy = vi.fn(() => pingResult);
         const pingProxy: Record<string, unknown> = {};
         const pp = new Proxy(pingProxy, {
           get(_target, prop) {
             if (prop === "then") return undefined;
-            if (prop === "order") return () => pingResult;
+            if (prop === "order") return () => pp;
             if (prop === "limit") return limitSpy;
             return () => pp;
           },
@@ -2637,10 +2637,9 @@ describe("inferStopProgress evidence query hoisting", () => {
       VAN_AT_CAAB_LNG,
     );
 
-    // Primary assertion: .limit() must NOT be called on van_location_pings query
-    // (proves the 50-ping cap was removed, not just that confidence is stable)
+    // Primary assertion: .limit(50) must be called on van_location_pings query
     expect(mock._pingsLimitSpy).not.toBeNull();
-    expect(mock._pingsLimitSpy).not.toHaveBeenCalled();
+    expect(mock._pingsLimitSpy).toHaveBeenCalledWith(50);
 
     expect(mock._updates).toHaveLength(1);
     expect(mock._updates[0].pass_confidence).toBe(0.9);
@@ -2748,6 +2747,50 @@ describe("inferStopProgress evidence query hoisting", () => {
 
     expect(mock._updates).toHaveLength(1);
     expect(mock._updates[0].pass_confidence).toBe(0.9);
+  });
+
+  it("T007: recent-pings query includes tiebreaker ordering and explicit limit", async () => {
+    setMockTime(8, 5);
+
+    const pendingStops = [
+      {
+        schedule_entry_id: "entry-0800",
+        schedule_entries: {
+          time: "08:00",
+          stop_lat: CAAB_LAT,
+          stop_lng: CAAB_LNG,
+          geofence_radius_m: 50,
+        },
+      },
+    ];
+    const allStops = [
+      {
+        schedule_entry_id: "entry-0800",
+        status: "passed",
+        schedule_entries: { time: "08:00" },
+      },
+    ];
+    const pings = [
+      { lat: VAN_AT_CAAB_LAT, lng: VAN_AT_CAAB_LNG },
+    ];
+
+    const mock = createMockSupabase({
+      pendingStops,
+      allStops,
+      shifts: [{ id: "shift-1", ended_at: null }],
+      pings,
+    });
+    await inferStopProgress(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mock as any,
+      "van-1",
+      VAN_AT_CAAB_LAT,
+      VAN_AT_CAAB_LNG,
+    );
+
+    // The query must include .limit(50) for deterministic results
+    expect(mock._pingsLimitSpy).not.toBeNull();
+    expect(mock._pingsLimitSpy).toHaveBeenCalledWith(50);
   });
 });
 
@@ -2958,5 +3001,136 @@ describe("inferStopProgress monotonic snapped confidence", () => {
     expect(conf1).toBeLessThanOrEqual(conf2); // 0.65 <= 0.70
     expect(conf2).toBeLessThanOrEqual(conf3); // 0.70 <= 0.75
     expect(conf3).toBeLessThanOrEqual(conf4); // 0.75 <= 0.85
+  });
+});
+
+describe("inferStopProgress adjacency validation", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("rolls back lastPassedStopId to last contiguous stop when backfill is skipped (confidence <= 0.7)", async () => {
+    setMockTime(9, 5);
+
+    // Van is at stop-3 but confidence is low (no confirming pings) so backfill is skipped.
+    // stop-1 and stop-2 remain pending while stop-3 is marked passed.
+    const pendingStops = [
+      {
+        schedule_entry_id: "stop-3",
+        schedule_entries: {
+          time: "09:00",
+          stop_lat: -12.952,
+          stop_lng: -38.502,
+          geofence_radius_m: 50,
+        },
+      },
+    ];
+
+    // After the write path: stop-1 and stop-2 are pending, stop-3 is passed (gap)
+    const allStops = [
+      { schedule_entry_id: "stop-1", status: "pending", schedule_entries: { time: "08:00" } },
+      { schedule_entry_id: "stop-2", status: "pending", schedule_entries: { time: "08:30" } },
+      { schedule_entry_id: "stop-3", status: "passed", schedule_entries: { time: "09:00" } },
+    ];
+
+    const vanLat = -12.952 + 0.00003;
+    const vanLng = -38.502 + 0.00003;
+
+    const mock = createMockSupabase({
+      pendingStops,
+      allStops,
+      shifts: [{ id: "shift-1", ended_at: null }],
+      pings: [], // no confirming pings → confidence = 0.70, backfill skipped
+    });
+    const result = await inferStopProgress(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mock as any,
+      "van-1",
+      vanLat,
+      vanLng,
+    );
+
+    // lastPassedStopId should be rolled back to null (no contiguously-passed stop before first pending)
+    expect(result.lastPassedStopId).toBeNull();
+    // nextStopId should be the first pending stop
+    expect(result.nextStopId).toBe("stop-1");
+    // passedStopIds is filtered to contiguous prefix (empty — no stops passed before first pending)
+    expect(result.passedStopIds).not.toContain("stop-3");
+    // Persisted pointer should use the rolled-back lastPassedStopId
+    expect(mock._routeRunUpdates).toHaveLength(1);
+    expect(mock._routeRunUpdates[0].last_passed_stop_id).toBeNull();
+    expect(mock._routeRunUpdates[0].next_stop_id).toBe("stop-1");
+  });
+
+  it("does not roll back lastPassedStopId when backfill succeeds (confidence > 0.7)", async () => {
+    setMockTime(9, 5);
+
+    // Van is at stop-3 with high confidence (confirming pings), backfill runs.
+    // After backfill: all stops are passed, no gap.
+    const pendingStops = [
+      {
+        schedule_entry_id: "stop-1",
+        schedule_entries: {
+          time: "08:00",
+          stop_lat: -12.950,
+          stop_lng: -38.500,
+          geofence_radius_m: 50,
+        },
+      },
+      {
+        schedule_entry_id: "stop-2",
+        schedule_entries: {
+          time: "08:30",
+          stop_lat: -12.951,
+          stop_lng: -38.501,
+          geofence_radius_m: 50,
+        },
+      },
+      {
+        schedule_entry_id: "stop-3",
+        schedule_entries: {
+          time: "09:00",
+          stop_lat: -12.952,
+          stop_lng: -38.502,
+          geofence_radius_m: 50,
+        },
+      },
+    ];
+
+    const vanLat = -12.952 + 0.00003;
+    const vanLng = -38.502 + 0.00003;
+
+    // After backfill succeeds: all passed, stop-4 is next pending
+    const allStops = [
+      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00" } },
+      { schedule_entry_id: "stop-2", status: "passed", schedule_entries: { time: "08:30" } },
+      { schedule_entry_id: "stop-3", status: "passed", schedule_entries: { time: "09:00" } },
+      { schedule_entry_id: "stop-4", status: "pending", schedule_entries: { time: "09:30" } },
+    ];
+
+    const mock = createMockSupabase({
+      pendingStops,
+      allStops,
+      shifts: [{ id: "shift-1", ended_at: null }],
+      pings: [
+        { lat: vanLat + 0.00001, lng: vanLng + 0.00001 },
+        { lat: vanLat - 0.00001, lng: vanLng - 0.00001 },
+      ], // 2 confirming pings → confidence = 0.90 > 0.7, backfill runs
+    });
+    const result = await inferStopProgress(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mock as any,
+      "van-1",
+      vanLat,
+      vanLng,
+    );
+
+    // lastPassedStopId should be stop-3 (adjacent to nextStopId stop-4, no rollback)
+    expect(result.lastPassedStopId).toBe("stop-3");
+    expect(result.nextStopId).toBe("stop-4");
+    // Persisted pointer matches
+    expect(mock._routeRunUpdates).toHaveLength(1);
+    expect(mock._routeRunUpdates[0].last_passed_stop_id).toBe("stop-3");
+    expect(mock._routeRunUpdates[0].next_stop_id).toBe("stop-4");
   });
 });

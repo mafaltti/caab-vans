@@ -229,6 +229,7 @@ export default function RouteDetailPage() {
                   nextStopName={route!.nextStop.stopName}
                   scheduledTime={route!.nextStop.time}
                   etaMinutes={etaMinutes}
+                  etaStatus={route!.nextStop?.id === route!.progress?.nextStopId ? route!.progress?.etaStatus : undefined}
                   totalStops={totalStops}
                   passedCount={passedCount}
                   firstStopLabel={firstStopLabel}
@@ -244,6 +245,7 @@ export default function RouteDetailPage() {
               passedStopIds={route!.progress?.passedStopIds}
               inferredNextStopId={route!.progress?.nextStopId}
               etaMinutes={route!.progress?.etaNextStopMinutes}
+              etaStatus={route!.progress?.etaStatus}
               serverTime={data?.serverTime}
               runStatus={route!.progress?.runStatus}
               nextStopMode={route!.nextStopMode}
@@ -262,6 +264,7 @@ export default function RouteDetailPage() {
             isRunning={route!.isRunning}
             etaMinutes={route!.nextStop?.id === route!.progress?.nextStopId ? route!.progress?.etaNextStopMinutes : undefined}
             etaISO={route!.nextStop?.id === route!.progress?.nextStopId ? route!.progress?.etaNextStopISO : undefined}
+            etaStatus={route!.nextStop?.id === route!.progress?.nextStopId ? route!.progress?.etaStatus : undefined}
             runStatus={route!.progress?.runStatus}
             nextStopMode={route!.nextStopMode}
           />
@@ -286,6 +289,7 @@ export default function RouteDetailPage() {
             passedStopIds={route!.progress?.passedStopIds}
             inferredNextStopId={route!.progress?.nextStopId}
             etaMinutes={route!.progress?.etaNextStopMinutes}
+            etaStatus={route!.progress?.etaStatus}
             serverTime={data?.serverTime}
             runStatus={route!.progress?.runStatus}
             nextStopMode={route!.nextStopMode}

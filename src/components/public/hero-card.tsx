@@ -12,6 +12,7 @@ type HeroCardProps = {
   isRunning: boolean;
   etaMinutes?: number | null;
   etaISO?: string | null;
+  etaStatus?: "estimated" | "overdue" | "none";
   runStatus?: RunStatus;
   nextStopMode?: "live" | "last_known" | null;
 };
@@ -35,6 +36,7 @@ export function HeroCard({
   isRunning,
   etaMinutes,
   etaISO,
+  etaStatus,
   runStatus,
   nextStopMode,
 }: HeroCardProps) {
@@ -180,6 +182,12 @@ export function HeroCard({
               })}{" "}
               (~{etaMinutes} min)
             </span>
+          </div>
+        )}
+        {isRunning && etaStatus === "overdue" && etaMinutes == null && (
+          <div className="flex items-center gap-1.5 text-amber-300">
+            <Clock className="size-3.5" />
+            <span className="text-sm font-medium">Atrasado</span>
           </div>
         )}
 

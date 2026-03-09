@@ -189,7 +189,9 @@ export async function inferStopProgress(
       .select("lat, lng")
       .eq("van_id", vanId)
       .gte("device_ts", windowStart)
-      .order("device_ts", { ascending: false });
+      .order("device_ts", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(50);
 
     // For each group: check geofence per entry, then pick closest-in-time
     for (const [, group] of coordGroups) {
@@ -410,6 +412,43 @@ export async function inferStopProgress(
           nextStopId = stop.schedule_entry_id;
         }
       }
+    }
+  }
+
+  // Adjacency validation: if lastPassedStopId is not adjacent to nextStopId
+  // (pending stops exist between them), roll back to the last contiguously-passed stop.
+  if (allStops && lastPassedStopId !== null && nextStopId !== null) {
+    const lastPassedIdx = allStops.findIndex(
+      (s) => s.schedule_entry_id === lastPassedStopId,
+    );
+    const nextPendingIdx = allStops.findIndex(
+      (s) => s.schedule_entry_id === nextStopId,
+    );
+
+    if (lastPassedIdx >= 0 && nextPendingIdx >= 0 && lastPassedIdx + 1 !== nextPendingIdx) {
+      // Walk from the beginning: find the last passed stop before the first pending gap
+      let contiguousLastPassed: string | null = null;
+      for (let i = 0; i < allStops.length; i++) {
+        if (allStops[i].status === "passed") {
+          contiguousLastPassed = allStops[i].schedule_entry_id;
+        } else {
+          // First pending stop — the contiguous chain ends here
+          break;
+        }
+      }
+      lastPassedStopId = contiguousLastPassed;
+      // Filter passedStopIds to the contiguous prefix so downstream
+      // consumers (map, timeline, passed count) stay consistent.
+      const contiguousSet = new Set<string>();
+      for (const stop of allStops) {
+        if (stop.status === "passed") {
+          contiguousSet.add(stop.schedule_entry_id);
+        } else {
+          break;
+        }
+      }
+      passedStopIds.length = 0;
+      passedStopIds.push(...contiguousSet);
     }
   }
 
