@@ -276,7 +276,11 @@ export async function computeEta(args: {
 
         const delay = DateTime.fromISO(lastPassedForSegment.passedAt).diff(parseTime(lastPassedForSegment.time), "minutes").minutes;
 
-        if (etaDateTime <= now) {
+        const scheduledTime = (() => {
+          const [h, m] = nextStop.time.split(":").map(Number);
+          return now.set({ hour: h, minute: m, second: 0, millisecond: 0 });
+        })();
+        if (etaDateTime <= now && scheduledTime <= now) {
           return {
             etaNextStopISO: etaDateTime.toISO(),
             etaNextStopMinutes: null,
@@ -330,7 +334,11 @@ function scheduleDelayFallback(
     etaDateTime = parseTime(nextStop.time).plus({ minutes: delay });
   }
 
-  if (etaDateTime <= now) {
+  const scheduledTime = (() => {
+    const [h, m] = nextStop.time.split(":").map(Number);
+    return now.set({ hour: h, minute: m, second: 0, millisecond: 0 });
+  })();
+  if (etaDateTime <= now && scheduledTime <= now) {
     return {
       etaNextStopISO: etaDateTime.toISO(),
       etaNextStopMinutes: null,
