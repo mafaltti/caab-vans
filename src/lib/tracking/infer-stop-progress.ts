@@ -140,6 +140,16 @@ export async function inferStopProgress(
     .not("schedule_entries.stop_lng", "is", null)
     .order("time", { referencedTable: "schedule_entries", ascending: true });
 
+  // PostgREST referencedTable .order() only sorts the embedded sub-object,
+  // not the parent rows. Sort in JS to guarantee chronological iteration.
+  if (pendingStops) {
+    pendingStops.sort((a, b) => {
+      const ta = (a.schedule_entries as unknown as { time: string }).time;
+      const tb = (b.schedule_entries as unknown as { time: string }).time;
+      return ta.localeCompare(tb);
+    });
+  }
+
   if (pendingError) {
     console.error("inferStopProgress: pending stops query failed", {
       runId: run.id, error: pendingError.message,
@@ -388,6 +398,15 @@ export async function inferStopProgress(
     .select("schedule_entry_id, status, schedule_entries!inner(time)")
     .eq("run_id", run.id)
     .order("time", { referencedTable: "schedule_entries", ascending: true });
+
+  // Same PostgREST caveat — sort parent rows by schedule time in JS.
+  if (allStops) {
+    allStops.sort((a, b) => {
+      const ta = (a.schedule_entries as unknown as { time: string }).time;
+      const tb = (b.schedule_entries as unknown as { time: string }).time;
+      return ta.localeCompare(tb);
+    });
+  }
 
   if (allStopsError) {
     console.error("inferStopProgress: allStops query failed", {
