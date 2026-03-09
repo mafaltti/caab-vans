@@ -3054,8 +3054,8 @@ describe("inferStopProgress adjacency validation", () => {
     expect(result.lastPassedStopId).toBeNull();
     // nextStopId should be the first pending stop
     expect(result.nextStopId).toBe("stop-1");
-    // passedStopIds still contains stop-3 (it was marked in DB)
-    expect(result.passedStopIds).toContain("stop-3");
+    // passedStopIds is filtered to contiguous prefix (empty — no stops passed before first pending)
+    expect(result.passedStopIds).not.toContain("stop-3");
     // Persisted pointer should use the rolled-back lastPassedStopId
     expect(mock._routeRunUpdates).toHaveLength(1);
     expect(mock._routeRunUpdates[0].last_passed_stop_id).toBeNull();

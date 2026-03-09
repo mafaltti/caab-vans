@@ -254,7 +254,7 @@ export async function resolveRouteProgress(args: {
     recentSpeeds,
   };
 
-  let etaResult;
+  let etaResult: Awaited<ReturnType<typeof computeEta>>;
 
   if (mode === "shadow") {
     // Compute both legacy and persisted, serve legacy, log mismatches
@@ -316,6 +316,22 @@ export async function resolveRouteProgress(args: {
   const isNonRunning = runStatus !== "in_progress";
   if (includeLastKnown && isNonRunning && !targetStopId) {
     etaResult = { ...etaResult, nextStopId: null, etaNextStopISO: null, etaNextStopMinutes: null };
+  }
+
+  // Filter passedStopIds to the contiguous prefix up to nextStopId.
+  // When backfill is skipped (low confidence), non-adjacent stops can be
+  // marked "passed" in the DB while earlier stops remain pending. Exposing
+  // these would make the timeline show a later stop as passed while the
+  // current stop is earlier — confusing for commuters.
+  if (etaResult.nextStopId && etaResult.passedStopIds.length > 0) {
+    const nextIdx = sortedEntries.findIndex((e) => e.id === etaResult.nextStopId);
+    if (nextIdx >= 0) {
+      const validIds = new Set(sortedEntries.slice(0, nextIdx).map((e) => e.id));
+      etaResult = {
+        ...etaResult,
+        passedStopIds: etaResult.passedStopIds.filter((id) => validIds.has(id)),
+      };
+    }
   }
 
   return {

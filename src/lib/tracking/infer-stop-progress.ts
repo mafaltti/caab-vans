@@ -437,6 +437,18 @@ export async function inferStopProgress(
         }
       }
       lastPassedStopId = contiguousLastPassed;
+      // Filter passedStopIds to the contiguous prefix so downstream
+      // consumers (map, timeline, passed count) stay consistent.
+      const contiguousSet = new Set<string>();
+      for (const stop of allStops) {
+        if (stop.status === "passed") {
+          contiguousSet.add(stop.schedule_entry_id);
+        } else {
+          break;
+        }
+      }
+      passedStopIds.length = 0;
+      passedStopIds.push(...contiguousSet);
     }
   }
 
