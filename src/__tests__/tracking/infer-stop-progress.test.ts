@@ -3134,3 +3134,99 @@ describe("inferStopProgress adjacency validation", () => {
     expect(mock._routeRunUpdates[0].next_stop_id).toBe("stop-4");
   });
 });
+
+describe("inferStopProgress insertion-order resilience", () => {
+  // Regression: PostgREST referencedTable .order() only sorts the embedded
+  // sub-object, not parent rows. Without the JS sort fix, rows returned in
+  // insertion order produce wrong nextStopId / lastPassedStopId pointers.
+
+  it("returns correct pointers when allStops arrive in scrambled insertion order", async () => {
+    vi.mocked(nowBahia).mockReturnValue(
+      DateTime.fromObject({ hour: 10, minute: 0 }, { zone: TZ }),
+    );
+
+    // Simulate 4 stops whose insertion order differs from schedule order.
+    // Schedule order: stop-A 07:00, stop-B 08:00, stop-C 09:00, stop-D 10:00
+    // Insertion order (scrambled): stop-C, stop-A, stop-D, stop-B
+    const allStops = [
+      { schedule_entry_id: "stop-C", status: "passed",  schedule_entries: { time: "09:00" } },
+      { schedule_entry_id: "stop-A", status: "passed",  schedule_entries: { time: "07:00" } },
+      { schedule_entry_id: "stop-D", status: "pending", schedule_entries: { time: "10:00" } },
+      { schedule_entry_id: "stop-B", status: "passed",  schedule_entries: { time: "08:00" } },
+    ];
+
+    const mock = createMockSupabase({
+      pendingStops: [],
+      allStops,
+      shifts: [{ id: "shift-1", ended_at: null }],
+    });
+
+    const result = await inferStopProgress(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mock as any,
+      "van-1",
+      CAAB_LAT,
+      CAAB_LNG,
+    );
+
+    // After sorting by time, the order is A B C D.
+    // A, B, C are passed contiguously → lastPassedStopId = stop-C
+    // D is the first pending → nextStopId = stop-D
+    expect(result.lastPassedStopId).toBe("stop-C");
+    expect(result.nextStopId).toBe("stop-D");
+    expect(result.passedStopIds).toEqual(["stop-A", "stop-B", "stop-C"]);
+
+    // Persisted pointer must match
+    expect(mock._routeRunUpdates).toHaveLength(1);
+    expect(mock._routeRunUpdates[0].last_passed_stop_id).toBe("stop-C");
+    expect(mock._routeRunUpdates[0].next_stop_id).toBe("stop-D");
+  });
+
+  it("returns correct pointers when pendingStops arrive in scrambled insertion order", async () => {
+    vi.mocked(nowBahia).mockReturnValue(
+      DateTime.fromObject({ hour: 14, minute: 0 }, { zone: TZ }),
+    );
+
+    // Van is at CAAB coords. Two pending stops in scrambled order:
+    // Schedule: stop-E 13:00 (at CAAB), stop-F 14:00 (far away)
+    // Insertion: stop-F first, stop-E second
+    const pendingStops = [
+      {
+        schedule_entry_id: "stop-F",
+        schedule_entries: { time: "14:00", stop_lat: -13.5, stop_lng: -39.0, geofence_radius_m: 50, stop_group_id: null },
+      },
+      {
+        schedule_entry_id: "stop-E",
+        schedule_entries: { time: "13:00", stop_lat: CAAB_LAT, stop_lng: CAAB_LNG, geofence_radius_m: 50, stop_group_id: null },
+      },
+    ];
+
+    // After geofence pass on stop-E, allStops reflects it (scrambled order)
+    const allStops = [
+      { schedule_entry_id: "stop-F", status: "pending", schedule_entries: { time: "14:00" } },
+      { schedule_entry_id: "stop-E", status: "passed",  schedule_entries: { time: "13:00" } },
+    ];
+
+    const mock = createMockSupabase({
+      pendingStops,
+      allStops,
+      shifts: [{ id: "shift-1", ended_at: null }],
+      pings: [
+        { lat: VAN_AT_CAAB_LAT, lng: VAN_AT_CAAB_LNG },
+        { lat: VAN_AT_CAAB_LAT, lng: VAN_AT_CAAB_LNG },
+      ],
+    });
+
+    const result = await inferStopProgress(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mock as any,
+      "van-1",
+      VAN_AT_CAAB_LAT,
+      VAN_AT_CAAB_LNG,
+    );
+
+    // Sorted order: stop-E 13:00 (passed), stop-F 14:00 (pending)
+    expect(result.lastPassedStopId).toBe("stop-E");
+    expect(result.nextStopId).toBe("stop-F");
+  });
+});
