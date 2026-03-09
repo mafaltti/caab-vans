@@ -31,7 +31,7 @@
 
 ### Implementation for User Story 1
 
-- [x] T004 [US1] Add schedule-time guard to segment fallback overdue check (line 279) in `src/lib/tracking/eta.ts` — change `if (etaDateTime <= now)` to `if (etaDateTime <= now && parseTime(nextStop.time) <= now)`
+- [x] T004 [US1] Add schedule-time guard to segment fallback overdue check (line 279) in `src/lib/tracking/eta.ts` — change `if (etaDateTime <= now)` to `if (etaDateTime <= now && scheduledTime <= now)` using `now.set()`, and clamp `etaNextStopMinutes` with `Math.max(0, ...)`
 
 **Checkpoint**: At this point, segment fallback false positives are eliminated. Tests T001-T003 should pass.
 
@@ -52,7 +52,7 @@
 
 ### Implementation for User Story 2
 
-- [x] T007 [US2] Add schedule-time guard to schedule fallback overdue check (line 333) in `src/lib/tracking/eta.ts` — change `if (etaDateTime <= now)` to `if (etaDateTime <= now && parseTime(nextStop.time) <= now)`
+- [x] T007 [US2] Add schedule-time guard to schedule fallback overdue check (line 333) in `src/lib/tracking/eta.ts` — change `if (etaDateTime <= now)` to `if (etaDateTime <= now && scheduledTime <= now)` using `now.set()`, and clamp `etaNextStopMinutes` with `Math.max(0, ...)`
 
 **Checkpoint**: Both fallback paths now guard against false overdue. All tests should pass.
 
