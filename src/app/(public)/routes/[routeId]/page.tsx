@@ -229,6 +229,7 @@ export default function RouteDetailPage() {
                   nextStopName={route!.nextStop.stopName}
                   scheduledTime={route!.nextStop.time}
                   etaMinutes={etaMinutes}
+                  etaStatus={route!.nextStop?.id === route!.progress?.nextStopId ? route!.progress?.etaStatus : undefined}
                   totalStops={totalStops}
                   passedCount={passedCount}
                   firstStopLabel={firstStopLabel}

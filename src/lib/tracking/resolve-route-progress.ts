@@ -139,6 +139,25 @@ export async function resolveRouteProgress(args: {
     };
   }
 
+  // 4b. Compute contiguous passed prefix: only stops before the first
+  // pending gap count as "passed" for ETA math, recentRuns, and delay.
+  // Non-contiguous passed rows (from low-confidence geofence matches where
+  // backfill was skipped) are demoted to "pending" for downstream consumers.
+  const contiguousPassedIds = new Set<string>();
+  for (const entry of sortedEntries) {
+    const rs = runStops.find((r) => r.schedule_entry_id === entry.id);
+    if (rs && rs.status === "passed") {
+      contiguousPassedIds.add(entry.id);
+    } else {
+      break; // first non-passed entry ends the contiguous chain
+    }
+  }
+  const effectiveRunStops = runStops.map((rs) =>
+    rs.status === "passed" && !contiguousPassedIds.has(rs.schedule_entry_id)
+      ? { ...rs, status: "pending" as const, passed_at: null }
+      : rs,
+  );
+
   // 5. Build recentSpeeds from van_location_pings
   const recentSpeeds: Array<{ speedMps: number; deviceTs: string }> = [];
   if (vanId) {
@@ -164,7 +183,7 @@ export async function resolveRouteProgress(args: {
   const stopCoordsMap = new Map(
     sortedEntries.map((e) => [e.id, { stopLat: e.stop_lat, stopLng: e.stop_lng }]),
   );
-  const passedStops = runStops
+  const passedStops = effectiveRunStops
     .filter((rs) => rs.status === "passed" && rs.passed_at != null)
     .map((rs) => {
       const coords = stopCoordsMap.get(rs.schedule_entry_id);
@@ -230,7 +249,7 @@ export async function resolveRouteProgress(args: {
   const mode = parseProgressSource(process.env.TRACKING_PROGRESS_SOURCE);
 
   // 9. Compute ETA based on mode
-  const stops = runStops.map((rs) => {
+  const stops = effectiveRunStops.map((rs) => {
     const coords = stopCoordsMap.get(rs.schedule_entry_id);
     return {
       scheduleEntryId: rs.schedule_entry_id,
@@ -316,22 +335,6 @@ export async function resolveRouteProgress(args: {
   const isNonRunning = runStatus !== "in_progress";
   if (includeLastKnown && isNonRunning && !targetStopId) {
     etaResult = { ...etaResult, nextStopId: null, etaNextStopISO: null, etaNextStopMinutes: null };
-  }
-
-  // Filter passedStopIds to the contiguous prefix up to nextStopId.
-  // When backfill is skipped (low confidence), non-adjacent stops can be
-  // marked "passed" in the DB while earlier stops remain pending. Exposing
-  // these would make the timeline show a later stop as passed while the
-  // current stop is earlier — confusing for commuters.
-  if (etaResult.nextStopId && etaResult.passedStopIds.length > 0) {
-    const nextIdx = sortedEntries.findIndex((e) => e.id === etaResult.nextStopId);
-    if (nextIdx >= 0) {
-      const validIds = new Set(sortedEntries.slice(0, nextIdx).map((e) => e.id));
-      etaResult = {
-        ...etaResult,
-        passedStopIds: etaResult.passedStopIds.filter((id) => validIds.has(id)),
-      };
-    }
   }
 
   return {
