@@ -2,7 +2,7 @@
 
 **Feature Branch**: `056-tracking-progress-hardening`
 **Created**: 2026-03-08
-**Status**: Draft
+**Status**: Implemented
 **Input**: Harden tracking progress: enforce adjacency for persisted stop pointers, make confidence scoring deterministic, propagate includeLastKnown consistently, and render overdue ETA state in UI
 
 ## User Scenarios & Testing *(mandatory)*
@@ -108,7 +108,7 @@ A commuter or integrating client using `includeLastKnown=true` sees consistent i
 - The existing confidence threshold of >0.7 for backfill is correct and does not need adjustment.
 - The existing reconciliation script for orphaned shifts (already implemented) is sufficient — automatic shift closure is out of scope for this feature.
 - The OSRM distance data model and segment ETA calculation logic are structurally correct; only the edge-case handling (overdue clamping, non-adjacent pointers) needs fixing.
-- The route card component is the primary UI surface for ETA display; other consumers of the ETA data will benefit from the backend fixes without separate UI changes.
+- The overdue indicator needs to render on all UI surfaces that display ETA: route card, hero card, schedule timeline, and route detail peek (bottom sheet).
 
 ## Scope Boundary
 

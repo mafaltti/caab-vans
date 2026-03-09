@@ -17,7 +17,7 @@ Harden the tracking progress system by fixing four correctness bugs identified i
 **Project Type**: Web service (Next.js BFF + public pages)
 **Performance Goals**: N/A (correctness fix, no new performance targets)
 **Constraints**: Canonical timezone America/Bahia; computed fields in BFF only
-**Scale/Scope**: 4 backend files + 1 UI component + 4 test files modified
+**Scale/Scope**: 2 backend files + 4 UI components + 1 page + 4 test files modified
 
 ## Constitution Check
 
@@ -56,7 +56,12 @@ src/
 │   ├── infer-stop-progress.ts       # Write-time adjacency + deterministic query
 │   └── resolve-route-progress.ts    # Read-time adjacency + includeLastKnown fix
 ├── components/public/
-│   └── route-card.tsx               # Overdue ETA rendering
+│   ├── route-card.tsx               # Overdue ETA rendering
+│   ├── hero-card.tsx                # Overdue ETA rendering (detail page)
+│   ├── schedule-timeline.tsx        # Overdue ETA rendering (timeline)
+│   └── route-detail-peek.tsx        # Overdue ETA rendering (bottom sheet)
+├── app/(public)/routes/[routeId]/
+│   └── page.tsx                     # etaStatus threading to all components
 └── app/api/routes/
     ├── route.ts                     # (may need minor consistency fix)
     └── [routeId]/route.ts           # (may need minor consistency fix)

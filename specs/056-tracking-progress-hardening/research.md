@@ -36,13 +36,15 @@
 **Rationale**: The backend already correctly returns `etaStatus: "overdue"` with `etaNextStopMinutes: null` (confirmed in `eta.ts:279-289` and `eta.ts:333-343`). The route card (`route-card.tsx:71-78`) only checks `etaNextStopMinutes != null` — it silently hides the ETA section when overdue instead of showing a delay indicator.
 
 **Fix approach**:
-- When `etaStatus === "overdue"` and the stop ID matches, render a "Delayed" badge (e.g., amber/orange text with clock icon) instead of the "ETA: ~X min" line.
+- When `etaStatus === "overdue"` and the stop ID matches, render an "Atrasado" (Delayed) badge (amber text with clock icon) instead of the "ETA: ~X min" line.
 - Keep existing behavior for `etaStatus === "estimated"` (show minutes).
 - No new backend changes needed — only UI.
+- Thread `etaStatus` prop through all 4 ETA-displaying components: `route-card.tsx`, `hero-card.tsx`, `schedule-timeline.tsx`, `route-detail-peek.tsx`, and the detail page (`page.tsx`) that wires them together.
 
 **Alternatives considered**:
-- Show computed delay minutes (e.g., "5 min late"): Rejected for now — delay accuracy under degraded GPS is questionable; simple "Delayed" is safer.
+- Show computed delay minutes (e.g., "5 min late"): Rejected for now — delay accuracy under degraded GPS is questionable; simple "Atrasado" is safer.
 - Do nothing (hide ETA when overdue): Rejected — silence is worse than a clear signal.
+- Only fix route-card.tsx: Rejected after code review — overdue must render consistently on all surfaces (hero card, timeline, bottom-sheet peek).
 
 ## R4: `includeLastKnown` Response Consistency
 

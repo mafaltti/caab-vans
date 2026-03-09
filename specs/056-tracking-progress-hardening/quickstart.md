@@ -16,6 +16,10 @@ Fixes four correctness bugs in the van tracking progress system:
 
 ### UI
 - `src/components/public/route-card.tsx` — render overdue indicator
+- `src/components/public/hero-card.tsx` — render overdue indicator (detail page)
+- `src/components/public/schedule-timeline.tsx` — render overdue indicator (timeline)
+- `src/components/public/route-detail-peek.tsx` — render overdue indicator (bottom sheet)
+- `src/app/(public)/routes/[routeId]/page.tsx` — thread etaStatus to all components
 
 ### Tests
 - `src/__tests__/tracking/infer-stop-progress.test.ts` — adjacency + deterministic query tests
@@ -50,4 +54,4 @@ npx next build
 - **Defense in depth**: Adjacency enforced at both write (infer) and read (resolver) paths
 - **No new DB constraints**: Adjacency is an application-level invariant, not a DB constraint
 - **No new ETA algorithms**: Only edge-case handling changed; core ETA logic untouched
-- **Minimal UI change**: Single component (`route-card.tsx`) gains overdue rendering
+- **Consistent UI**: Overdue indicator rendered on all 4 ETA surfaces (route-card, hero-card, schedule-timeline, route-detail-peek)
