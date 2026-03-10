@@ -46,7 +46,7 @@ let authPaused = false;
 const ACCURACY_THRESHOLD = 50; // meters
 const MIN_DISTANCE = 5; // meters
 const MIN_INTERVAL = 3000; // milliseconds
-const STATIONARY_MAX_INTERVAL = 60_000; // 1 ping/min when stationary
+const STATIONARY_MAX_INTERVAL = 20_000; // 3 pings/min when stationary
 
 const BACKOFF_DELAYS = [5000, 10000, 30000, 60000, 120000, 300000]; // 5s→5min
 
@@ -257,11 +257,13 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
   // van with null speed + stale fix is low and self-corrects on the next callback.
   // See research decision R2 in specs/043-fix-stale-gps-guard/research.md.
   const isColdGap = (Date.now() - lastSentTime) > 120_000;
-  const isStationary = point.speed === null || point.speed <= 1;
-  const staleThreshold = isColdGap && isStationary ? 120_000 : 60_000;
-  if (Date.now() - point.ts > staleThreshold) {
-    logFiltered("stale");
-    return;
+  if (!isColdGap) {
+    const isStationary = point.speed === null || point.speed <= 1;
+    const staleThreshold = isStationary ? 120_000 : 60_000;
+    if (Date.now() - point.ts > staleThreshold) {
+      logFiltered("stale");
+      return;
+    }
   }
 
   // Throttle — skip if too close and too soon
