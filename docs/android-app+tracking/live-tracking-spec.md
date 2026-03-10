@@ -75,7 +75,7 @@ Shared contract between the Expo app and backend. See the Expo app spec for clie
 | `404` | `{ "error": { "code": "NOT_FOUND", "message": "..." } }` | Van not found |
 | `429` | `{ "error": { "code": "RATE_LIMITED", "message": "..." } }` | Rate limit exceeded |
 
-**Rate limit:** 25 requests/minute per van (~1,500/hour). Accommodates 3s client interval (~1,200/hour) plus headroom for buffer flushes.
+**Rate limit:** 40 requests/minute per van (~2,400/hour). Accommodates 3s client interval (~1,200/hour) plus headroom for buffer flushes.
 
 ---
 
@@ -179,7 +179,7 @@ Follows patterns from existing `src/app/api/ingest/[vanId]/route.ts`.
 
 **Flow:**
 
-1. Rate limit check — `createRateLimiter({ windowMs: 60_000, maxRequests: 25 })`.
+1. Rate limit check — `createRateLimiter({ windowMs: 60_000, maxRequests: 40 })`.
 2. Read `x-ingestion-token` header. Return `401` if missing.
 3. Look up van by `vanId`. Return `404` if not found, `401` if token mismatch.
 4. Parse and validate body with Zod.

@@ -164,7 +164,7 @@ For full backend details (route handler, database schema, Zod validation, stop i
 Key points relevant to this app:
 
 - The server stores pings in `van_location_pings` (history) and updates `vans` latest fields.
-- Rate limit is 25 req/min per van. Client should handle `429` by backing off.
+- Rate limit is 40 req/min per van. Client should handle `429` by buffering the point and retrying on the next cycle without escalating backoff.
 - The server runs stop inference as a side effect of each ping — this is transparent to the app.
 
 ## Settings Screen
@@ -182,7 +182,7 @@ All three fields are required before tracking can start. The app should validate
 ## Throttle & Rate Limit
 
 - **Client-side throttle:** send when distance >= 5m OR every 3s, whichever comes later (best effort). Drop points with accuracy > 50m.
-- **Server-side rate limit:** ~1,500 requests/hour per van (25/min). Client should handle `429` gracefully by backing off.
+- **Server-side rate limit:** ~2,400 requests/hour per van (40/min). Client should handle `429` by buffering the point and retrying on the next cycle without escalating backoff.
 - These values support near-realtime tracking (~1,200 req/hour at 3s interval) with headroom for buffered flushes.
 
 ## Offline Buffering

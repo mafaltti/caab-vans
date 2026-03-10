@@ -8,7 +8,7 @@ import { inferStopProgress } from "@/lib/tracking/infer-stop-progress";
 import { snapToRoad } from "@/lib/tracking/osrm";
 import { trackingSchema } from "@/lib/validators/tracking";
 
-const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 25 });
+const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 40 });
 
 const MAX_FUTURE_MS = 5 * 60 * 1000; // 5 minutes — clamp anything beyond this
 
