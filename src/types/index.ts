@@ -74,6 +74,8 @@ export type VanLocationPing = {
   heading_deg: number | null;
   device_ts: string;
   received_at: string;
+  snapped_lat: number | null;
+  snapped_lng: number | null;
 };
 
 export type RouteRun = {

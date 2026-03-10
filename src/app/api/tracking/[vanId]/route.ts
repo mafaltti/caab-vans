@@ -168,15 +168,23 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   });
 
   if (updateError) {
-    return apiError("INTERNAL_ERROR", "Failed to update van position", 500);
+    console.error("update_van_position failed (ping already stored):", {
+      vanId, deviceTs, error: updateError.message,
+    });
   }
 
   // Write snapped coords back to the accepted ping
   if (snappedLat != null && snappedLng != null) {
-    await supabase
+    const { error: snapWriteError } = await supabase
       .from("van_location_pings")
       .update({ snapped_lat: snappedLat, snapped_lng: snappedLng })
       .eq("id", upsertedPing.id);
+
+    if (snapWriteError) {
+      console.error("Failed to persist snapped coords:", {
+        pingId: upsertedPing.id, error: snapWriteError.message,
+      });
+    }
   }
 
   // Always run inference after a successful upsert, even when RPC returns false

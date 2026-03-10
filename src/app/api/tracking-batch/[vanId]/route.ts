@@ -182,10 +182,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         for (let i = 0; i < accepted.length; i++) {
           const snapped = perPointSnapped[i];
           if (snapped) {
-            await supabase
+            const { error: snapWriteError } = await supabase
               .from("van_location_pings")
               .update({ snapped_lat: snapped.lat, snapped_lng: snapped.lng })
               .eq("id", accepted[i].id);
+
+            if (snapWriteError) {
+              console.error("Failed to persist snapped coords:", {
+                pingId: accepted[i].id, error: snapWriteError.message,
+              });
+            }
           }
         }
       }
