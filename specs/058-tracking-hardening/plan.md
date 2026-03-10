@@ -121,10 +121,12 @@ No constitution violations to justify. All new abstractions have 2+ immediate co
    - Rename `lat`/`lng` params to `rawLat`/`rawLng` in the call
    - Decouple inference from `update_van_position` result: always run `inferStopProgress` after a successful upsert, even when the RPC returns false (out-of-order ping accepted but not newest)
    - Write computed `snapped_lat`/`snapped_lng` back to the accepted `van_location_pings` row so single-ping evidence supports source-aligned confidence scoring
+   - OSRM trajectory query filters with `.lte("device_ts", deviceTs)` so out-of-order pings only snap against earlier events
 
 5. **Batch route update** (`tracking-batch/[vanId]/route.ts`)
    - After upsert loop: collect accepted (non-duplicate) pings in chronological order
    - OSRM-match accepted trajectory via `matchTrajectory()`, write `snapped_lat`/`snapped_lng` back to pings
+   - Single-point batches fall back to `snapToRoad()` with recent stored pings (filtered by `.lte("device_ts", deviceTs)`) instead of skipping OSRM
    - Replay `inferStopProgress()` sequentially for each accepted ping with its own `eventTs`
    - Call `update_van_position` only once for the newest accepted point
    - Run inference even when `update_van_position` returns false (for older pings)
@@ -195,8 +197,9 @@ No constitution violations to justify. All new abstractions have 2+ immediate co
 
 **Changes**:
 
-1. **Remove `.limit(50)`** (`infer-stop-progress.ts`)
-   - Evidence query uses full 5-minute window without cap
+1. **Remove `.limit(50)` and add event-time upper bound** (`infer-stop-progress.ts`)
+   - Evidence query uses full 5-minute window without arbitrary ping cap
+   - Query filters with `.lte("device_ts", eventTs)` to prevent batch replay from counting future pings
 
 2. **Source-aligned evidence counting** (`infer-stop-progress.ts`)
    - For snapped-triggered matches: count only pings with stored `snapped_lat`/`snapped_lng` in geofence
