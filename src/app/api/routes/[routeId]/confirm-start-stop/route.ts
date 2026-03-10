@@ -54,7 +54,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   // Find active run for today
   const { data: run } = await supabase
     .from("route_runs")
-    .select("id")
+    .select("id, next_stop_id")
     .eq("route_id", routeId)
     .eq("service_date", serviceDate)
     .single();
@@ -97,30 +97,34 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return ta.localeCompare(tb);
   });
 
-  // Idempotency check: if this stopId is already confirmed as passed via manual,
-  // return success without changes
   const targetStop = allStops.find(
     (s) => s.schedule_entry_id === stopId,
   );
-  if (targetStop?.status === "passed" && targetStop?.pass_source === "manual") {
-    // Re-derive pointers for idempotent response
-    const canonical = enforceCanonicalPrefix(
-      allStops.map((s) => ({
-        schedule_entry_id: s.schedule_entry_id,
-        status: s.status as "pending" | "passed",
-      })),
-    );
 
-    const passedCount = allStops.filter(
-      (s) => s.status === "passed",
-    ).length;
+  // Idempotency: after a successful confirmation the run's next_stop_id is set
+  // to the confirmed stop (which stays pending). Detect retries by checking
+  // if the pointer already matches and all passed stops are manual.
+  if (run.next_stop_id === stopId) {
+    const passedStops = allStops.filter((s) => s.status === "passed");
+    const allManual =
+      passedStops.length > 0 &&
+      passedStops.every((s) => s.pass_source === "manual");
 
-    return NextResponse.json({
-      confirmed: true,
-      nextStopId: canonical.nextStopId,
-      lastPassedStopId: canonical.lastPassedStopId,
-      passedCount,
-    });
+    if (allManual) {
+      const canonical = enforceCanonicalPrefix(
+        allStops.map((s) => ({
+          schedule_entry_id: s.schedule_entry_id,
+          status: s.status as "pending" | "passed",
+        })),
+      );
+
+      return NextResponse.json({
+        confirmed: true,
+        nextStopId: canonical.nextStopId,
+        lastPassedStopId: canonical.lastPassedStopId,
+        passedCount: passedStops.length,
+      });
+    }
   }
 
   // Cold-start invariant: reject if any stops are already passed

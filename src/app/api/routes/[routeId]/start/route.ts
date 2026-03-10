@@ -214,8 +214,8 @@ async function detectColdStart(args: {
       .from("van_location_pings")
       .select("lat, lng")
       .eq("van_id", vanId)
-      .gte("received_at", fiveMinAgo)
-      .order("received_at", { ascending: false })
+      .gte("device_ts", fiveMinAgo)
+      .order("device_ts", { ascending: false })
       .limit(1)
       .maybeSingle();
 

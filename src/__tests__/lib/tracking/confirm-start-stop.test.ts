@@ -40,6 +40,60 @@ describe("confirm-start-stop logic", () => {
       expect(first.lastPassedStopId).toBe(second.lastPassedStopId);
       expect(first.nextStopId).toBe(second.nextStopId);
     });
+
+    it("retry detection: confirmed stop stays pending as next_stop_id", () => {
+      // After first confirm of s3: s1,s2 are passed(manual), s3 is pending
+      // run.next_stop_id === "s3"
+      const stopsAfterConfirm = [
+        { schedule_entry_id: "s1", status: "passed" as const, pass_source: "manual" },
+        { schedule_entry_id: "s2", status: "passed" as const, pass_source: "manual" },
+        { schedule_entry_id: "s3", status: "pending" as const, pass_source: null },
+        { schedule_entry_id: "s4", status: "pending" as const, pass_source: null },
+      ];
+
+      const confirmedStopId = "s3";
+      const runNextStopId = "s3"; // set by first confirmation
+
+      // Simulate the idempotency check from the endpoint
+      const passedStops = stopsAfterConfirm.filter((s) => s.status === "passed");
+      const allManual =
+        passedStops.length > 0 &&
+        passedStops.every((s) => s.pass_source === "manual");
+      const isRetry = runNextStopId === confirmedStopId && allManual;
+
+      expect(isRetry).toBe(true);
+
+      // Confirm canonical prefix still produces correct pointers
+      const canonical = enforceCanonicalPrefix(
+        stopsAfterConfirm.map((s) => ({
+          schedule_entry_id: s.schedule_entry_id,
+          status: s.status,
+        })),
+      );
+      expect(canonical.nextStopId).toBe("s3");
+      expect(canonical.lastPassedStopId).toBe("s2");
+    });
+
+    it("does not treat geofence-progressed run as idempotent retry", () => {
+      // Geofence has progressed to s3 as next_stop — not a cold-start retry
+      const stopsAfterGeofence = [
+        { schedule_entry_id: "s1", status: "passed" as const, pass_source: "geofence_raw" },
+        { schedule_entry_id: "s2", status: "passed" as const, pass_source: "geofence_raw" },
+        { schedule_entry_id: "s3", status: "pending" as const, pass_source: null },
+      ];
+
+      const confirmedStopId = "s3";
+      const runNextStopId = "s3";
+
+      const passedStops = stopsAfterGeofence.filter((s) => s.status === "passed");
+      const allManual =
+        passedStops.length > 0 &&
+        passedStops.every((s) => s.pass_source === "manual");
+      const isRetry = runNextStopId === confirmedStopId && allManual;
+
+      // Should NOT be detected as retry — geofence passes are not manual
+      expect(isRetry).toBe(false);
+    });
   });
 
   describe("cold-start invariant violation", () => {
