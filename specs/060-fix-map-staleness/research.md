@@ -12,9 +12,9 @@
 
 ## R2: Stale Guard Relaxation Strategy
 
-**Decision**: During cold gaps (>120s since last send), skip the stale guard entirely — send all points regardless of age, up to the existing accuracy filter.
+**Decision**: During cold gaps (>120s since last send), relax the stale threshold to 5 minutes (300s) instead of the normal 60s/120s. Points older than 5 minutes are still dropped to prevent marker rewind from arbitrarily old cached fixes. The accuracy filter remains active.
 
-**Rationale**: The current stale guard creates a feedback loop during Android doze: gap grows → point staler → dropped → gap grows more. During a cold gap, any GPS data is better than none. The accuracy filter (`ACCURACY_THRESHOLD = 50m`) already prevents garbage data. The original guard (spec 043) was designed for steady-state operation where stale cached fixes cause position jumps — but after a 2+ minute gap, there's no "current position" to jump from.
+**Rationale**: The current stale guard creates a feedback loop during Android doze: gap grows → point staler → dropped → gap grows more. During a cold gap, a 5-minute window is generous enough to admit any doze-delayed callback (typical doze gaps are 2–5 minutes) while still rejecting truly stale cached fixes that could rewind the van marker or incorrectly advance route progress. The accuracy filter (`ACCURACY_THRESHOLD = 50m`) provides an additional quality gate. The original guard (spec 043) was designed for steady-state operation where stale cached fixes cause position jumps — the 5-minute cap preserves that protection for extreme cases.
 
 **Alternatives considered**:
 - Increase stale threshold universally to 120s: Helps cold gaps but relaxes quality during normal operation, potentially allowing stale cached fixes through.

@@ -5,9 +5,11 @@ No database schema changes required. This feature modifies client-side filtering
 ## Existing Entities (Read-Only Context)
 
 ### van_location_pings (unchanged)
+
 GPS pings from tracker. Fields: `van_id`, `lat`, `lng`, `accuracy`, `speed_mps`, `heading_deg`, `device_ts`, `received_at`.
 
 ### vans (unchanged)
+
 Van state. Relevant fields: `last_lat`, `last_lng`, `last_gps_fix_at`, `location_updated_at`.
 
 ## API Response Shape (unchanged)

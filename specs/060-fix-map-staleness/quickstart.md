@@ -8,9 +8,10 @@
 **File**: `apps/van-tracker/src/location/task.ts`
 - Change `STATIONARY_MAX_INTERVAL` from `60_000` to `20_000`
 
-### 2. Skip stale guard during cold gaps (tracker)
+### 2. Relax stale guard during cold gaps (tracker)
 **File**: `apps/van-tracker/src/location/task.ts`
-- When `isColdGap` is true, bypass the stale threshold check entirely
+- When `isColdGap` is true, relax stale threshold to 5 minutes (instead of normal 60s/120s)
+- Points older than 5 minutes are still dropped to prevent marker rewind
 - Keep existing stale guard for normal (non-gap) operation
 
 ### 3. Reduce staleness warning threshold (web app)

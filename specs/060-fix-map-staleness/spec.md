@@ -75,7 +75,7 @@ Even when the staleness warning hasn't triggered yet, commuters want to see how 
 ### Edge Cases
 
 - What happens when GPS returns coordinates that differ by less than 1 meter (floating-point jitter)? The haversine distance rounds to 0, triggering the stationary heartbeat logic instead of the distance throttle.
-- What happens when Android delivers a burst of stale points after exiting doze? Each point is evaluated independently. During a cold gap, all points pass the stale guard; the accuracy filter (>50m) remains active to reject low-quality fixes. The server stores each valid point, so the final position reflects the latest delivery.
+- What happens when Android delivers a burst of stale points after exiting doze? Each point is evaluated independently. During a cold gap, points up to 5 minutes old pass the relaxed stale guard; older cached fixes are still dropped to avoid rewinding the marker. The accuracy filter (>50m) remains active to reject low-quality fixes.
 - What happens if the van marker has never had a location update (new van just added)? The "last updated" timestamp should not render; the existing "no location" state is preserved.
 - What happens when the server clock and device clock are significantly out of sync? The stale guard uses device-side timestamps, so server clock drift does not affect filtering. Device clock drift could cause false stale drops, but this is an existing limitation.
 
@@ -84,7 +84,7 @@ Even when the staleness warning hasn't triggered yet, commuters want to see how 
 ### Functional Requirements
 
 - **FR-001**: The tracker MUST send a heartbeat ping at least every 20 seconds when GPS coordinates have not changed (stationary van).
-- **FR-002**: The tracker MUST NOT drop GPS points as "stale" during a cold gap (>2 minutes since last sent ping). The accuracy filter remains active.
+- **FR-002**: During a cold gap (>2 minutes since last sent ping), the tracker MUST accept delayed GPS points up to 5 minutes old. Older cached fixes may still be dropped as stale to prevent marker rewind. The accuracy filter remains active.
 - **FR-003**: The tracker MUST continue to drop GPS points older than 60 seconds during normal operation (no cold gap), preserving existing quality filtering.
 - **FR-004**: The web app MUST show the "Localização desatualizada" warning when location data is older than 3 minutes (reduced from 10 minutes).
 - **FR-005**: The web app MUST display a human-readable "last updated" relative timestamp for each van's position on the route map view.

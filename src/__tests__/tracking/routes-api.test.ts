@@ -284,7 +284,7 @@ describe("getTrackerHealthStatuses", () => {
     expect(result[0].staleSinceMinutes).toBeGreaterThanOrEqual(14);
   });
 
-  it("returns isUnhealthy: true when stale (>3 min)", async () => {
+  it("returns isUnhealthy: true when stale (>10 min default)", async () => {
     const staleFixAt = new Date(Date.now() - 20 * 60_000).toISOString();
     mockSelectVans.mockResolvedValue({
       data: [{ id: "van-1", last_gps_fix_at: staleFixAt }],
