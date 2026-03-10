@@ -19,9 +19,10 @@ vi.mock("@/lib/tracking/infer-stop-progress", () => ({
 }));
 
 // Mock snapToRoad and matchTrajectory
+const mockSnapToRoad = vi.fn().mockResolvedValue(null);
 const mockMatchTrajectory = vi.fn().mockResolvedValue(null);
 vi.mock("@/lib/tracking/osrm", () => ({
-  snapToRoad: vi.fn().mockResolvedValue(null),
+  snapToRoad: (...args: unknown[]) => mockSnapToRoad(...args),
   matchTrajectory: (...args: unknown[]) => mockMatchTrajectory(...args),
 }));
 
@@ -319,13 +320,13 @@ describe("T015: Per-point snapped coords from matchTrajectory are passed into ea
     }
   });
 
-  it("passes null snapped coords when matchTrajectory returns null", async () => {
+  it("passes null snapped coords when snapToRoad returns null for single-point batch", async () => {
     const now = Date.now();
     const ts = now - 10_000;
 
     setupMocks({});
     mockRpc.mockResolvedValue({ data: true, error: null });
-    mockMatchTrajectory.mockResolvedValue(null);
+    mockSnapToRoad.mockResolvedValue(null);
 
     const originalEnv = process.env.OSRM_BASE_URL;
     process.env.OSRM_BASE_URL = "http://localhost:5000";
@@ -339,11 +340,49 @@ describe("T015: Per-point snapped coords from matchTrajectory are passed into ea
       await POST(req as never, routeParams);
 
       expect(mockInferStopProgress).toHaveBeenCalledTimes(1);
+      expect(mockSnapToRoad).toHaveBeenCalledTimes(1);
+      expect(mockMatchTrajectory).not.toHaveBeenCalled();
 
       const callArg = mockInferStopProgress.mock.calls[0][0];
-      // When matchTrajectory returns null, snapped coords should be null
       expect(callArg.snappedLat).toBeNull();
       expect(callArg.snappedLng).toBeNull();
+    } finally {
+      if (originalEnv === undefined) {
+        delete process.env.OSRM_BASE_URL;
+      } else {
+        process.env.OSRM_BASE_URL = originalEnv;
+      }
+    }
+  });
+
+  it("single-point batch uses snapToRoad fallback and produces non-null snapped coords", async () => {
+    const now = Date.now();
+    const ts = now - 10_000;
+
+    setupMocks({});
+    mockRpc.mockResolvedValue({ data: true, error: null });
+    mockSnapToRoad.mockResolvedValue({ lat: -12.9699, lng: -38.5099 });
+
+    const originalEnv = process.env.OSRM_BASE_URL;
+    process.env.OSRM_BASE_URL = "http://localhost:5000";
+
+    try {
+      const body = {
+        points: [validPoint({ ts })],
+      };
+
+      const req = createRequest(body);
+      await POST(req as never, routeParams);
+
+      // snapToRoad called (not matchTrajectory) for single-point batch
+      expect(mockSnapToRoad).toHaveBeenCalledTimes(1);
+      expect(mockMatchTrajectory).not.toHaveBeenCalled();
+
+      // Inference receives snapped coords from snapToRoad fallback
+      expect(mockInferStopProgress).toHaveBeenCalledTimes(1);
+      const callArg = mockInferStopProgress.mock.calls[0][0];
+      expect(callArg.snappedLat).toBe(-12.9699);
+      expect(callArg.snappedLng).toBe(-38.5099);
     } finally {
       if (originalEnv === undefined) {
         delete process.env.OSRM_BASE_URL;
