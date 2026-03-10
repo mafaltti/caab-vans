@@ -16,6 +16,17 @@ import { MapPin, Clock, Play, Square } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api/fetch-with-auth";
 import type { DriverRoute, RunStatus } from "@/types";
 
+type StopSuggestion = {
+  id: string;
+  name: string;
+  time: string;
+};
+
+type ColdStartData = {
+  suggestedStop: StopSuggestion | null;
+  alternatives: StopSuggestion[];
+};
+
 type RouteCardProps = {
   route: DriverRoute;
   userId: string;
@@ -43,52 +54,123 @@ function formatShiftTime(iso: string) {
   });
 }
 
+function getBrowserLocation(): Promise<{ lat: number; lng: number } | null> {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      resolve(null);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => resolve(null),
+      { timeout: 5000, maximumAge: 30000 },
+    );
+  });
+}
+
 export function RouteCard({ route, userId, onUpdate }: RouteCardProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showEndDialog, setShowEndDialog] = useState(false);
+  const [coldStart, setColdStart] = useState<ColdStartData | null>(null);
+  const [showColdStartDialog, setShowColdStartDialog] = useState(false);
+  const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
+  const [confirmLoading, setConfirmLoading] = useState(false);
 
   const { runStatus, activeShift } = route;
   const isMyShift = activeShift?.driverId === userId;
   const canStart = !activeShift && runStatus !== "completed";
   const canEnd = activeShift !== null && isMyShift;
 
+  function applyStartData(data: {
+    shift: { id: string; driverId: string; startedAt: string };
+    run: { id: string; routeId: string; serviceDate: string };
+  }) {
+    const newShift = {
+      id: data.shift.id,
+      driverId: data.shift.driverId,
+      driverEmail: "",
+      startedAt: data.shift.startedAt,
+      endedAt: null,
+    };
+    onUpdate({
+      ...route,
+      runStatus: "in_progress",
+      run: data.run,
+      activeShift: {
+        id: data.shift.id,
+        driverId: data.shift.driverId,
+        startedAt: data.shift.startedAt,
+      },
+      todayShifts: [...route.todayShifts, newShift],
+    });
+  }
+
   async function handleStart() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetchWithAuth(`/api/routes/${route.id}/start`, {
-        method: "POST",
-      });
+      const coords = await getBrowserLocation();
+      const fetchOpts: RequestInit = { method: "POST" };
+      if (coords) {
+        fetchOpts.headers = { "Content-Type": "application/json" };
+        fetchOpts.body = JSON.stringify({ lat: coords.lat, lng: coords.lng });
+      }
+
+      const res = await fetchWithAuth(`/api/routes/${route.id}/start`, fetchOpts);
       if (!res.ok) {
         const data = await res.json();
         setError(data.error?.message ?? "Erro ao iniciar turno");
         return;
       }
       const data = await res.json();
-      const newShift = {
-        id: data.shift.id,
-        driverId: data.shift.driverId,
-        driverEmail: "",
-        startedAt: data.shift.startedAt,
-        endedAt: null,
-      };
-      onUpdate({
-        ...route,
-        runStatus: "in_progress",
-        run: data.run,
-        activeShift: {
-          id: data.shift.id,
-          driverId: data.shift.driverId,
-          startedAt: data.shift.startedAt,
-        },
-        todayShifts: [...route.todayShifts, newShift],
-      });
+
+      if (data.coldStart) {
+        setColdStart(data.coldStart);
+        setSelectedStopId(data.coldStart.suggestedStop?.id ?? null);
+        setShowColdStartDialog(true);
+        // Apply start data immediately (shift is already created)
+        applyStartData(data);
+      } else {
+        applyStartData(data);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao iniciar turno");
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleConfirmColdStart() {
+    if (!selectedStopId) return;
+    setConfirmLoading(true);
+    setError("");
+    try {
+      const res = await fetchWithAuth(
+        `/api/routes/${route.id}/confirm-start-stop`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ stopId: selectedStopId }),
+        },
+      );
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.error?.message ?? "Erro ao confirmar parada");
+        return;
+      }
+      setShowColdStartDialog(false);
+      setColdStart(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao confirmar parada");
+    } finally {
+      setConfirmLoading(false);
+    }
+  }
+
+  function handleDismissColdStart() {
+    setShowColdStartDialog(false);
+    setColdStart(null);
   }
 
   async function handleEnd() {
@@ -130,6 +212,14 @@ export function RouteCard({ route, userId, onUpdate }: RouteCardProps) {
       setLoading(false);
     }
   }
+
+  // Build the list of all selectable stops for the cold-start dialog
+  const allColdStartStops: StopSuggestion[] = coldStart
+    ? [
+        ...(coldStart.suggestedStop ? [coldStart.suggestedStop] : []),
+        ...coldStart.alternatives,
+      ]
+    : [];
 
   return (
     <>
@@ -215,6 +305,7 @@ export function RouteCard({ route, userId, onUpdate }: RouteCardProps) {
         </CardContent>
       </Card>
 
+      {/* End Shift Dialog */}
       <Dialog open={showEndDialog} onOpenChange={setShowEndDialog}>
         <DialogContent>
           <DialogHeader>
@@ -239,6 +330,92 @@ export function RouteCard({ route, userId, onUpdate }: RouteCardProps) {
               disabled={loading}
             >
               {loading ? "Encerrando..." : "Encerrar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cold-Start Confirmation Dialog */}
+      <Dialog
+        open={showColdStartDialog}
+        onOpenChange={(open) => {
+          if (!open) handleDismissColdStart();
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar parada atual</DialogTitle>
+            <DialogDescription>
+              Parece que o turno começou após o horário previsto. Selecione a
+              parada em que você está agora. As paradas anteriores serão
+              marcadas automaticamente.
+            </DialogDescription>
+          </DialogHeader>
+
+          {coldStart?.suggestedStop && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-zinc-500">Sugestão</p>
+              <button
+                type="button"
+                onClick={() => setSelectedStopId(coldStart.suggestedStop!.id)}
+                className={`w-full rounded-lg border p-3 text-left text-sm transition-colors ${
+                  selectedStopId === coldStart.suggestedStop.id
+                    ? "border-blue-500 bg-blue-50 text-blue-800"
+                    : "border-zinc-200 hover:border-zinc-300"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">{coldStart.suggestedStop.name}</span>
+                  <span className="text-xs text-zinc-500">{coldStart.suggestedStop.time}</span>
+                </div>
+              </button>
+            </div>
+          )}
+
+          {allColdStartStops.length > (coldStart?.suggestedStop ? 1 : 0) && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-zinc-500">
+                {coldStart?.suggestedStop ? "Outras paradas" : "Selecione uma parada"}
+              </p>
+              <div className="max-h-48 space-y-1.5 overflow-y-auto">
+                {allColdStartStops
+                  .filter((s) => s.id !== coldStart?.suggestedStop?.id)
+                  .map((stop) => (
+                    <button
+                      key={stop.id}
+                      type="button"
+                      onClick={() => setSelectedStopId(stop.id)}
+                      className={`w-full rounded-lg border p-2.5 text-left text-sm transition-colors ${
+                        selectedStopId === stop.id
+                          ? "border-blue-500 bg-blue-50 text-blue-800"
+                          : "border-zinc-200 hover:border-zinc-300"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span>{stop.name}</span>
+                        <span className="text-xs text-zinc-500">{stop.time}</span>
+                      </div>
+                    </button>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {error && <p className="text-sm text-red-600">{error}</p>}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={handleDismissColdStart}
+              disabled={confirmLoading}
+            >
+              Pular
+            </Button>
+            <Button
+              onClick={handleConfirmColdStart}
+              disabled={confirmLoading || !selectedStopId}
+            >
+              {confirmLoading ? "Confirmando..." : "Confirmar"}
             </Button>
           </DialogFooter>
         </DialogContent>
