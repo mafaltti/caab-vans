@@ -4,7 +4,9 @@ import { DateTime } from "luxon";
 import { EARLY_ARRIVAL_WINDOW_MINUTES } from "@/lib/time";
 
 import { chooseEffectivePosition } from "./effective-position";
+import { enforceCanonicalPrefix } from "./enforce-canonical-prefix";
 import { haversineDistanceMeters } from "./haversine";
+import { seedRouteRunStops } from "./seed-route-run-stops";
 
 const TZ = "America/Bahia";
 
@@ -93,44 +95,7 @@ export async function inferStopProgress(args: {
   }
 
   // 4. Seed route_run_stops on first creation
-  const { count: stopCount, error: countError } = await supabase
-    .from("route_run_stops")
-    .select("*", { count: "exact", head: true })
-    .eq("run_id", run.id);
-
-  if (countError) {
-    console.error("inferStopProgress: stop count query failed", {
-      runId: run.id, error: countError.message,
-    });
-  }
-
-  if (stopCount === 0) {
-    const { data: entries, error: entriesError } = await supabase
-      .from("schedule_entries")
-      .select("id")
-      .eq("route_id", route.id);
-
-    if (entriesError) {
-      console.error("inferStopProgress: schedule_entries lookup failed", {
-        routeId: route.id, error: entriesError.message,
-      });
-    }
-
-    if (entries && entries.length > 0) {
-      const { error: seedError } = await supabase.from("route_run_stops").insert(
-        entries.map((e) => ({
-          run_id: run.id,
-          schedule_entry_id: e.id,
-          status: "pending",
-        })),
-      );
-      if (seedError) {
-        console.error("inferStopProgress: stop seeding failed", {
-          runId: run.id, error: seedError.message,
-        });
-      }
-    }
-  }
+  await seedRouteRunStops(supabase, run.id, route.id);
 
   // 5. Fetch pending stops with coordinates
   const { data: pendingStops, error: pendingError } = await supabase
@@ -429,26 +394,15 @@ export async function inferStopProgress(args: {
   let lastPassedStopId: string | null = null;
 
   if (allStops) {
-    // Build contiguous passed prefix
-    const contiguousPrefix = new Set<string>();
-    for (const stop of allStops) {
-      if (stop.status === "passed") {
-        contiguousPrefix.add(stop.schedule_entry_id);
-      } else {
-        break; // first non-passed ends the contiguous chain
-      }
-    }
-
-    // Find non-contiguous passed rows that need healing
-    const healIds: string[] = [];
-    for (const stop of allStops) {
-      if (stop.status === "passed" && !contiguousPrefix.has(stop.schedule_entry_id)) {
-        healIds.push(stop.schedule_entry_id);
-      }
-    }
+    const canonical = enforceCanonicalPrefix(
+      allStops.map((s) => ({
+        schedule_entry_id: s.schedule_entry_id,
+        status: s.status as "pending" | "passed",
+      })),
+    );
 
     // Revert non-contiguous passed rows to pending in the DB
-    if (healIds.length > 0) {
+    if (canonical.healIds.length > 0) {
       const { error: healError } = await supabase
         .from("route_run_stops")
         .update({
@@ -458,26 +412,19 @@ export async function inferStopProgress(args: {
           pass_confidence: null,
         })
         .eq("run_id", run.id)
-        .in("schedule_entry_id", healIds);
+        .in("schedule_entry_id", canonical.healIds);
 
       if (healError) {
         console.error("inferStopProgress: canonical heal failed", {
-          runId: run.id, healIds, error: healError.message,
+          runId: run.id, healIds: canonical.healIds, error: healError.message,
         });
       }
     }
 
     // Build result from canonical prefix
-    passedStopIds.push(...contiguousPrefix);
-    lastPassedStopId = passedStopIds.length > 0 ? passedStopIds[passedStopIds.length - 1] : null;
-
-    // First pending stop after the contiguous prefix
-    for (const stop of allStops) {
-      if (!contiguousPrefix.has(stop.schedule_entry_id)) {
-        nextStopId = stop.schedule_entry_id;
-        break;
-      }
-    }
+    passedStopIds.push(...canonical.contiguousPassedIds);
+    lastPassedStopId = canonical.lastPassedStopId;
+    nextStopId = canonical.nextStopId;
   }
 
   // Persist progress pointers on the route_run
