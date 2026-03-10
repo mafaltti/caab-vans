@@ -113,6 +113,14 @@ function setupMocks(opts: {
         }),
         select: () => ({
           eq: () => ({
+            lte: () => ({
+              order: () => ({
+                limit: () => ({
+                  data: [],
+                  error: null,
+                }),
+              }),
+            }),
             not: () => ({
               order: () => ({
                 limit: () => ({

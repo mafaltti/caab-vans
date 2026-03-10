@@ -132,6 +132,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       .from("van_location_pings")
       .select("lat, lng, device_ts, accuracy_m")
       .eq("van_id", vanId)
+      .lte("device_ts", deviceTs)
       .order("device_ts", { ascending: false })
       .limit(5);
 

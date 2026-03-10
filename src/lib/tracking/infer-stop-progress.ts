@@ -197,6 +197,7 @@ export async function inferStopProgress(args: {
       .select("lat, lng, snapped_lat, snapped_lng")
       .eq("van_id", vanId)
       .gte("device_ts", windowStart)
+      .lte("device_ts", eventTs)
       .order("device_ts", { ascending: false })
       .order("id", { ascending: false });
 

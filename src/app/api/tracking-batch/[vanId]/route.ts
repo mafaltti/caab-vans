@@ -5,7 +5,7 @@ import { apiError, validationError } from "@/lib/api/errors";
 import { createRateLimiter } from "@/lib/api/rate-limit";
 import { createServiceClient } from "@/lib/supabase/server";
 import { inferStopProgress } from "@/lib/tracking/infer-stop-progress";
-import { matchTrajectory } from "@/lib/tracking/osrm";
+import { matchTrajectory, snapToRoad } from "@/lib/tracking/osrm";
 import { batchTrackingSchema } from "@/lib/validators/tracking";
 
 const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 25 });
@@ -141,15 +141,41 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     let perPointSnapped: Array<{ lat: number; lng: number } | null> | null = null;
     const osrmBaseUrl = process.env.OSRM_BASE_URL;
 
-    if (osrmBaseUrl && accepted.length >= 2) {
-      const trajectory = accepted.map((p) => ({
-        lat: p.lat,
-        lng: p.lng,
-        ts: new Date(p.deviceTs).getTime(),
-        accuracy: p.accuracy ?? undefined,
-      }));
+    if (osrmBaseUrl) {
+      if (accepted.length >= 2) {
+        const trajectory = accepted.map((p) => ({
+          lat: p.lat,
+          lng: p.lng,
+          ts: new Date(p.deviceTs).getTime(),
+          accuracy: p.accuracy ?? undefined,
+        }));
 
-      perPointSnapped = await matchTrajectory(trajectory, osrmBaseUrl);
+        perPointSnapped = await matchTrajectory(trajectory, osrmBaseUrl);
+      } else {
+        // Single-point batch: fall back to snapToRoad with recent stored pings
+        const single = accepted[0];
+        const { data: recentPings } = await supabase
+          .from("van_location_pings")
+          .select("lat, lng, device_ts, accuracy_m")
+          .eq("van_id", vanId)
+          .lte("device_ts", single.deviceTs)
+          .order("device_ts", { ascending: false })
+          .limit(5);
+
+        const trajectory = (recentPings ?? [])
+          .map((p) => ({
+            lat: p.lat,
+            lng: p.lng,
+            ts: new Date(p.device_ts).getTime(),
+            accuracy: p.accuracy_m ?? undefined,
+          }))
+          .reverse();
+
+        const snapped = await snapToRoad(trajectory, osrmBaseUrl);
+        if (snapped) {
+          perPointSnapped = [snapped];
+        }
+      }
 
       // Write snapped coords back to accepted pings
       if (perPointSnapped) {
