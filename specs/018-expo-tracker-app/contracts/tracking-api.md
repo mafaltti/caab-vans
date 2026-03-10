@@ -118,7 +118,7 @@ Same as single-ping endpoint.
 
 ### Rate Limiting
 
-The batch request counts as **1 request** against the rate limit (25 req/min per van).
+The batch request counts as **1 request** against the rate limit (40 req/min per van).
 
 ---
 
@@ -178,7 +178,7 @@ The batch request counts as **1 request** against the rate limit (25 req/min per
 
 ## Rate Limit
 
-- **Server limit**: 25 requests/minute per van
+- **Server limit**: 40 requests/minute per van
 - **Client send rate**: ~1 request per 3-5 seconds
 - **Batch flush**: Counts as 1 request regardless of point count
 

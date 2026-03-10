@@ -128,8 +128,7 @@ async function flushBuffer(
       await onSendSuccess();
       logEvent("flush", "done sent=" + validPoints.length);
     } else if (result.status === 429) {
-      // Rate limited — keep points in buffer, retry later
-      await onSendFailure();
+      // Rate limited — keep points in buffer, retry next cycle (no backoff)
     } else if (result.status && result.status >= 400 && result.status < 500) {
       // Client error (400/401/404) — drop points, retries won't help
       await removeFromBuffer(validPoints.length);
@@ -354,8 +353,9 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
     } else {
       if (result.status === 429) {
         logFail();
-        // Rate limited — skip, don't buffer
-        await persistError("Rate limited — skipping");
+        // Rate limited — buffer point instead of dropping
+        await addToBuffer(point);
+        await persistError("Rate limited — point buffered");
       } else if (result.status === 400) {
         logEvent("error", "400: " + (result.message ?? "validation"));
         // Validation error — log, don't buffer

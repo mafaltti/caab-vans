@@ -188,7 +188,7 @@ Operational patterns:
 Tracking auth and rate limits:
 
 - `x-ingestion-token` header is required for all three endpoints
-- `/api/tracking/:vanId` and `/api/tracking-batch/:vanId` are limited to 25 requests/minute per van
+- `/api/tracking/:vanId` and `/api/tracking-batch/:vanId` are limited to 40 requests/minute per van
 - `/api/ingest/:vanId` is limited to 10 requests/minute per van
 
 Tracker GPS payload contract:

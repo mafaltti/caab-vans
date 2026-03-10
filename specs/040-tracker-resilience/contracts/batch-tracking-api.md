@@ -99,7 +99,7 @@ Array of location points (maximum 100 per request):
 
 ### Rate Limiting
 
-The batch request counts as **1 request** against the rate limit (25 req/min per van), regardless of how many points it contains.
+The batch request counts as **1 request** against the rate limit (40 req/min per van), regardless of how many points it contains.
 
 ## Server Processing
 
