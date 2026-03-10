@@ -88,7 +88,7 @@ A 429 response is flow-control, not a server error. Today the tracker treats it 
 
 - **SC-001**: Vans sending up to 30 pings/minute experience zero 429 rejections during normal operation.
 - **SC-002**: No multi-minute map blackouts caused by rate-limit backoff spirals — maximum gap between visible position updates is under 30 seconds during active tracking.
-- **SC-003**: Zero permanent GPS data loss from rate-limiting — all 429'd points are recovered via buffer flush within 2 minutes.
+- **SC-003**: Under normal load, 429'd points are buffered and retried without permanent loss unless they exceed the existing 100-point / 24h buffer limits.
 - **SC-004**: Server handles 160 requests/minute (4 vans at peak) without connection exhaustion or response time degradation beyond 500ms p95.
 
 ## Assumptions

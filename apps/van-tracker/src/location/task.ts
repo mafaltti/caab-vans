@@ -129,6 +129,8 @@ async function flushBuffer(
       logEvent("flush", "done sent=" + validPoints.length);
     } else if (result.status === 429) {
       // Rate limited — keep points in buffer, retry next cycle (no backoff)
+      logEvent("flush", "rate_limited");
+      await persistError("Rate limited — buffered points retained");
     } else if (result.status && result.status >= 400 && result.status < 500) {
       // Client error (400/401/404) — drop points, retries won't help
       await removeFromBuffer(validPoints.length);
@@ -352,7 +354,8 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
       await flushBuffer(settings, deviceId);
     } else {
       if (result.status === 429) {
-        logFail();
+        logBuffered();
+        logEvent("error", "429: rate_limited");
         // Rate limited — buffer point instead of dropping
         await addToBuffer(point);
         await persistError("Rate limited — point buffered");
