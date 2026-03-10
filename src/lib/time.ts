@@ -10,7 +10,7 @@ export function todayBahiaDate(): string {
   return nowBahia().toFormat("yyyy-MM-dd");
 }
 
-export const STALENESS_THRESHOLD_MINUTES = 10;
+export const STALENESS_THRESHOLD_MINUTES = 3;
 export const EARLY_ARRIVAL_WINDOW_MINUTES = 30;
 export const POINTER_STALENESS_MINUTES = 30;
 export const POINTER_ABSOLUTE_CEILING_MINUTES = 120;

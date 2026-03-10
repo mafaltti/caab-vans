@@ -211,6 +211,7 @@ export default function RouteDetailPage() {
               vanLat={route!.van.lastLat!}
               vanLng={route!.van.lastLng!}
               isLocationOutdated={route!.van.isLocationOutdated}
+              lastGpsFixAt={route!.van.lastGpsFixAt}
               stops={mapStops}
               nextStopId={route!.progress?.nextStopId ?? null}
               passedStopIds={passedStopIds}
@@ -275,6 +276,7 @@ export default function RouteDetailPage() {
                 vanLat={route!.van.lastLat}
                 vanLng={route!.van.lastLng}
                 isLocationOutdated={route!.van.isLocationOutdated}
+                lastGpsFixAt={route!.van.lastGpsFixAt}
                 stops={mapStops}
                 nextStopId={route!.progress?.nextStopId ?? null}
                 passedStopIds={passedStopIds}

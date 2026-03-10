@@ -9,15 +9,15 @@ import {
 const TZ = "America/Bahia";
 
 describe("isLocationFresh", () => {
-  it("returns true for a ping 3 minutes ago", () => {
+  it("returns true for a ping 2 minutes ago", () => {
     const now = DateTime.now().setZone(TZ);
-    const ping = now.minus({ minutes: 3 });
+    const ping = now.minus({ minutes: 2 });
     expect(isLocationFresh(ping)).toBe(true);
   });
 
-  it("returns false for a ping 15 minutes ago", () => {
+  it("returns false for a ping 4 minutes ago", () => {
     const now = DateTime.now().setZone(TZ);
-    const ping = now.minus({ minutes: 15 });
+    const ping = now.minus({ minutes: 4 });
     expect(isLocationFresh(ping)).toBe(false);
   });
 
@@ -42,14 +42,14 @@ describe("isLocationFresh", () => {
       );
       vi.setSystemTime(afterMidnight.toJSDate());
 
-      const beforeMidnight = afterMidnight.minus({ minutes: 5 });
+      const beforeMidnight = afterMidnight.minus({ minutes: 2 });
       expect(isLocationFresh(beforeMidnight)).toBe(true);
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it("exports the threshold constant as 10", () => {
-    expect(STALENESS_THRESHOLD_MINUTES).toBe(10);
+  it("exports the threshold constant as 3", () => {
+    expect(STALENESS_THRESHOLD_MINUTES).toBe(3);
   });
 });

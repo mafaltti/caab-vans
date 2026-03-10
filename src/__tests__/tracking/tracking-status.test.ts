@@ -17,8 +17,8 @@ function fixAtMinutesAgo(minutes: number): string {
 }
 
 describe("deriveTrackingStatus", () => {
-  it("returns 'live' when age < 10 min", () => {
-    const result = deriveTrackingStatus(fixAtMinutesAgo(5), makeNow());
+  it("returns 'live' when age < 3 min", () => {
+    const result = deriveTrackingStatus(fixAtMinutesAgo(1), makeNow());
     expect(result).toBe("live");
   });
 
@@ -27,7 +27,7 @@ describe("deriveTrackingStatus", () => {
     expect(result).toBe("live");
   });
 
-  it("returns 'stale' when age is between 10 and 60 min", () => {
+  it("returns 'stale' when age is between 3 and 60 min", () => {
     const result = deriveTrackingStatus(fixAtMinutesAgo(30), makeNow());
     expect(result).toBe("stale");
   });
@@ -42,7 +42,7 @@ describe("deriveTrackingStatus", () => {
     expect(result).toBe("missing");
   });
 
-  it("boundary: exactly 10 min returns 'stale'", () => {
+  it("boundary: exactly 3 min returns 'stale'", () => {
     const result = deriveTrackingStatus(
       fixAtMinutesAgo(TRACKING_LIVE_THRESHOLD_MINUTES),
       makeNow(),
@@ -69,8 +69,8 @@ describe("deriveTrackingStatus", () => {
     expect(result).toBe("stale");
   });
 
-  it("returns 'live' just before 10 min boundary", () => {
-    const result = deriveTrackingStatus(fixAtMinutesAgo(9), makeNow());
+  it("returns 'live' just before 3 min boundary", () => {
+    const result = deriveTrackingStatus(fixAtMinutesAgo(2), makeNow());
     expect(result).toBe("live");
   });
 });

@@ -1,7 +1,8 @@
 import { DateTime } from "luxon";
 import type { TrackingStatus } from "@/types";
+import { STALENESS_THRESHOLD_MINUTES } from "@/lib/time";
 
-export const TRACKING_LIVE_THRESHOLD_MINUTES = 10;
+export const TRACKING_LIVE_THRESHOLD_MINUTES = STALENESS_THRESHOLD_MINUTES;
 export const TRACKING_STALE_THRESHOLD_MINUTES = 60;
 
 const TIMEZONE = "America/Bahia";

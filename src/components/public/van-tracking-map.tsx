@@ -12,6 +12,7 @@ type VanTrackingMapProps = {
   vanLat: number;
   vanLng: number;
   isLocationOutdated: boolean;
+  lastGpsFixAt?: string | null;
   stops: Array<{
     id: string;
     stopName: string;
@@ -24,6 +25,17 @@ type VanTrackingMapProps = {
   fitBoundsPadding?: maplibregl.PaddingOptions | { padding: number };
   recenterBottomOffset?: number | null;
 };
+
+function formatRelativeTime(isoString: string): string {
+  const diffMs = Date.now() - new Date(isoString).getTime();
+  if (diffMs < 0) return "agora";
+  const seconds = Math.floor(diffMs / 1000);
+  if (seconds < 60) return `há ${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `há ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  return `há ${hours}h`;
+}
 
 const TILE_URL =
   process.env.NEXT_PUBLIC_TILE_URL ||
@@ -63,6 +75,7 @@ export function VanTrackingMap({
   vanLat,
   vanLng,
   isLocationOutdated,
+  lastGpsFixAt,
   stops,
   nextStopId,
   passedStopIds,
@@ -82,6 +95,18 @@ export function VanTrackingMap({
   });
   const [tileError, setTileError] = useState(false);
   const [showRecenter, setShowRecenter] = useState(false);
+  const [tick, setTick] = useState(0);
+
+  // Tick every 5s to refresh relative time
+  useEffect(() => {
+    if (!lastGpsFixAt) return;
+    const id = setInterval(() => setTick((t) => t + 1), 5000);
+    return () => clearInterval(id);
+  }, [lastGpsFixAt]);
+
+  // Suppress unused-var lint — tick drives re-render
+  void tick;
+  const relativeTime = lastGpsFixAt ? formatRelativeTime(lastGpsFixAt) : null;
 
   // Smooth van marker animation on position change
   useEffect(() => {
@@ -338,12 +363,16 @@ export function VanTrackingMap({
         )}
       </div>
 
-      {/* Stale location warning */}
-      {isLocationOutdated && (
+      {/* Stale location warning + last updated timestamp */}
+      {isLocationOutdated ? (
         <p className="mt-1.5 text-xs text-amber-600">
-          Localização desatualizada
+          Localização desatualizada{relativeTime ? ` · Última atualização ${relativeTime}` : ""}
         </p>
-      )}
+      ) : relativeTime ? (
+        <p className="mt-1.5 text-xs text-slate-400">
+          Última atualização {relativeTime}
+        </p>
+      ) : null}
     </div>
   );
 }
