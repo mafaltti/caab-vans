@@ -470,7 +470,9 @@ npm run check
 
 ### Orphaned Shift Reconciliation
 
-Shifts can become orphaned (stuck with `ended_at IS NULL`) when a driver's app crashes, loses connectivity, or the driver forgets to end the shift. The reconciliation script detects and auto-closes these stale shifts.
+**This is required runtime infrastructure**, not optional maintenance. Without it, orphaned shifts stay open indefinitely, and the read path will surface `runHealth: "orphaned"` to clients but cannot self-heal.
+
+Shifts can become orphaned (stuck with `ended_at IS NULL`) when a driver's app crashes, loses connectivity, or the driver forgets to end the shift. The reconciliation script detects and auto-closes these stale shifts. The same criteria are used by the API read path to set `runHealth: "orphaned"` on active routes, giving clients early visibility before reconciliation runs.
 
 **Closure criteria** (both must be true):
 - Route is past its last scheduled stop by **≥ 90 minutes**

@@ -113,3 +113,59 @@ export async function snapToRoad(
     return null;
   }
 }
+
+/**
+ * Snap a GPS trajectory to the nearest road using OSRM /match.
+ * Returns per-point snapped coordinates, or null on any failure.
+ * Each element is `{ lat, lng }` or `null` (unmatched point).
+ */
+export async function matchTrajectory(
+  coords: Coord[],
+  osrmBaseUrl: string,
+): Promise<Array<{ lat: number; lng: number } | null> | null> {
+  if (coords.length < 2) return null;
+
+  const coordinates = coords.map((c) => `${c.lng},${c.lat}`).join(";");
+  const timestamps = coords
+    .map((c) => Math.round(c.ts / 1000))
+    .join(";");
+  const radiuses = coords
+    .map((c) => (c.accuracy != null ? Math.round(c.accuracy) : 10))
+    .join(";");
+
+  const url = `${osrmBaseUrl}/match/v1/driving/${coordinates}?timestamps=${timestamps}&radiuses=${radiuses}&geometries=geojson&overview=false&annotations=false`;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), MATCH_TIMEOUT_MS);
+
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+
+    if (!res.ok) {
+      console.warn(`[osrm] HTTP ${res.status} from OSRM matchTrajectory`);
+      return null;
+    }
+
+    const data = (await res.json()) as MatchResponse;
+
+    if (data.code !== "Ok") {
+      console.warn(`[osrm] OSRM matchTrajectory returned code: ${data.code}`);
+      return null;
+    }
+
+    return data.tracepoints.map((tp) => {
+      if (!tp) return null;
+      const [lng, lat] = tp.location;
+      return { lat, lng };
+    });
+  } catch (err) {
+    clearTimeout(timer);
+    const msg =
+      err instanceof Error && err.name === "AbortError"
+        ? `OSRM matchTrajectory timed out (${MATCH_TIMEOUT_MS}ms)`
+        : `OSRM matchTrajectory failed: ${err}`;
+    console.warn(`[osrm] ${msg}`);
+    return null;
+  }
+}

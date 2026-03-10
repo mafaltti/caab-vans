@@ -1,6 +1,8 @@
 import { DateTime } from "luxon";
 import { parseTime, STALENESS_THRESHOLD_MINUTES } from "@/lib/time";
+import { chooseEffectivePosition } from "@/lib/tracking/effective-position";
 import { computeBearing, haversineDistanceMeters } from "@/lib/tracking/haversine";
+import { SNAP_DISPLACEMENT_THRESHOLD_M } from "@/lib/tracking/infer-stop-progress";
 import { osrmRoute } from "@/lib/tracking/osrm";
 import { getTimeFactor, REFERENCE_SPEED_MPS, type RecentRun } from "@/lib/tracking/time-factors";
 
@@ -17,6 +19,8 @@ interface Stop {
 export interface VanPosition {
   lat: number;
   lng: number;
+  snappedLat?: number | null;
+  snappedLng?: number | null;
   speedMps: number;
   lastGpsFixAt: DateTime;
   headingDeg?: number | null;
@@ -117,8 +121,21 @@ export async function computeEta(args: {
   const hasCoords = vanPosition != null && nextStop.stopLat != null && nextStop.stopLng != null;
   const locationFresh = locationAgeMinutes >= 0 && locationAgeMinutes < STALENESS_THRESHOLD_MINUTES;
   const isMoving = vanPosition != null && vanPosition.speedMps >= MIN_SPEED_MPS;
-  const isNearStop = hasCoords && vanPosition != null
-    ? haversineDistanceMeters(vanPosition.lat, vanPosition.lng, nextStop.stopLat!, nextStop.stopLng!) <= PROXIMITY_THRESHOLD_M
+
+  const effectivePos = hasCoords && vanPosition != null
+    ? chooseEffectivePosition({
+        rawLat: vanPosition.lat,
+        rawLng: vanPosition.lng,
+        snappedLat: vanPosition.snappedLat,
+        snappedLng: vanPosition.snappedLng,
+        targetLat: nextStop.stopLat!,
+        targetLng: nextStop.stopLng!,
+        snapDisplacementThreshold: SNAP_DISPLACEMENT_THRESHOLD_M,
+      })
+    : null;
+
+  const isNearStop = effectivePos != null
+    ? haversineDistanceMeters(effectivePos.lat, effectivePos.lng, nextStop.stopLat!, nextStop.stopLng!) <= PROXIMITY_THRESHOLD_M
     : false;
 
   // Hysteresis: check if any recent ping within the last 60s had speed >= MIN_SPEED_MPS
@@ -138,8 +155,8 @@ export async function computeEta(args: {
 
     const osrmResult = osrmBaseUrl
       ? await osrmRoute(
-          vanPosition.lat,
-          vanPosition.lng,
+          effectivePos!.lat,
+          effectivePos!.lng,
           nextStop.stopLat!,
           nextStop.stopLng!,
           osrmBaseUrl,
@@ -153,7 +170,7 @@ export async function computeEta(args: {
       // Only check when moving — at low speed, headingDeg is often stale
       if (vanPosition.headingDeg != null && isMoving) {
         const bearingToStop = computeBearing(
-          vanPosition.lat, vanPosition.lng,
+          effectivePos!.lat, effectivePos!.lng,
           nextStop.stopLat!, nextStop.stopLng!,
         );
         const diff = Math.abs(vanPosition.headingDeg - bearingToStop);
@@ -182,8 +199,8 @@ export async function computeEta(args: {
     } else {
       const distanceMeters =
         haversineDistanceMeters(
-          vanPosition.lat,
-          vanPosition.lng,
+          effectivePos!.lat,
+          effectivePos!.lng,
           nextStop.stopLat!,
           nextStop.stopLng!,
         ) * ROAD_FACTOR;
@@ -194,7 +211,7 @@ export async function computeEta(args: {
 
     if (process.env.DEBUG_ETA) {
       const haversineDistance = haversineDistanceMeters(
-        vanPosition.lat, vanPosition.lng,
+        effectivePos!.lat, effectivePos!.lng,
         nextStop.stopLat!, nextStop.stopLng!,
       );
       const haversineTravelMin = (haversineDistance * ROAD_FACTOR) / effectiveSpeed / 60;

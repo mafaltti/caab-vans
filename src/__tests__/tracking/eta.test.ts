@@ -890,6 +890,42 @@ describe("computeEta", () => {
         expect(result.etaSource).toBe("gps");
       });
     });
+
+    it("T036: ETA uses effective (snapped) position when snap displacement is within threshold", async () => {
+      // Snapped coords are ~30m from raw (within 50m threshold) and closer to the target stop.
+      // Raw coords: VAN_LAT, VAN_LNG (~6.6km from STOP_LAT/STOP_LNG)
+      // Snapped coords: slightly closer to the stop (shifted ~30m toward it)
+      const snappedLat = VAN_LAT - 0.0002; // ~22m south, toward stop
+      const snappedLng = VAN_LNG + 0.0002; // ~20m east, toward stop
+
+      const now = DateTime.fromObject({ hour: 8, minute: 42 }, { zone: TZ });
+      const vanPosition = makeVanPosition({
+        snappedLat,
+        snappedLng,
+      });
+      const stops = makeStops();
+
+      const resultWithSnap = await computeEta({ stops, now, vanPosition });
+
+      // Compare against a position without snapped coords (raw only)
+      const vanPositionRawOnly = makeVanPosition({
+        snappedLat: null,
+        snappedLng: null,
+      });
+      const resultRawOnly = await computeEta({
+        stops,
+        now,
+        vanPosition: vanPositionRawOnly,
+      });
+
+      expect(resultWithSnap.etaSource).toBe("gps");
+      expect(resultRawOnly.etaSource).toBe("gps");
+
+      // Snapped position is closer to the stop, so ETA should be shorter (or equal)
+      expect(resultWithSnap.etaNextStopMinutes!).toBeLessThanOrEqual(
+        resultRawOnly.etaNextStopMinutes!,
+      );
+    });
   });
 });
 

@@ -132,6 +132,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       .from("van_location_pings")
       .select("lat, lng, device_ts, accuracy_m")
       .eq("van_id", vanId)
+      .lte("device_ts", deviceTs)
       .order("device_ts", { ascending: false })
       .limit(5);
 
@@ -154,7 +155,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   // Atomically update van position only if this ping is newer than what's stored.
   // The RPC's WHERE guard (p_device_ts > last_gps_fix_at) prevents out-of-order
   // regressions without a separate SELECT query.
-  const { data: updated, error: updateError } = await supabase.rpc("update_van_position", {
+  const { error: updateError } = await supabase.rpc("update_van_position", {
     p_van_id: vanId,
     p_lat: lat,
     p_lng: lng,
@@ -167,15 +168,38 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   });
 
   if (updateError) {
-    return apiError("INTERNAL_ERROR", "Failed to update van position", 500);
+    console.error("update_van_position failed (ping already stored):", {
+      vanId, deviceTs, error: updateError.message,
+    });
   }
 
-  if (updated) {
-    try {
-      await inferStopProgress(supabase, vanId, lat, lng, snappedLat, snappedLng);
-    } catch (error) {
-      console.error("Stop inference failed:", error);
+  // Write snapped coords back to the accepted ping
+  if (snappedLat != null && snappedLng != null) {
+    const { error: snapWriteError } = await supabase
+      .from("van_location_pings")
+      .update({ snapped_lat: snappedLat, snapped_lng: snappedLng })
+      .eq("id", upsertedPing.id);
+
+    if (snapWriteError) {
+      console.error("Failed to persist snapped coords:", {
+        pingId: upsertedPing.id, error: snapWriteError.message,
+      });
     }
+  }
+
+  // Always run inference after a successful upsert, even when RPC returns false
+  try {
+    await inferStopProgress({
+      supabase,
+      vanId,
+      rawLat: lat,
+      rawLng: lng,
+      snappedLat,
+      snappedLng,
+      eventTs: deviceTs,
+    });
+  } catch (error) {
+    console.error("Stop inference failed:", error);
   }
 
   return NextResponse.json({ received: true, ts: Date.now() });
