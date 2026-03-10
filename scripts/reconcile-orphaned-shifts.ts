@@ -12,9 +12,9 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { DateTime } from "luxon";
 
+import { isOrphanedShift, SCHEDULE_OVERDUE_MINUTES, INACTIVITY_MINUTES } from "@/lib/tracking/orphaned-shift-health";
+
 const TZ = "America/Bahia";
-const SCHEDULE_OVERDUE_MINUTES = 90;
-const INACTIVITY_MINUTES = 30;
 
 interface OrphanedShift {
   shiftId: string;
@@ -101,11 +101,8 @@ export async function findOrphanedShifts(
       ? DateTime.max(...candidates.map((t) => DateTime.fromISO(t)))!
       : DateTime.fromISO(shift.started_at);
 
-    // Check closure criteria
-    const pastSchedule = now > scheduledEnd.plus({ minutes: SCHEDULE_OVERDUE_MINUTES });
-    const inactive = now > lastActivity.plus({ minutes: INACTIVITY_MINUTES });
-
-    if (pastSchedule && inactive) {
+    // Check closure criteria using shared helper
+    if (isOrphanedShift({ scheduledEnd, lastActivity, now })) {
       orphaned.push({
         shiftId: shift.id,
         runId: run.id,

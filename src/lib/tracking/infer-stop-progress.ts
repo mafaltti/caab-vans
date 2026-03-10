@@ -1,13 +1,12 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { DateTime } from "luxon";
 
-import {
-  nowBahia,
-  todayBahiaDate,
-  parseTime,
-  EARLY_ARRIVAL_WINDOW_MINUTES,
-} from "@/lib/time";
+import { EARLY_ARRIVAL_WINDOW_MINUTES } from "@/lib/time";
 
+import { chooseEffectivePosition } from "./effective-position";
 import { haversineDistanceMeters } from "./haversine";
+
+const TZ = "America/Bahia";
 
 interface StopProgress {
   passedStopIds: string[];
@@ -25,14 +24,21 @@ export const SNAP_DISPLACEMENT_THRESHOLD_M = 50;
 export const CONFIDENCE_PING_WINDOW_MINUTES = 5;
 export const SNAP_LOW_DISPLACEMENT_THRESHOLD_M = 15;
 
-export async function inferStopProgress(
-  supabase: SupabaseClient,
-  vanId: string,
-  lat: number,
-  lng: number,
-  snappedLat?: number | null,
-  snappedLng?: number | null,
-): Promise<StopProgress> {
+export async function inferStopProgress(args: {
+  supabase: SupabaseClient;
+  vanId: string;
+  rawLat: number;
+  rawLng: number;
+  snappedLat?: number | null;
+  snappedLng?: number | null;
+  eventTs: string;
+}): Promise<StopProgress> {
+  const { supabase, vanId, rawLat, rawLng, snappedLat, snappedLng, eventTs } = args;
+
+  // Derive event time and service date from eventTs
+  const eventTime = DateTime.fromISO(eventTs).setZone(TZ);
+  const serviceDate = eventTime.toFormat("yyyy-MM-dd");
+
   // 1. Find route for this van
   const { data: route, error: routeError } = await supabase
     .from("routes")
@@ -47,10 +53,7 @@ export async function inferStopProgress(
     return EMPTY_PROGRESS;
   }
 
-  // 2. Today's service date
-  const serviceDate = todayBahiaDate();
-
-  // 3. Upsert route_run for (route_id, service_date)
+  // 2. Upsert route_run for (route_id, service_date)
   const { data: run, error: runError } = await supabase
     .from("route_runs")
     .upsert(
@@ -67,12 +70,13 @@ export async function inferStopProgress(
     return EMPTY_PROGRESS;
   }
 
-  // 3b. Gate: require an active shift before seeding/marking stops
+  // 3. Gate: require a shift active at eventTs
   const { data: activeShift, error: activeShiftError } = await supabase
     .from("route_shifts")
     .select("id")
     .eq("run_id", run.id)
-    .is("ended_at", null)
+    .lte("started_at", eventTs)
+    .or(`ended_at.is.null,ended_at.gt.${eventTs}`)
     .limit(1)
     .maybeSingle();
 
@@ -156,22 +160,16 @@ export async function inferStopProgress(
     });
   }
 
-  // 6. Determine snap eligibility (gate only — per-stop decision deferred)
-  const hasSnapped = snappedLat != null && snappedLng != null;
-  let snapEligible = false;
-
-  if (hasSnapped) {
-    const snapDisplacement = haversineDistanceMeters(
-      lat, lng, snappedLat!, snappedLng!,
-    );
-    snapEligible = snapDisplacement <= SNAP_DISPLACEMENT_THRESHOLD_M;
-  }
-
   // Check geofence for each pending stop — closest-in-time matching
   const newlyPassedIds: string[] = [];
   const newlyPassedConfidence = new Map<string, number>();
   const perStopSnap = new Map<string, boolean>();
-  const now = nowBahia();
+
+  // Helper: build a DateTime from HH:mm anchored to eventTime's date
+  function stopDateTime(hhMm: string): DateTime {
+    const [hour, minute] = hhMm.split(":").map(Number);
+    return eventTime.set({ hour, minute, second: 0, millisecond: 0 });
+  }
 
   if (pendingStops) {
     // Group pending stops by coordinate key
@@ -191,22 +189,21 @@ export async function inferStopProgress(
 
     // Pre-fetch recent pings once for confidence scoring across all groups
     const windowStart = new Date(
-      Date.now() - CONFIDENCE_PING_WINDOW_MINUTES * 60 * 1000,
+      new Date(eventTs).getTime() - CONFIDENCE_PING_WINDOW_MINUTES * 60 * 1000,
     ).toISOString();
 
     const { data: allRecentPings } = await supabase
       .from("van_location_pings")
-      .select("lat, lng")
+      .select("lat, lng, snapped_lat, snapped_lng")
       .eq("van_id", vanId)
       .gte("device_ts", windowStart)
       .order("device_ts", { ascending: false })
-      .order("id", { ascending: false })
-      .limit(50);
+      .order("id", { ascending: false });
 
     // For each group: check geofence per entry, then pick closest-in-time
     for (const [, group] of coordGroups) {
       // Filter entries within their individual geofence AND early arrival window
-      // Per-stop snap decision: use whichever coordinate is closer
+      // Per-stop position decision via shared helper
       const eligible = group.filter((stop) => {
         const entry = stop.schedule_entries as unknown as {
           time: string;
@@ -214,43 +211,39 @@ export async function inferStopProgress(
           stop_lng: number;
           geofence_radius_m: number;
         };
-        const rawDist = haversineDistanceMeters(lat, lng, entry.stop_lat, entry.stop_lng);
-        let distance: number;
-        let useSnappedForThisStop = false;
-
-        if (snapEligible) {
-          const snappedDist = haversineDistanceMeters(snappedLat!, snappedLng!, entry.stop_lat, entry.stop_lng);
-          if (snappedDist < rawDist) {
-            distance = snappedDist;
-            useSnappedForThisStop = true;
-          } else {
-            distance = rawDist;
-          }
-        } else {
-          distance = rawDist;
-        }
+        const effectivePos = chooseEffectivePosition({
+          rawLat,
+          rawLng,
+          snappedLat: snappedLat ?? null,
+          snappedLng: snappedLng ?? null,
+          targetLat: entry.stop_lat,
+          targetLng: entry.stop_lng,
+          snapDisplacementThreshold: SNAP_DISPLACEMENT_THRESHOLD_M,
+        });
+        const distance = haversineDistanceMeters(effectivePos.lat, effectivePos.lng, entry.stop_lat, entry.stop_lng);
+        const useSnappedForThisStop = effectivePos.source === "snapped";
 
         perStopSnap.set(stop.schedule_entry_id, useSnappedForThisStop);
 
         if (distance > entry.geofence_radius_m) return false;
-        const stopTime = parseTime(entry.time);
-        return now >= stopTime.minus({ minutes: EARLY_ARRIVAL_WINDOW_MINUTES });
+        const stopTime = stopDateTime(entry.time);
+        return eventTime >= stopTime.minus({ minutes: EARLY_ARRIVAL_WINDOW_MINUTES });
       });
       if (eligible.length === 0) continue;
 
-      // Pick stop with smallest |time - now|
+      // Pick stop with smallest |time - eventTime|
       let bestStop = eligible[0];
       let bestDiff = Math.abs(
-        parseTime(
+        stopDateTime(
           (bestStop.schedule_entries as unknown as { time: string }).time,
-        ).diff(now, "minutes").minutes,
+        ).diff(eventTime, "minutes").minutes,
       );
       for (let i = 1; i < eligible.length; i++) {
         const entry = eligible[i].schedule_entries as unknown as {
           time: string;
         };
         const diff = Math.abs(
-          parseTime(entry.time).diff(now, "minutes").minutes,
+          stopDateTime(entry.time).diff(eventTime, "minutes").minutes,
         );
         if (diff < bestDiff) {
           bestStop = eligible[i];
@@ -263,11 +256,27 @@ export async function inferStopProgress(
         stop_lat: number; stop_lng: number; geofence_radius_m: number;
       };
 
+      const useSnappedForThisStop = perStopSnap.get(bestStop.schedule_entry_id) ?? false;
+
       let pingsInGeofence = 0;
       if (allRecentPings) {
         for (const ping of allRecentPings) {
+          let pingLat: number;
+          let pingLng: number;
+
+          if (useSnappedForThisStop) {
+            // Snapped-triggered match: only count pings with stored snapped coords
+            if (ping.snapped_lat == null || ping.snapped_lng == null) continue;
+            pingLat = ping.snapped_lat;
+            pingLng = ping.snapped_lng;
+          } else {
+            // Raw-triggered match: count using raw coords
+            pingLat = ping.lat;
+            pingLng = ping.lng;
+          }
+
           const pingDist = haversineDistanceMeters(
-            ping.lat, ping.lng,
+            pingLat, pingLng,
             bestEntry.stop_lat, bestEntry.stop_lng,
           );
           if (pingDist <= bestEntry.geofence_radius_m) {
@@ -276,12 +285,10 @@ export async function inferStopProgress(
         }
       }
 
-      const useSnappedForThisStop = perStopSnap.get(bestStop.schedule_entry_id) ?? false;
-
       let confidence: number;
       if (useSnappedForThisStop) {
         // Tiered snapped confidence: base depends on raw position
-        const rawDist = haversineDistanceMeters(lat, lng, bestEntry.stop_lat, bestEntry.stop_lng);
+        const rawDist = haversineDistanceMeters(rawLat, rawLng, bestEntry.stop_lat, bestEntry.stop_lng);
         const rawInsideGeofence = rawDist <= bestEntry.geofence_radius_m;
         confidence = rawInsideGeofence ? 0.85 : 0.65;
 
@@ -291,7 +298,7 @@ export async function inferStopProgress(
         }
 
         // Bonus: snap displacement ≤15m
-        const snapDisp = haversineDistanceMeters(lat, lng, snappedLat!, snappedLng!);
+        const snapDisp = haversineDistanceMeters(rawLat, rawLng, snappedLat!, snappedLng!);
         if (snapDisp <= SNAP_LOW_DISPLACEMENT_THRESHOLD_M) {
           confidence += 0.05;
         }
@@ -305,12 +312,12 @@ export async function inferStopProgress(
 
       const passSource = useSnappedForThisStop ? "geofence_snapped" : "geofence_raw";
 
-      // Mark as passed with confidence metadata
+      // Mark as passed with confidence metadata — use eventTs for passed_at
       const { error: geofenceError } = await supabase
         .from("route_run_stops")
         .update({
           status: "passed",
-          passed_at: new Date().toISOString(),
+          passed_at: eventTs,
           pass_source: passSource,
           pass_confidence: confidence,
         })
@@ -374,7 +381,7 @@ export async function inferStopProgress(
           .from("route_run_stops")
           .update({
             status: "passed",
-            passed_at: new Date().toISOString(),
+            passed_at: eventTs,
             pass_source: "backfill",
             pass_confidence: backfillConfidence,
           })
@@ -414,60 +421,61 @@ export async function inferStopProgress(
     });
   }
 
+  // 7b. Canonical write enforcement: only a contiguous passed prefix is valid.
+  // Walk from route start, keep only contiguous passed stops, heal the rest.
   const passedStopIds: string[] = [];
   let nextStopId: string | null = null;
   let lastPassedStopId: string | null = null;
 
   if (allStops) {
+    // Build contiguous passed prefix
+    const contiguousPrefix = new Set<string>();
     for (const stop of allStops) {
       if (stop.status === "passed") {
-        passedStopIds.push(stop.schedule_entry_id);
-        lastPassedStopId = stop.schedule_entry_id;
-      } else if (stop.status === "pending") {
-        // Always use the first pending stop chronologically — including overdue
-        // stops. The read path (resolve-route-progress) trusts this pointer and
-        // computes ETA for it, so skipping overdue stops would break the cutover.
-        if (nextStopId === null) {
-          nextStopId = stop.schedule_entry_id;
-        }
+        contiguousPrefix.add(stop.schedule_entry_id);
+      } else {
+        break; // first non-passed ends the contiguous chain
       }
     }
-  }
 
-  // Adjacency validation: if lastPassedStopId is not adjacent to nextStopId
-  // (pending stops exist between them), roll back to the last contiguously-passed stop.
-  if (allStops && lastPassedStopId !== null && nextStopId !== null) {
-    const lastPassedIdx = allStops.findIndex(
-      (s) => s.schedule_entry_id === lastPassedStopId,
-    );
-    const nextPendingIdx = allStops.findIndex(
-      (s) => s.schedule_entry_id === nextStopId,
-    );
+    // Find non-contiguous passed rows that need healing
+    const healIds: string[] = [];
+    for (const stop of allStops) {
+      if (stop.status === "passed" && !contiguousPrefix.has(stop.schedule_entry_id)) {
+        healIds.push(stop.schedule_entry_id);
+      }
+    }
 
-    if (lastPassedIdx >= 0 && nextPendingIdx >= 0 && lastPassedIdx + 1 !== nextPendingIdx) {
-      // Walk from the beginning: find the last passed stop before the first pending gap
-      let contiguousLastPassed: string | null = null;
-      for (let i = 0; i < allStops.length; i++) {
-        if (allStops[i].status === "passed") {
-          contiguousLastPassed = allStops[i].schedule_entry_id;
-        } else {
-          // First pending stop — the contiguous chain ends here
-          break;
-        }
+    // Revert non-contiguous passed rows to pending in the DB
+    if (healIds.length > 0) {
+      const { error: healError } = await supabase
+        .from("route_run_stops")
+        .update({
+          status: "pending",
+          passed_at: null,
+          pass_source: null,
+          pass_confidence: null,
+        })
+        .eq("run_id", run.id)
+        .in("schedule_entry_id", healIds);
+
+      if (healError) {
+        console.error("inferStopProgress: canonical heal failed", {
+          runId: run.id, healIds, error: healError.message,
+        });
       }
-      lastPassedStopId = contiguousLastPassed;
-      // Filter passedStopIds to the contiguous prefix so downstream
-      // consumers (map, timeline, passed count) stay consistent.
-      const contiguousSet = new Set<string>();
-      for (const stop of allStops) {
-        if (stop.status === "passed") {
-          contiguousSet.add(stop.schedule_entry_id);
-        } else {
-          break;
-        }
+    }
+
+    // Build result from canonical prefix
+    passedStopIds.push(...contiguousPrefix);
+    lastPassedStopId = passedStopIds.length > 0 ? passedStopIds[passedStopIds.length - 1] : null;
+
+    // First pending stop after the contiguous prefix
+    for (const stop of allStops) {
+      if (!contiguousPrefix.has(stop.schedule_entry_id)) {
+        nextStopId = stop.schedule_entry_id;
+        break;
       }
-      passedStopIds.length = 0;
-      passedStopIds.push(...contiguousSet);
     }
   }
 

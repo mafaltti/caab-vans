@@ -3,6 +3,7 @@ import { SupabaseClient } from "@supabase/supabase-js";
 
 import { POINTER_ABSOLUTE_CEILING_MINUTES } from "@/lib/time";
 import { computeEta, ROAD_FACTOR, type VanPosition } from "@/lib/tracking/eta";
+import { isOrphanedShift } from "@/lib/tracking/orphaned-shift-health";
 import { deriveRunStatus } from "@/lib/tracking/run-status";
 import { buildRecentRuns } from "@/lib/tracking/time-factors";
 import type { RunStatus } from "@/types";
@@ -10,6 +11,7 @@ import type { RunStatus } from "@/types";
 export interface RouteProgress {
   serviceDate: string;
   runStatus: RunStatus;
+  runHealth?: "normal" | "orphaned";
   shiftStartedAt: string | null;
   nextStopId: string | null;
   passedStopIds: string[];
@@ -337,9 +339,34 @@ export async function resolveRouteProgress(args: {
     etaResult = { ...etaResult, nextStopId: null, etaNextStopISO: null, etaNextStopMinutes: null };
   }
 
+  // Compute run health for open shifts
+  let runHealth: "normal" | "orphaned" = "normal";
+  if (activeShift && times.length > 0) {
+    const sorted = [...times].sort();
+    const lastTime = sorted[sorted.length - 1];
+    const [h, m] = lastTime.split(":").map(Number);
+    const scheduledEnd = DateTime.fromISO(serviceDate, { zone: now.zone })
+      .set({ hour: h, minute: m, second: 0, millisecond: 0 });
+
+    // Best available activity timestamp
+    const activityCandidates = [
+      vanPosition?.lastGpsFixAt,
+      runData.progress_updated_at ? DateTime.fromISO(runData.progress_updated_at) : null,
+      DateTime.fromISO(activeShift.started_at),
+    ].filter((t): t is DateTime => t != null);
+    const lastActivity = activityCandidates.length > 0
+      ? DateTime.max(...activityCandidates)!
+      : DateTime.fromISO(activeShift.started_at);
+
+    if (isOrphanedShift({ scheduledEnd, lastActivity, now })) {
+      runHealth = "orphaned";
+    }
+  }
+
   return {
     serviceDate,
     runStatus,
+    runHealth,
     shiftStartedAt: activeShift?.started_at ?? null,
     ...etaResult,
   };

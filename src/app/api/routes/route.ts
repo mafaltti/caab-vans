@@ -117,8 +117,10 @@ export async function GET(request: NextRequest) {
       van.last_speed_mps != null &&
       van.last_gps_fix_at != null
         ? {
-            lat: hasSnapped ? van.snapped_lat! : van.last_lat,
-            lng: hasSnapped ? van.snapped_lng! : van.last_lng,
+            lat: van.last_lat,
+            lng: van.last_lng,
+            snappedLat: van.snapped_lat ?? null,
+            snappedLng: van.snapped_lng ?? null,
             speedMps: van.last_speed_mps,
             lastGpsFixAt: DateTime.fromISO(van.last_gps_fix_at),
             headingDeg: van.last_heading_deg,

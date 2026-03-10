@@ -14,7 +14,7 @@ const mockInferStopProgress = vi.fn().mockResolvedValue({
   nextStopId: null,
 });
 vi.mock("@/lib/tracking/infer-stop-progress", () => ({
-  inferStopProgress: (...args: unknown[]) => mockInferStopProgress(...args),
+  inferStopProgress: (args: unknown) => mockInferStopProgress(args),
 }));
 
 // Mock snapToRoad
@@ -63,13 +63,11 @@ function setupMocks(opts: {
   vanExists?: boolean;
   upsertData?: { id: string } | null;
   upsertError?: { code: string; message: string } | null;
-  latestDeviceTs?: string | null;
 }) {
   const {
     vanExists = true,
     upsertData = { id: "ping-1" },
     upsertError = null,
-    latestDeviceTs = null,
   } = opts;
 
   mockFrom.mockImplementation((table: string) => {
@@ -109,6 +107,9 @@ function setupMocks(opts: {
               error: upsertError,
             }),
           }),
+        }),
+        update: () => ({
+          eq: () => ({ error: null }),
         }),
         select: () => ({
           eq: () => ({
@@ -163,7 +164,7 @@ describe("tracking dedup — upsert returns duplicate indicator", () => {
     const olderTs = DateTime.fromMillis(now - 10_000).toISO()!;
     setupMocks({
       upsertData: { id: "ping-1" },
-      latestDeviceTs: olderTs,
+
     });
 
     const body = validBody({ ts: now });
@@ -177,17 +178,17 @@ describe("tracking dedup — upsert returns duplicate indicator", () => {
   });
 });
 
-describe("tracking dedup — isNewest uses strict >", () => {
+describe("tracking dedup — inference always runs after successful upsert", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("does not call inferStopProgress when RPC returns false (not newest)", async () => {
+  it("calls inferStopProgress even when RPC returns false (not newest)", async () => {
     const now = Date.now();
 
     setupMocks({
       upsertData: { id: "ping-1" },
-      latestDeviceTs: null,
+
     });
     // RPC returns false — ping was not newer than stored position
     mockRpc.mockResolvedValueOnce({ data: false, error: null });
@@ -196,8 +197,8 @@ describe("tracking dedup — isNewest uses strict >", () => {
     const req = createRequest(body);
     await POST(req as never, routeParams);
 
-    // RPC returned false → no downstream
-    expect(mockInferStopProgress).not.toHaveBeenCalled();
+    // Inference now always runs after successful upsert
+    expect(mockInferStopProgress).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -224,7 +225,7 @@ describe("tracking dedup — staleness guard rejects old pings", () => {
     const olderTs = DateTime.fromMillis(ts - 10_000).toISO()!;
     setupMocks({
       upsertData: { id: "ping-1" },
-      latestDeviceTs: olderTs,
+
     });
 
     const body = validBody({ ts });
@@ -253,13 +254,13 @@ describe("tracking dedup — downstream only triggers when isNewest", () => {
     expect(mockInferStopProgress).not.toHaveBeenCalled();
   });
 
-  it("calls inferStopProgress for newest ping", async () => {
+  it("calls inferStopProgress for newest ping with object arg", async () => {
     const now = Date.now();
     // Return an older latest so this ping is newest (strict >)
     const olderTs = DateTime.fromMillis(now - 10_000).toISO()!;
     setupMocks({
       upsertData: { id: "ping-1" },
-      latestDeviceTs: olderTs,
+
     });
 
     const body = validBody({ ts: now });
@@ -267,5 +268,11 @@ describe("tracking dedup — downstream only triggers when isNewest", () => {
     await POST(req as never, routeParams);
 
     expect(mockInferStopProgress).toHaveBeenCalledTimes(1);
+    // Verify object arg shape
+    const callArg = mockInferStopProgress.mock.calls[0][0];
+    expect(callArg).toHaveProperty("rawLat");
+    expect(callArg).toHaveProperty("rawLng");
+    expect(callArg).toHaveProperty("eventTs");
+    expect(callArg).toHaveProperty("vanId", VAN_ID);
   });
 });

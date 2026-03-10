@@ -770,4 +770,67 @@ describe("resolveRouteProgress", () => {
     });
     consoleSpy.mockRestore();
   });
+
+  // --- T049: runHealth = "orphaned" when shift meets both orphan criteria ---
+  it("runHealth is orphaned when shift is 90+ min past schedule end and GPS is 30+ min stale", async () => {
+    mockComputeEta.mockImplementation(() => Promise.resolve(defaultEtaResult()));
+
+    // now = 10:31 → 91 min past last scheduled time (09:00)
+    const now = makeNow(10, 31);
+
+    // Last GPS fix 35 min ago → inactive
+    const lastGpsFixAt = now.minus({ minutes: 35 });
+
+    const supabase = buildSupabase({
+      runData: {
+        id: RUN_ID,
+        last_passed_stop_id: "entry-a",
+        next_stop_id: "entry-b",
+        progress_updated_at: lastGpsFixAt.toISO()!, // same staleness as GPS
+      },
+      shifts: [{ id: "shift-1", started_at: "2026-03-07T07:00:00-03:00", ended_at: null }],
+      runStops: standardRunStops(),
+    });
+
+    const vanPosition = {
+      lat: -12.97,
+      lng: -38.51,
+      speedMps: 0,
+      lastGpsFixAt,
+    };
+
+    const result = await resolveRouteProgress({
+      ...makeArgs(supabase, now),
+      vanPosition,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.runStatus).toBe("in_progress");
+    expect(result!.runHealth).toBe("orphaned");
+  });
+
+  // --- T050: runHealth = "normal" when shift is within schedule window ---
+  it("runHealth is normal when shift is within or shortly after schedule window", async () => {
+    mockComputeEta.mockImplementation(() => Promise.resolve(defaultEtaResult()));
+
+    // now = 09:10 → only 10 min past last scheduled time (09:00), well under 90 min threshold
+    const now = makeNow(9, 10);
+
+    const supabase = buildSupabase({
+      runData: {
+        id: RUN_ID,
+        last_passed_stop_id: "entry-a",
+        next_stop_id: "entry-b",
+        progress_updated_at: now.minus({ minutes: 2 }).toISO()!,
+      },
+      shifts: [{ id: "shift-1", started_at: "2026-03-07T08:00:00-03:00", ended_at: null }],
+      runStops: standardRunStops(),
+    });
+
+    const result = await resolveRouteProgress(makeArgs(supabase, now));
+
+    expect(result).not.toBeNull();
+    expect(result!.runStatus).toBe("in_progress");
+    expect(result!.runHealth).toBe("normal");
+  });
 });

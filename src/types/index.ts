@@ -111,6 +111,7 @@ export type NextStop = {
 export type RouteProgress = {
   serviceDate: string;
   runStatus?: RunStatus;
+  runHealth?: "normal" | "orphaned";
   shiftStartedAt?: string | null;
   nextStopId: string | null;
   passedStopIds: string[];
