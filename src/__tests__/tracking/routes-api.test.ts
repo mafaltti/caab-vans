@@ -106,7 +106,7 @@ describe("routes API derivation logic", () => {
 
   describe("trackingStatus and isTrackingFresh", () => {
     it("isTrackingFresh is true when trackingStatus is live", () => {
-      const freshFix = makeNow().minus({ minutes: 3 }).toISO()!;
+      const freshFix = makeNow().minus({ minutes: 1 }).toISO()!;
       const result = deriveRouteFields({
         withinWindow: true,
         runStatus: "in_progress",
@@ -284,7 +284,7 @@ describe("getTrackerHealthStatuses", () => {
     expect(result[0].staleSinceMinutes).toBeGreaterThanOrEqual(14);
   });
 
-  it("returns isUnhealthy: true when stale (>10 min)", async () => {
+  it("returns isUnhealthy: true when stale (>3 min)", async () => {
     const staleFixAt = new Date(Date.now() - 20 * 60_000).toISOString();
     mockSelectVans.mockResolvedValue({
       data: [{ id: "van-1", last_gps_fix_at: staleFixAt }],

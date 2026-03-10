@@ -257,13 +257,13 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
   // van with null speed + stale fix is low and self-corrects on the next callback.
   // See research decision R2 in specs/043-fix-stale-gps-guard/research.md.
   const isColdGap = (Date.now() - lastSentTime) > 120_000;
-  if (!isColdGap) {
-    const isStationary = point.speed === null || point.speed <= 1;
-    const staleThreshold = isStationary ? 120_000 : 60_000;
-    if (Date.now() - point.ts > staleThreshold) {
-      logFiltered("stale");
-      return;
-    }
+  const isStationary = point.speed === null || point.speed <= 1;
+  // During cold gaps, relax the stale threshold to 5 min to allow doze recovery
+  // without accepting arbitrarily old cached fixes that could rewind the marker.
+  const staleThreshold = isColdGap ? 300_000 : (isStationary ? 120_000 : 60_000);
+  if (Date.now() - point.ts > staleThreshold) {
+    logFiltered("stale");
+    return;
   }
 
   // Throttle — skip if too close and too soon
