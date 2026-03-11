@@ -169,7 +169,15 @@ async function registerGeofences(): Promise<void> {
 
 export async function registerGeofencesFromCache(): Promise<void> {
   const regions = await getGeofenceRegions();
-  if (regions.length === 0) return;
+  if (regions.length === 0) {
+    // No regions in cache — unregister stale OS geofences if any
+    const registered = await TaskManager.isTaskRegisteredAsync(GEOFENCE_TASK);
+    if (registered) {
+      await Location.stopGeofencingAsync(GEOFENCE_TASK);
+      logEvent("geofence_register", "0 regions (stale cleared)");
+    }
+    return;
+  }
 
   await startGeofencingWithRegions(regions);
   logEvent("geofence_register", `${regions.length} regions (cache)`);

@@ -66,7 +66,6 @@ Set these before building the app or running scripts:
 - Optional `OSRM_BASE_URL=http://localhost:5000`
 - Optional `OSRM_ROUTE_TIMEOUT_MS=300`
 - Optional `OSRM_MATCH_TIMEOUT_MS=200`
-- Optional `TRACKING_PROGRESS_SOURCE=legacy`
 
 ### One-Time Bootstrap Variables
 
