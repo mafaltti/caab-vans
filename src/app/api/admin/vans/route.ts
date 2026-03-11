@@ -26,22 +26,6 @@ export async function GET() {
     return apiError("NOT_FOUND", "Failed to fetch vans", 500);
   }
 
-  const vanIds = (data ?? []).map((v) => v.id);
-  const { data: assignments, error: assignErr } = vanIds.length > 0
-    ? await supabase.from("van_drivers").select("van_id, driver_id").in("van_id", vanIds)
-    : { data: [] as { van_id: string; driver_id: string }[], error: null };
-
-  if (assignErr) {
-    return apiError("INTERNAL_ERROR", "Failed to fetch driver assignments", 500);
-  }
-
-  const driversByVan = new Map<string, string[]>();
-  for (const a of assignments ?? []) {
-    const list = driversByVan.get(a.van_id) ?? [];
-    list.push(a.driver_id);
-    driversByVan.set(a.van_id, list);
-  }
-
   const healthStatuses = await getTrackerHealthStatuses();
   const healthMap = new Map(healthStatuses.map((h) => [h.vanId, h]));
 
@@ -50,7 +34,6 @@ export async function GET() {
     return {
       id: v.id,
       name: v.name,
-      driverIds: driversByVan.get(v.id) ?? [],
       ingestionToken: v.ingestion_token,
       locationUrl: v.location_url,
       locationUpdatedAt: v.location_updated_at,

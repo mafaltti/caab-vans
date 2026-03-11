@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/api/auth";
+import { requireRole } from "@/lib/api/auth";
 import { apiError, validationError } from "@/lib/api/errors";
 import { createServiceClient } from "@/lib/supabase/server";
 import { updateRouteSchema } from "@/lib/validators/route";
@@ -8,7 +8,7 @@ type RouteParams = { params: Promise<{ routeId: string }> };
 
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
-    await requireAuth();
+    await requireRole("admin");
   } catch (e) {
     return e as NextResponse;
   }
@@ -41,6 +41,19 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     return apiError("CONFLICT", "Esta van já está atribuída a outra rota", 409);
   }
 
+  // Validate driver IDs
+  const driverIds = [...new Set(parsed.data.driverIds ?? [])];
+  for (const dId of driverIds) {
+    const { data: driver } = await supabase.auth.admin.getUserById(dId);
+    if (
+      !driver?.user ||
+      driver.user.app_metadata?.role !== "driver" ||
+      driver.user.app_metadata?.is_active === false
+    ) {
+      return apiError("VALIDATION_ERROR", `Driver ${dId} not found or not a driver`, 400);
+    }
+  }
+
   const { data, error } = await supabase
     .from("routes")
     .update({
@@ -55,18 +68,29 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     return apiError("NOT_FOUND", "Route not found", 404);
   }
 
+  // Atomic full-replacement via RPC (single transaction)
+  const { error: rpcError } = await supabase.rpc("replace_route_drivers", {
+    p_route_id: routeId,
+    p_driver_ids: driverIds,
+  });
+
+  if (rpcError) {
+    return apiError("INTERNAL_ERROR", "Failed to update driver assignments", 500);
+  }
+
   return NextResponse.json({
     route: {
       id: data.id,
       name: data.name,
       vanId: data.van_id,
+      driverIds,
     },
   });
 }
 
 export async function DELETE(_request: NextRequest, { params }: RouteParams) {
   try {
-    await requireAuth();
+    await requireRole("admin");
   } catch (e) {
     return e as NextResponse;
   }

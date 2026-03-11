@@ -207,6 +207,12 @@ export type VanDriver = {
   created_at: string;
 };
 
+export type RouteDriver = {
+  route_id: string;
+  driver_id: string;
+  created_at: string;
+};
+
 export type RouteShift = {
   id: string;
   run_id: string;
