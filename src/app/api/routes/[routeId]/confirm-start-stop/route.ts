@@ -102,10 +102,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     (s) => s.schedule_entry_id === stopId,
   );
 
-  // Idempotency: after a successful confirmation the run's next_stop_id is set
-  // to the confirmed stop (which stays pending). Detect retries by checking
-  // if the pointer already matches and all passed stops are manual.
-  if (run.next_stop_id === stopId) {
+  // Idempotency: after a successful confirmation the confirmed stop is marked
+  // passed(manual). Detect retries by checking if the target stop is already
+  // passed with manual source and all passed stops are manual.
+  if (targetStop && targetStop.status === "passed" && targetStop.pass_source === "manual") {
     const passedStops = allStops.filter((s) => s.status === "passed");
     const allManual =
       passedStops.length > 0 &&
@@ -160,7 +160,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const priorStopIds = allStops
     .filter((s) => {
       const seq = (s.schedule_entries as unknown as { stop_sequence: number }).stop_sequence;
-      return seq < confirmedStopSequence && s.status === "pending";
+      return seq <= confirmedStopSequence && s.status === "pending";
     })
     .map((s) => s.schedule_entry_id);
 

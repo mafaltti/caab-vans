@@ -7,21 +7,22 @@ const TZ = "America/Bahia";
 
 describe("confirm-start-stop logic", () => {
   describe("bulk mark + pointer update (happy path)", () => {
-    it("marks all stops before confirmed stop and derives correct pointers", () => {
+    it("marks confirmed stop and all prior stops as passed, next points to stop after", () => {
       // Simulate: 5 stops, driver confirms stop-3 as current
+      // After fix: stops 1-3 are passed (including confirmed), 4-5 pending
       const allStops = [
         { schedule_entry_id: "s1", status: "passed" as const },
         { schedule_entry_id: "s2", status: "passed" as const },
-        { schedule_entry_id: "s3", status: "pending" as const },
+        { schedule_entry_id: "s3", status: "passed" as const },
         { schedule_entry_id: "s4", status: "pending" as const },
         { schedule_entry_id: "s5", status: "pending" as const },
       ];
 
       const result = enforceCanonicalPrefix(allStops);
 
-      expect(result.contiguousPassedIds).toEqual(new Set(["s1", "s2"]));
-      expect(result.lastPassedStopId).toBe("s2");
-      expect(result.nextStopId).toBe("s3");
+      expect(result.contiguousPassedIds).toEqual(new Set(["s1", "s2", "s3"]));
+      expect(result.lastPassedStopId).toBe("s3");
+      expect(result.nextStopId).toBe("s4");
       expect(result.healIds).toEqual([]);
     });
   });
@@ -41,41 +42,41 @@ describe("confirm-start-stop logic", () => {
       expect(first.nextStopId).toBe(second.nextStopId);
     });
 
-    it("retry detection: confirmed stop stays pending as next_stop_id", () => {
-      // After first confirm of s3: s1,s2 are passed(manual), s3 is pending
-      // run.next_stop_id === "s3"
+    it("retry detection: confirmed stop is passed+manual", () => {
+      // After first confirm of s3: s1,s2,s3 are passed(manual)
+      // run.next_stop_id === "s4" (stop after confirmed)
       const stopsAfterConfirm = [
         { schedule_entry_id: "s1", status: "passed" as const, pass_source: "manual" },
         { schedule_entry_id: "s2", status: "passed" as const, pass_source: "manual" },
-        { schedule_entry_id: "s3", status: "pending" as const, pass_source: null },
+        { schedule_entry_id: "s3", status: "passed" as const, pass_source: "manual" },
         { schedule_entry_id: "s4", status: "pending" as const, pass_source: null },
       ];
 
       const confirmedStopId = "s3";
-      const runNextStopId = "s3"; // set by first confirmation
+      const targetStop = stopsAfterConfirm.find((s) => s.schedule_entry_id === confirmedStopId)!;
 
       // Simulate the idempotency check from the endpoint
       const passedStops = stopsAfterConfirm.filter((s) => s.status === "passed");
       const allManual =
         passedStops.length > 0 &&
         passedStops.every((s) => s.pass_source === "manual");
-      const isRetry = runNextStopId === confirmedStopId && allManual;
+      const isRetry = targetStop.status === "passed" && targetStop.pass_source === "manual" && allManual;
 
       expect(isRetry).toBe(true);
 
-      // Confirm canonical prefix still produces correct pointers
+      // Confirm canonical prefix produces correct pointers
       const canonical = enforceCanonicalPrefix(
         stopsAfterConfirm.map((s) => ({
           schedule_entry_id: s.schedule_entry_id,
           status: s.status,
         })),
       );
-      expect(canonical.nextStopId).toBe("s3");
-      expect(canonical.lastPassedStopId).toBe("s2");
+      expect(canonical.nextStopId).toBe("s4");
+      expect(canonical.lastPassedStopId).toBe("s3");
     });
 
     it("does not treat geofence-progressed run as idempotent retry", () => {
-      // Geofence has progressed to s3 as next_stop — not a cold-start retry
+      // Geofence has progressed s1,s2 — not a cold-start retry
       const stopsAfterGeofence = [
         { schedule_entry_id: "s1", status: "passed" as const, pass_source: "geofence_raw" },
         { schedule_entry_id: "s2", status: "passed" as const, pass_source: "geofence_raw" },
@@ -83,16 +84,46 @@ describe("confirm-start-stop logic", () => {
       ];
 
       const confirmedStopId = "s3";
-      const runNextStopId = "s3";
+      const targetStop = stopsAfterGeofence.find((s) => s.schedule_entry_id === confirmedStopId)!;
 
-      const passedStops = stopsAfterGeofence.filter((s) => s.status === "passed");
-      const allManual =
-        passedStops.length > 0 &&
-        passedStops.every((s) => s.pass_source === "manual");
-      const isRetry = runNextStopId === confirmedStopId && allManual;
+      // Target stop is pending — not a retry
+      const isRetry = targetStop.status === "passed" && targetStop.pass_source === "manual";
 
-      // Should NOT be detected as retry — geofence passes are not manual
       expect(isRetry).toBe(false);
+    });
+  });
+
+  describe("edge cases", () => {
+    it("confirm last stop → all passed, next_stop_id null", () => {
+      // All stops including the last one are passed after confirmation
+      const allStops = [
+        { schedule_entry_id: "s1", status: "passed" as const },
+        { schedule_entry_id: "s2", status: "passed" as const },
+        { schedule_entry_id: "s3", status: "passed" as const },
+      ];
+
+      const result = enforceCanonicalPrefix(allStops);
+
+      expect(result.contiguousPassedIds).toEqual(new Set(["s1", "s2", "s3"]));
+      expect(result.lastPassedStopId).toBe("s3");
+      expect(result.nextStopId).toBeNull();
+      expect(result.healIds).toEqual([]);
+    });
+
+    it("confirm first stop → only it passed, next_stop_id is stop #2", () => {
+      // Confirming the very first stop: only stop-1 is passed
+      const allStops = [
+        { schedule_entry_id: "s1", status: "passed" as const },
+        { schedule_entry_id: "s2", status: "pending" as const },
+        { schedule_entry_id: "s3", status: "pending" as const },
+      ];
+
+      const result = enforceCanonicalPrefix(allStops);
+
+      expect(result.contiguousPassedIds).toEqual(new Set(["s1"]));
+      expect(result.lastPassedStopId).toBe("s1");
+      expect(result.nextStopId).toBe("s2");
+      expect(result.healIds).toEqual([]);
     });
   });
 
@@ -141,12 +172,12 @@ describe("confirm-start-stop logic", () => {
 
   describe("persistCanonicalProgress integration", () => {
     it("enforceCanonicalPrefix after bulk mark produces correct pointers for persistCanonicalProgress", () => {
-      // Simulate state after bulk mark: stops before confirmed stop-3 are passed,
-      // confirmed stop and later remain pending — this is what persistCanonicalProgress sees.
+      // Simulate state after bulk mark: stops up to and including confirmed stop-3
+      // are passed, later stops remain pending — this is what persistCanonicalProgress sees.
       const stopsAfterBulkMark = [
         { schedule_entry_id: "s1", status: "passed" as const },
         { schedule_entry_id: "s2", status: "passed" as const },
-        { schedule_entry_id: "s3", status: "pending" as const },
+        { schedule_entry_id: "s3", status: "passed" as const },
         { schedule_entry_id: "s4", status: "pending" as const },
       ];
 
@@ -154,10 +185,10 @@ describe("confirm-start-stop logic", () => {
       // with the same shape — verify the output matches expected pointers.
       const result = enforceCanonicalPrefix(stopsAfterBulkMark);
 
-      expect(result.lastPassedStopId).toBe("s2");
-      expect(result.nextStopId).toBe("s3");
+      expect(result.lastPassedStopId).toBe("s3");
+      expect(result.nextStopId).toBe("s4");
       expect(result.healIds).toEqual([]);
-      expect(result.contiguousPassedIds).toEqual(new Set(["s1", "s2"]));
+      expect(result.contiguousPassedIds).toEqual(new Set(["s1", "s2", "s3"]));
     });
 
     it("detects and heals non-contiguous passed rows after bulk mark", () => {
