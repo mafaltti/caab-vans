@@ -17,6 +17,11 @@ vi.mock("@/lib/tracking/infer-stop-progress", () => ({
   inferStopProgress: (args: unknown) => mockInferStopProgress(args),
 }));
 
+// Mock processDeviceGeofenceEvents
+vi.mock("@/lib/tracking/process-device-geofence-events", () => ({
+  processDeviceGeofenceEvents: vi.fn().mockResolvedValue([]),
+}));
+
 // Mock snapToRoad
 vi.mock("@/lib/tracking/osrm", () => ({
   snapToRoad: vi.fn().mockResolvedValue(null),
@@ -139,7 +144,16 @@ function setupMocks(opts: {
         }),
       };
     }
-    return { select: () => ({ eq: () => ({ single: () => ({ data: null, error: null }) }) }) };
+    // Default chain for routes, schedule_entries, etc. — supports .maybeSingle() and .order().limit()
+    const chainable: Record<string, unknown> = {};
+    const proxy: unknown = new Proxy(chainable, {
+      get(_target, prop) {
+        if (prop === "then") return undefined;
+        if (prop === "single" || prop === "maybeSingle") return () => ({ data: null, error: null });
+        return () => proxy;
+      },
+    });
+    return proxy;
   });
 }
 

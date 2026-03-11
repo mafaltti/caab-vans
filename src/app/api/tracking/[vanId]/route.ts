@@ -5,6 +5,7 @@ import { apiError, validationError } from "@/lib/api/errors";
 import { createRateLimiter } from "@/lib/api/rate-limit";
 import { createServiceClient } from "@/lib/supabase/server";
 import { inferStopProgress } from "@/lib/tracking/infer-stop-progress";
+import { processDeviceGeofenceEvents } from "@/lib/tracking/process-device-geofence-events";
 import { snapToRoad } from "@/lib/tracking/osrm";
 import { trackingSchema } from "@/lib/validators/tracking";
 
@@ -73,6 +74,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     failureCount,
     batteryLevel,
     networkType,
+    geofenceEvents,
   } = parsed.data;
 
   // Clamp device timestamp: if >5 min in the future, use server time instead.
@@ -84,6 +86,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   // Staleness guard — reject pings older than 24 hours
   if (clampedTs < now - 24 * 60 * 60 * 1000) {
     return apiError("VALIDATION_ERROR", "Ping too old", 400);
+  }
+
+  // Process device geofence events BEFORE ping upsert
+  const hasGeofenceEvents = geofenceEvents && geofenceEvents.length > 0;
+  let submittedEventIds: string[] = [];
+  if (hasGeofenceEvents) {
+    submittedEventIds = geofenceEvents.map((e) => e.eventId);
+    try {
+      await processDeviceGeofenceEvents({ supabase, vanId, geofenceEvents });
+    } catch (error) {
+      console.error("Device geofence event processing failed:", error);
+    }
   }
 
   // Upsert with unique constraint on (van_id, device_ts) — silently skip duplicates
@@ -110,16 +124,23 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     .single();
 
   // PGRST116 = no rows returned → duplicate was silently skipped
-  if (upsertError?.code === "PGRST116") {
-    return NextResponse.json({ received: true, duplicate: true, ts: Date.now() });
-  }
+  const isDuplicate = upsertError?.code === "PGRST116" || !upsertedPing;
 
-  if (upsertError) {
+  if (upsertError && upsertError.code !== "PGRST116") {
     return apiError("INTERNAL_ERROR", "Failed to store ping", 500);
   }
 
-  if (!upsertedPing) {
+  // Duplicate pings with geofence events still need processedEventIds computation.
+  // Skip OSRM, position update, and inference — jump to response building.
+  if (isDuplicate && !hasGeofenceEvents) {
     return NextResponse.json({ received: true, duplicate: true, ts: Date.now() });
+  }
+
+  if (isDuplicate) {
+    // Duplicate ping WITH geofence events — compute processedEventIds and configVersion
+    const response: Record<string, unknown> = { received: true, duplicate: true, ts: Date.now() };
+    await appendGeofenceResponse(supabase, vanId, submittedEventIds, response);
+    return NextResponse.json(response);
   }
 
   // OSRM road-snapping (best-effort, before atomic position update)
@@ -202,5 +223,84 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     console.error("Stop inference failed:", error);
   }
 
-  return NextResponse.json({ received: true, ts: Date.now() });
+  const response: Record<string, unknown> = { received: true, ts: Date.now() };
+
+  if (hasGeofenceEvents) {
+    await appendGeofenceResponse(supabase, vanId, submittedEventIds, response);
+  } else {
+    // Always include configVersion when van has a route (lightweight query)
+    await appendConfigVersion(supabase, vanId, response);
+  }
+
+  return NextResponse.json(response);
+}
+
+async function appendGeofenceResponse(
+  supabase: ReturnType<typeof createServiceClient>,
+  vanId: string,
+  submittedEventIds: string[],
+  response: Record<string, unknown>,
+): Promise<void> {
+  // Compute processedEventIds: only events whose matched stops survived canonical healing
+  if (submittedEventIds.length > 0) {
+    const { data: confirmedEvents } = await supabase
+      .from("tracking_geofence_events")
+      .select("event_id, matched_schedule_entry_id, matched_run_id")
+      .eq("van_id", vanId)
+      .in("event_id", submittedEventIds)
+      .eq("status", "matched");
+
+    if (confirmedEvents && confirmedEvents.length > 0) {
+      // Verify matched stops are still passed (canonical healing may have reverted them)
+      const scheduleEntryIds = confirmedEvents
+        .map((e) => e.matched_schedule_entry_id)
+        .filter(Boolean) as string[];
+      const runIds = [...new Set(confirmedEvents.map((e) => e.matched_run_id).filter(Boolean))] as string[];
+
+      if (scheduleEntryIds.length > 0 && runIds.length > 0) {
+        const { data: passedStops } = await supabase
+          .from("route_run_stops")
+          .select("schedule_entry_id")
+          .in("run_id", runIds)
+          .in("schedule_entry_id", scheduleEntryIds)
+          .eq("status", "passed");
+
+        const passedSet = new Set((passedStops ?? []).map((s) => s.schedule_entry_id));
+        response.processedEventIds = confirmedEvents
+          .filter((e) => e.matched_schedule_entry_id && passedSet.has(e.matched_schedule_entry_id))
+          .map((e) => e.event_id);
+      }
+    }
+
+    if (!response.processedEventIds) {
+      response.processedEventIds = [];
+    }
+  }
+
+  await appendConfigVersion(supabase, vanId, response);
+}
+
+async function appendConfigVersion(
+  supabase: ReturnType<typeof createServiceClient>,
+  vanId: string,
+  response: Record<string, unknown>,
+): Promise<void> {
+  const { data: route } = await supabase
+    .from("routes")
+    .select("id")
+    .eq("van_id", vanId)
+    .maybeSingle();
+
+  if (route) {
+    const { data: entries } = await supabase
+      .from("schedule_entries")
+      .select("updated_at")
+      .eq("route_id", route.id)
+      .order("updated_at", { ascending: false })
+      .limit(1);
+
+    if (entries && entries.length > 0) {
+      response.configVersion = entries[0].updated_at;
+    }
+  }
 }

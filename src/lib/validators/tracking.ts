@@ -1,5 +1,13 @@
 import { z } from "zod/v4";
 
+const geofenceEventSchema = z.object({
+  placeId: z.string(),
+  enteredAt: z.int().positive(),
+  eventId: z.uuid(),
+});
+
+export type GeofenceEventPayload = z.infer<typeof geofenceEventSchema>;
+
 export const trackingSchema = z.object({
   deviceId: z.uuid(),
   lat: z.number().min(-90).max(90),
@@ -12,6 +20,7 @@ export const trackingSchema = z.object({
   failureCount: z.int().nonnegative().nullable().optional(),
   batteryLevel: z.number().min(0).max(1).nullable().optional(),
   networkType: z.enum(["wifi", "cellular", "none"]).nullable().optional(),
+  geofenceEvents: z.array(geofenceEventSchema).optional(),
 });
 
 export const batchTrackingSchema = z.object({

@@ -141,7 +141,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const hasGeofencePasses = allStops.some(
     (s) =>
       s.pass_source === "geofence_raw" ||
-      s.pass_source === "geofence_snapped",
+      s.pass_source === "geofence_snapped" ||
+      s.pass_source === "device_geofence",
   );
   if (hasGeofencePasses) {
     return apiError(

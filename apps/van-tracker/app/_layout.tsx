@@ -1,10 +1,11 @@
 import "@/location/task";
+import "@/location/geofence-task";
 import * as Sentry from "@sentry/react-native";
 import { useEffect } from "react";
 import { Stack } from "expo-router";
 import { isSettingsComplete } from "@/storage/settings";
 import { getTrackingEnabled } from "@/storage/tracking-state";
-import { startTracking } from "@/location/tracking";
+import { startTracking, registerGeofencesFromCache } from "@/location/tracking";
 import {
   consumeBootTrigger,
   syncTrackingStateToDeviceProtected,
@@ -30,6 +31,12 @@ function RootLayout() {
         const settingsOk = await isSettingsComplete();
         if (wasTracking && settingsOk) {
           await startTracking();
+          // Re-register geofences from cache on boot (no network wait)
+          try {
+            await registerGeofencesFromCache();
+          } catch {
+            // Non-fatal — geofences will re-register on next config fetch
+          }
           if (bootTrigger) {
             logEvent("boot_restart", bootTrigger);
             await flushLog();
