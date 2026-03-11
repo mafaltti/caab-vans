@@ -491,4 +491,34 @@ describe("processDeviceGeofenceEvents", () => {
     expect(mock._eventUpdates).toHaveLength(1);
     expect(mock._eventUpdates[0].payload).toMatchObject({ status: "no_match" });
   });
+
+  it("re-processes a previously no_match event when conditions recover", async () => {
+    // Event was no_match (e.g. no shift at first delivery), now shift exists
+    const mock = createMockSupabase({
+      insertReturns: [], // duplicate
+      existingEvent: {
+        status: "no_match",
+        matched_schedule_entry_id: null,
+        matched_run_id: null,
+      },
+      activeShift: { id: "shift-1" },
+      pendingStops: [pendingStop("entry-1350", "13:50")],
+      recentPings: [],
+    });
+
+    const result = await processDeviceGeofenceEvents({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase: mock as any,
+      vanId,
+      geofenceEvents: [{ placeId, enteredAt, eventId: "ev-retry" }],
+    });
+
+    // Should now match after re-processing
+    expect(result).toContain("ev-retry");
+    expect(mock._stopUpdates).toHaveLength(1);
+    expect(mock._stopUpdates[0].payload).toMatchObject({
+      status: "passed",
+      pass_source: "device_geofence",
+    });
+  });
 });

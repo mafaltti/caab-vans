@@ -72,7 +72,15 @@ async function processOneEvent(
 
     if (!existing) return;
 
-    if (existing.status === "no_match") return; // Conditions unchanged, skip
+    // no_match events are re-processable: shift may have started, transient
+    // failures may have resolved. Reset to 'received' and fall through.
+    if (existing.status === "no_match") {
+      await supabase
+        .from("tracking_geofence_events")
+        .update({ status: "received" })
+        .eq("van_id", vanId)
+        .eq("event_id", eventId);
+    }
 
     if (existing.status === "matched" && existing.matched_schedule_entry_id && existing.matched_run_id) {
       // Check if matched stop is still passed — if so, already resolved

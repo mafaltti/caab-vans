@@ -65,7 +65,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     lng: number;
     radius: number;
   }[] = [];
-  let maxUpdatedAt: string | null = null;
 
   for (const entry of entries ?? []) {
     const lat = entry.stop_lat as number;
@@ -82,14 +81,22 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       lng,
       radius: entry.device_geofence_radius_m ?? 150,
     });
-
-    if (!maxUpdatedAt || entry.updated_at > maxUpdatedAt) {
-      maxUpdatedAt = entry.updated_at;
-    }
   }
 
-  return NextResponse.json({
-    geofenceRegions,
-    configVersion: maxUpdatedAt ?? new Date().toISOString(),
-  });
+  // configVersion must be the max updated_at across ALL schedule_entries on the
+  // route (including ungeocoded/duplicate rows) so it matches the value returned
+  // by the tracking endpoint — otherwise the tracker sees a permanent mismatch.
+  const { data: versionRow } = await supabase
+    .from("schedule_entries")
+    .select("updated_at")
+    .eq("route_id", route.id)
+    .order("updated_at", { ascending: false })
+    .limit(1);
+
+  const configVersion =
+    versionRow && versionRow.length > 0
+      ? versionRow[0].updated_at
+      : new Date().toISOString();
+
+  return NextResponse.json({ geofenceRegions, configVersion });
 }

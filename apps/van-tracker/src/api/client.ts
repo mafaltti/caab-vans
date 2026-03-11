@@ -3,7 +3,6 @@ import {
   getGeofenceEventBuffer,
   removeGeofenceEvents,
   getGeofenceConfigVersion,
-  setGeofenceConfigVersion,
 } from "@/storage/tracking-state";
 import { fetchTrackerConfig } from "@/api/config";
 
@@ -100,14 +99,14 @@ export async function sendLocationPing(
         }
       }
 
-      // Check for config version mismatch (resync trigger)
+      // Check for config version mismatch (resync trigger).
+      // Don't update cached version here — fetchTrackerConfig does it on
+      // success, so a failed fetch leaves the mismatch in place for retry.
       const configVersion = responseBody?.configVersion as string | undefined;
       if (configVersion) {
         try {
           const cached = await getGeofenceConfigVersion();
           if (cached !== configVersion) {
-            await setGeofenceConfigVersion(configVersion);
-            // Trigger async resync — don't block the response
             fetchTrackerConfig(settings).catch(() => {});
           }
         } catch {

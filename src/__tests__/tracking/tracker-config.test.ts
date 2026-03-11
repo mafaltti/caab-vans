@@ -44,6 +44,7 @@ function setupMocks(opts: {
   routeError?: { code: string; message: string } | null;
   entries?: Record<string, unknown>[];
   entriesError?: { code: string; message: string } | null;
+  allEntriesForVersion?: Record<string, unknown>[];
 }) {
   const {
     vanData = { id: VAN_ID, ingestion_token: TOKEN },
@@ -52,7 +53,19 @@ function setupMocks(opts: {
     routeError = null,
     entries = [makeEntry()],
     entriesError = null,
+    allEntriesForVersion,
   } = opts;
+
+  // Compute version row: use allEntriesForVersion if provided, otherwise derive
+  // from entries (same as production would when all entries are geocoded).
+  const versionSource = allEntriesForVersion ?? entries;
+  const versionRow = versionSource.length > 0
+    ? [{ updated_at: [...versionSource].sort((a, b) =>
+        (b.updated_at as string).localeCompare(a.updated_at as string)
+      )[0].updated_at }]
+    : [];
+
+  let scheduleCallCount = 0;
 
   mockFrom.mockImplementation((table: string) => {
     if (table === "vans") {
@@ -74,13 +87,27 @@ function setupMocks(opts: {
       };
     }
     if (table === "schedule_entries") {
+      scheduleCallCount++;
+      if (scheduleCallCount === 1) {
+        // First call: geocoded entries with .not() filters
+        return {
+          select: () => ({
+            eq: () => ({
+              not: () => ({
+                not: () => ({
+                  order: () => ({ data: entries, error: entriesError }),
+                }),
+              }),
+            }),
+          }),
+        };
+      }
+      // Second call: configVersion query — .select("updated_at").eq().order().limit()
       return {
         select: () => ({
           eq: () => ({
-            not: () => ({
-              not: () => ({
-                order: () => ({ data: entries, error: entriesError }),
-              }),
+            order: () => ({
+              limit: () => ({ data: versionRow, error: null }),
             }),
           }),
         }),
@@ -195,5 +222,29 @@ describe("tracker-config GET", () => {
 
     expect(res.status).toBe(200);
     expect(json.configVersion).toBe(newest);
+  });
+
+  it("configVersion reflects ungeocoded entries not in geofenceRegions", async () => {
+    // The geocoded entries have an older updated_at, but an ungeocoded row
+    // (not in the loop) has a newer one. configVersion must use the newer value
+    // to stay consistent with the tracking endpoint.
+    const geocodedTs = "2026-01-01T08:00:00Z";
+    const ungeocodedTs = "2026-01-01T14:00:00Z";
+    setupMocks({
+      entries: [
+        makeEntry({ id: "e1", stop_group_id: "grp-a", updated_at: geocodedTs }),
+      ],
+      allEntriesForVersion: [
+        { updated_at: geocodedTs },
+        { updated_at: ungeocodedTs },
+      ],
+    });
+
+    const res = await GET(createRequest(TOKEN), routeParams);
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.geofenceRegions).toHaveLength(1);
+    expect(json.configVersion).toBe(ungeocodedTs);
   });
 });
