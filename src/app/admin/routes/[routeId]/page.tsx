@@ -13,6 +13,7 @@ type RouteData = {
   id: string;
   name: string;
   vanId: string;
+  driverIds: string[];
 };
 
 export default function AdminRouteEditPage() {
@@ -34,7 +35,7 @@ export default function AdminRouteEditPage() {
       .catch(() => setLoading(false));
   }, [routeId]);
 
-  async function handleSubmit(data: { name: string; vanId: string }) {
+  async function handleSubmit(data: { name: string; vanId: string; driverIds: string[] }) {
     const res = await fetch(`/api/admin/routes/${routeId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -69,7 +70,7 @@ export default function AdminRouteEditPage() {
       </div>
 
       <RouteForm
-        defaultValues={{ name: route.name, vanId: route.vanId }}
+        defaultValues={{ name: route.name, vanId: route.vanId, driverIds: route.driverIds }}
         onSubmit={handleSubmit}
         submitLabel="Salvar alterações"
       />

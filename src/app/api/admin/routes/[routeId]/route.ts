@@ -41,6 +41,19 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     return apiError("CONFLICT", "Esta van já está atribuída a outra rota", 409);
   }
 
+  // Validate driver IDs
+  const driverIds = [...new Set(parsed.data.driverIds ?? [])];
+  for (const dId of driverIds) {
+    const { data: driver } = await supabase.auth.admin.getUserById(dId);
+    if (
+      !driver?.user ||
+      driver.user.app_metadata?.role !== "driver" ||
+      driver.user.app_metadata?.is_active === false
+    ) {
+      return apiError("VALIDATION_ERROR", `Driver ${dId} not found or not a driver`, 400);
+    }
+  }
+
   const { data, error } = await supabase
     .from("routes")
     .update({
@@ -55,11 +68,21 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     return apiError("NOT_FOUND", "Route not found", 404);
   }
 
+  // Full-replacement semantics: delete all, then insert new set
+  await supabase.from("route_drivers").delete().eq("route_id", routeId);
+
+  if (driverIds.length > 0) {
+    await supabase
+      .from("route_drivers")
+      .insert(driverIds.map((dId) => ({ route_id: routeId, driver_id: dId })));
+  }
+
   return NextResponse.json({
     route: {
       id: data.id,
       name: data.name,
       vanId: data.van_id,
+      driverIds,
     },
   });
 }

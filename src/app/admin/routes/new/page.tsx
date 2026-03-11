@@ -9,7 +9,7 @@ import Link from "next/link";
 export default function AdminRouteCreatePage() {
   const router = useRouter();
 
-  async function handleSubmit(data: { name: string; vanId: string }) {
+  async function handleSubmit(data: { name: string; vanId: string; driverIds: string[] }) {
     const res = await fetch("/api/admin/routes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
