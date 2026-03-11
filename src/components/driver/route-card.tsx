@@ -347,7 +347,7 @@ export function RouteCard({ route, userId, onUpdate }: RouteCardProps) {
             <DialogTitle>Confirmar parada atual</DialogTitle>
             <DialogDescription>
               Parece que o turno começou após o horário previsto. Selecione a
-              parada em que você está agora. As paradas anteriores serão
+              parada em que você está agora. Ela e as paradas anteriores serão
               marcadas automaticamente.
             </DialogDescription>
           </DialogHeader>

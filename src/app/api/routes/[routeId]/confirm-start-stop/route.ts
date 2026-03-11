@@ -3,7 +3,6 @@ import { requireAuth } from "@/lib/api/auth";
 import { apiError } from "@/lib/api/errors";
 import { createServiceClient } from "@/lib/supabase/server";
 import { todayBahiaDate } from "@/lib/time";
-import { enforceCanonicalPrefix } from "@/lib/tracking/enforce-canonical-prefix";
 import { persistCanonicalProgress } from "@/lib/tracking/persist-canonical-progress";
 import { seedRouteRunStops } from "@/lib/tracking/seed-route-run-stops";
 import { ConfirmStartStopBodySchema } from "@/lib/validators/route";
@@ -112,12 +111,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       passedStops.every((s) => s.pass_source === "manual");
 
     if (allManual) {
-      const canonical = enforceCanonicalPrefix(
-        allStops.map((s) => ({
-          schedule_entry_id: s.schedule_entry_id,
-          status: s.status as "pending" | "passed",
-        })),
-      );
+      const canonical = await persistCanonicalProgress(supabase, run.id);
 
       return NextResponse.json({
         confirmed: true,
