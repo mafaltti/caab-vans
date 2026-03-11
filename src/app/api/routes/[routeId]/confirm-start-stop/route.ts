@@ -3,7 +3,6 @@ import { requireAuth } from "@/lib/api/auth";
 import { apiError } from "@/lib/api/errors";
 import { createServiceClient } from "@/lib/supabase/server";
 import { todayBahiaDate } from "@/lib/time";
-import { enforceCanonicalPrefix } from "@/lib/tracking/enforce-canonical-prefix";
 import { persistCanonicalProgress } from "@/lib/tracking/persist-canonical-progress";
 import { seedRouteRunStops } from "@/lib/tracking/seed-route-run-stops";
 import { ConfirmStartStopBodySchema } from "@/lib/validators/route";
@@ -102,22 +101,17 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     (s) => s.schedule_entry_id === stopId,
   );
 
-  // Idempotency: after a successful confirmation the run's next_stop_id is set
-  // to the confirmed stop (which stays pending). Detect retries by checking
-  // if the pointer already matches and all passed stops are manual.
-  if (run.next_stop_id === stopId) {
+  // Idempotency: after a successful confirmation the confirmed stop is marked
+  // passed(manual). Detect retries by checking if the target stop is already
+  // passed with manual source and all passed stops are manual.
+  if (targetStop && targetStop.status === "passed" && targetStop.pass_source === "manual") {
     const passedStops = allStops.filter((s) => s.status === "passed");
     const allManual =
       passedStops.length > 0 &&
       passedStops.every((s) => s.pass_source === "manual");
 
     if (allManual) {
-      const canonical = enforceCanonicalPrefix(
-        allStops.map((s) => ({
-          schedule_entry_id: s.schedule_entry_id,
-          status: s.status as "pending" | "passed",
-        })),
-      );
+      const canonical = await persistCanonicalProgress(supabase, run.id);
 
       return NextResponse.json({
         confirmed: true,
@@ -160,7 +154,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const priorStopIds = allStops
     .filter((s) => {
       const seq = (s.schedule_entries as unknown as { stop_sequence: number }).stop_sequence;
-      return seq < confirmedStopSequence && s.status === "pending";
+      return seq <= confirmedStopSequence && s.status === "pending";
     })
     .map((s) => s.schedule_entry_id);
 
