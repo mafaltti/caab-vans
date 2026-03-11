@@ -3,9 +3,16 @@ import * as Location from "expo-location";
 import * as Notifications from "expo-notifications";
 import * as TaskManager from "expo-task-manager";
 import { Platform } from "react-native";
-import { setTrackingEnabled } from "@/storage/tracking-state";
+import {
+  setTrackingEnabled,
+  getGeofenceRegions,
+  clearGeofenceState,
+} from "@/storage/tracking-state";
 import { logEvent, flushLog } from "@/storage/diag-log";
+import { getSettings } from "@/storage/settings";
+import { fetchTrackerConfig } from "@/api/config";
 import { BACKGROUND_LOCATION_TASK } from "./task";
+import { GEOFENCE_TASK } from "./geofence-task";
 
 let batterySubscription: Battery.Subscription | null = null;
 let isLowBattery = false;
@@ -85,6 +92,13 @@ export async function startTracking(): Promise<void> {
     // Diagnostics should never block tracking lifecycle
   }
 
+  // Register geofence regions after location updates start
+  try {
+    await registerGeofences();
+  } catch {
+    // Geofence registration failure is non-fatal — GPS tracking continues
+  }
+
   const level = await Battery.getBatteryLevelAsync();
   isLowBattery = level < 0.2;
   if (isLowBattery) {
@@ -121,6 +135,18 @@ export async function stopTracking(): Promise<void> {
   if (isRegistered) {
     await Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
   }
+
+  // Unregister geofences and clear cached state
+  try {
+    const geofenceRegistered = await TaskManager.isTaskRegisteredAsync(GEOFENCE_TASK);
+    if (geofenceRegistered) {
+      await Location.stopGeofencingAsync(GEOFENCE_TASK);
+    }
+    await clearGeofenceState();
+  } catch {
+    // Geofence cleanup failure is non-fatal
+  }
+
   await setTrackingEnabled(false);
   try {
     logEvent("tracking_stop");
@@ -128,6 +154,41 @@ export async function stopTracking(): Promise<void> {
   } catch {
     // Diagnostics should never block tracking lifecycle
   }
+}
+
+async function registerGeofences(): Promise<void> {
+  const settings = await getSettings();
+  if (!settings) return;
+
+  const config = await fetchTrackerConfig(settings);
+  if (!config || config.geofenceRegions.length === 0) return;
+
+  await startGeofencingWithRegions(config.geofenceRegions);
+  logEvent("geofence_register", `${config.geofenceRegions.length} regions`);
+}
+
+export async function registerGeofencesFromCache(): Promise<void> {
+  const regions = await getGeofenceRegions();
+  if (regions.length === 0) return;
+
+  await startGeofencingWithRegions(regions);
+  logEvent("geofence_register", `${regions.length} regions (cache)`);
+}
+
+async function startGeofencingWithRegions(
+  regions: { placeId: string; lat: number; lng: number; radius: number }[],
+): Promise<void> {
+  await Location.startGeofencingAsync(
+    GEOFENCE_TASK,
+    regions.map((r) => ({
+      identifier: r.placeId,
+      latitude: r.lat,
+      longitude: r.lng,
+      radius: r.radius,
+      notifyOnEnter: true,
+      notifyOnExit: false,
+    })),
+  );
 }
 
 export async function isTracking(): Promise<boolean> {

@@ -1,9 +1,17 @@
 import { LocationPoint, Settings } from "@/types";
+import {
+  getGeofenceEventBuffer,
+  removeGeofenceEvents,
+  getGeofenceConfigVersion,
+} from "@/storage/tracking-state";
+import { fetchTrackerConfig } from "@/api/config";
 
 export type SendResult =
   | {
       success: true;
       serverTs: number;
+      processedEventIds?: string[];
+      configVersion?: string;
     }
   | {
       success: false;
@@ -38,7 +46,15 @@ export async function sendLocationPing(
 ): Promise<SendResult> {
   const url = `${settings.apiBaseUrl}/api/tracking/${settings.vanId}`;
 
-  const body = {
+  // Drain geofence event buffer to piggyback on ping
+  let geofenceEvents: { placeId: string; enteredAt: number; eventId: string }[] = [];
+  try {
+    geofenceEvents = await getGeofenceEventBuffer();
+  } catch {
+    // Non-fatal — send ping without events
+  }
+
+  const body: Record<string, unknown> = {
     deviceId,
     lat: point.lat,
     lng: point.lng,
@@ -51,6 +67,10 @@ export async function sendLocationPing(
     batteryLevel: point.batteryLevel,
     networkType: point.networkType,
   };
+
+  if (geofenceEvents.length > 0) {
+    body.geofenceEvents = geofenceEvents;
+  }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
@@ -68,9 +88,37 @@ export async function sendLocationPing(
 
     if (response.ok) {
       const responseBody = await safeJsonParse(response);
+
+      // Clear only confirmed events from buffer
+      const processedEventIds = responseBody?.processedEventIds as string[] | undefined;
+      if (processedEventIds && processedEventIds.length > 0) {
+        try {
+          await removeGeofenceEvents(processedEventIds);
+        } catch {
+          // Non-fatal
+        }
+      }
+
+      // Check for config version mismatch (resync trigger).
+      // Don't update cached version here — fetchTrackerConfig does it on
+      // success, so a failed fetch leaves the mismatch in place for retry.
+      const configVersion = responseBody?.configVersion as string | undefined;
+      if (configVersion) {
+        try {
+          const cached = await getGeofenceConfigVersion();
+          if (cached !== configVersion) {
+            fetchTrackerConfig(settings).catch(() => {});
+          }
+        } catch {
+          // Non-fatal
+        }
+      }
+
       return {
         success: true,
         serverTs: (responseBody?.ts as number) ?? Date.now(),
+        processedEventIds,
+        configVersion,
       };
     }
 

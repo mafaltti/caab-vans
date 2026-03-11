@@ -2,7 +2,7 @@
 
 export type TrackingStatus = "live" | "stale" | "missing";
 
-export type PassSource = "geofence_raw" | "geofence_snapped" | "backfill" | "manual";
+export type PassSource = "geofence_raw" | "geofence_snapped" | "backfill" | "manual" | "device_geofence";
 
 // Database entity types (matching data-model.md)
 

@@ -32,7 +32,9 @@ export type EventType =
   | "network_up"
   | "error"
   | "state_change"
-  | "boot_restart";
+  | "boot_restart"
+  | "geofence_enter"
+  | "geofence_register";
 
 export interface EventEntry {
   type: "event";

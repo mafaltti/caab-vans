@@ -24,3 +24,21 @@ export interface TrackingStatus {
   lastLng: number | null;
   lastError: string | null;
 }
+
+export interface GeofenceRegion {
+  placeId: string;
+  lat: number;
+  lng: number;
+  radius: number;
+}
+
+export interface GeofenceEvent {
+  placeId: string;
+  enteredAt: number;
+  eventId: string;
+}
+
+export interface TrackerConfig {
+  geofenceRegions: GeofenceRegion[];
+  configVersion: string;
+}
