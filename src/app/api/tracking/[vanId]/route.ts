@@ -4,6 +4,7 @@ import { DateTime } from "luxon";
 import { apiError, validationError } from "@/lib/api/errors";
 import { createRateLimiter } from "@/lib/api/rate-limit";
 import { createServiceClient } from "@/lib/supabase/server";
+import { enforceCanonicalPrefix } from "@/lib/tracking/enforce-canonical-prefix";
 import { inferStopProgress } from "@/lib/tracking/infer-stop-progress";
 import { processDeviceGeofenceEvents } from "@/lib/tracking/process-device-geofence-events";
 import { snapToRoad } from "@/lib/tracking/osrm";
@@ -235,7 +236,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   return NextResponse.json(response);
 }
 
-async function appendGeofenceResponse(
+export async function appendGeofenceResponse(
   supabase: ReturnType<typeof createServiceClient>,
   vanId: string,
   submittedEventIds: string[],
@@ -251,23 +252,33 @@ async function appendGeofenceResponse(
       .eq("status", "matched");
 
     if (confirmedEvents && confirmedEvents.length > 0) {
-      // Verify matched stops are still passed (canonical healing may have reverted them)
-      const scheduleEntryIds = confirmedEvents
-        .map((e) => e.matched_schedule_entry_id)
-        .filter(Boolean) as string[];
       const runIds = [...new Set(confirmedEvents.map((e) => e.matched_run_id).filter(Boolean))] as string[];
 
-      if (scheduleEntryIds.length > 0 && runIds.length > 0) {
-        const { data: passedStops } = await supabase
-          .from("route_run_stops")
-          .select("schedule_entry_id")
-          .in("run_id", runIds)
-          .in("schedule_entry_id", scheduleEntryIds)
-          .eq("status", "passed");
+      if (runIds.length > 0) {
+        // Build contiguous prefix per run using enforceCanonicalPrefix
+        const allContiguousIds = new Set<string>();
 
-        const passedSet = new Set((passedStops ?? []).map((s) => s.schedule_entry_id));
+        for (const runId of runIds) {
+          const { data: allStops } = await supabase
+            .from("route_run_stops")
+            .select("schedule_entry_id, status, schedule_entries!inner(stop_sequence)")
+            .eq("run_id", runId)
+            .order("schedule_entries(stop_sequence)", { ascending: true });
+
+          if (allStops && allStops.length > 0) {
+            const sortedStops = allStops.map((s) => ({
+              schedule_entry_id: s.schedule_entry_id,
+              status: s.status as "pending" | "passed",
+            }));
+            const { contiguousPassedIds } = enforceCanonicalPrefix(sortedStops);
+            for (const id of contiguousPassedIds) {
+              allContiguousIds.add(id);
+            }
+          }
+        }
+
         response.processedEventIds = confirmedEvents
-          .filter((e) => e.matched_schedule_entry_id && passedSet.has(e.matched_schedule_entry_id))
+          .filter((e) => e.matched_schedule_entry_id && allContiguousIds.has(e.matched_schedule_entry_id))
           .map((e) => e.event_id);
       }
     }
@@ -280,7 +291,7 @@ async function appendGeofenceResponse(
   await appendConfigVersion(supabase, vanId, response);
 }
 
-async function appendConfigVersion(
+export async function appendConfigVersion(
   supabase: ReturnType<typeof createServiceClient>,
   vanId: string,
   response: Record<string, unknown>,

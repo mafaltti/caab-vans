@@ -252,7 +252,28 @@ async function processOneEvent(
     }
   }
 
-  // 7. Mark stop as passed
+  // 7. Contiguous-prefix guard: only mark head-of-line pending stop
+  const matchedIndex = pendingStops.findIndex(
+    (s) => s.schedule_entry_id === matched.scheduleEntryId,
+  );
+
+  if (matchedIndex > 0) {
+    const firstPending = pendingStops[0].schedule_entries as unknown as { stop_sequence: number };
+    const matchedEntry = matched.entry;
+    console.warn("processDeviceGeofenceEvents: deferred non-adjacent device geofence", {
+      vanId,
+      runId: run.id,
+      eventId,
+      placeId,
+      matchedScheduleEntryId: matched.scheduleEntryId,
+      firstPendingScheduleEntryId: pendingStops[0].schedule_entry_id,
+      matchedSequence: matchedEntry.stop_sequence,
+      firstPendingSequence: firstPending.stop_sequence,
+    });
+    return;
+  }
+
+  // 8. Mark stop as passed
   const { error: passError } = await supabase
     .from("route_run_stops")
     .update({
@@ -270,32 +291,6 @@ async function processOneEvent(
     });
     await updateEventStatus(supabase, vanId, eventId, "no_match");
     return;
-  }
-
-  // 8. Conservative gap-1 backfill
-  const matchedIndex = pendingStops.findIndex(
-    (s) => s.schedule_entry_id === matched.scheduleEntryId,
-  );
-  if (matchedIndex > 0) {
-    const prev = pendingStops[matchedIndex - 1];
-    // Only backfill if it's the immediately preceding pending stop
-    const { error: backfillError } = await supabase
-      .from("route_run_stops")
-      .update({
-        status: "passed",
-        passed_at: eventTs,
-        pass_source: "backfill",
-        pass_confidence: 0.80,
-      })
-      .eq("run_id", run.id)
-      .eq("schedule_entry_id", prev.schedule_entry_id)
-      .eq("status", "pending");
-
-    if (backfillError) {
-      console.error("processDeviceGeofenceEvents: backfill failed", {
-        runId: run.id, scheduleEntryId: prev.schedule_entry_id, error: backfillError.message,
-      });
-    }
   }
 
   // 9. Update ledger

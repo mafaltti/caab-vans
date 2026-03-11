@@ -394,7 +394,7 @@ describe("processDeviceGeofenceEvents", () => {
     expect(mock._stopUpdates[0].payload.pass_confidence).toBe(0.95);
   });
 
-  it("backfills gap-1 preceding pending stop at confidence 0.80", async () => {
+  it("does not backfill predecessor", async () => {
     const mock = createMockSupabase({
       activeShift: { id: "shift-1" },
       pendingStops: [
@@ -411,31 +411,14 @@ describe("processDeviceGeofenceEvents", () => {
       geofenceEvents: [{ placeId, enteredAt, eventId: "ev-gap" }],
     });
 
-    expect(result).toContain("ev-gap");
-    // Two updates: the matched stop + the backfilled stop
-    expect(mock._stopUpdates).toHaveLength(2);
-
-    const matchedUpdate = mock._stopUpdates.find(
-      (u) => u.filters.schedule_entry_id === "entry-1350",
-    );
-    expect(matchedUpdate?.payload).toMatchObject({
-      status: "passed",
-      pass_source: "device_geofence",
-      pass_confidence: 0.9,
-    });
-
-    const backfillUpdate = mock._stopUpdates.find(
-      (u) => u.filters.schedule_entry_id === "entry-1340",
-    );
-    expect(backfillUpdate?.payload).toMatchObject({
-      status: "passed",
-      pass_source: "backfill",
-      pass_confidence: 0.8,
-    });
+    expect(result).toHaveLength(0);
+    // Only 0 stop updates — no backfill, and matched stop is deferred (not head-of-line)
+    expect(mock._stopUpdates).toHaveLength(0);
   });
 
-  it("picks the closest-in-time stop when placeId repeats", async () => {
-    // Two pending stops at same place, event at 13:50 is closer to the 14:00 one
+  it("defers closest-in-time stop when it is not head-of-line", async () => {
+    // Two pending stops at same place, event at 13:55 is closer to 14:00 one
+    // but entry-1300 (seq 1) is still pending, so contiguous-prefix guard defers
     const laterEventTime = DateTime.fromObject(
       { hour: 13, minute: 55, second: 0 },
       { zone: TZ },
@@ -460,12 +443,9 @@ describe("processDeviceGeofenceEvents", () => {
       ],
     });
 
-    expect(result).toContain("ev-closest");
-    expect(mock._stopUpdates.length).toBeGreaterThanOrEqual(1);
-    const mainUpdate = mock._stopUpdates.find(
-      (u) => u.payload.pass_source === "device_geofence",
-    );
-    expect(mainUpdate?.filters.schedule_entry_id).toBe("entry-1400");
+    // Deferred because matched stop is not head-of-line
+    expect(result).toHaveLength(0);
+    expect(mock._stopUpdates).toHaveLength(0);
   });
 
   it("returns no_match when event is outside the early arrival window", async () => {
@@ -522,6 +502,148 @@ describe("processDeviceGeofenceEvents", () => {
     expect(result).toContain("ev-retry");
     expect(mock._stopUpdates).toHaveLength(1);
     expect(mock._stopUpdates[0].payload).toMatchObject({
+      status: "passed",
+      pass_source: "device_geofence",
+    });
+  });
+
+  it("defers non-adjacent device geofence match", async () => {
+    // Two pending stops at the SAME placeId: seq 17 and seq 18
+    // Event at 13:50 is closest in time to seq 18 (arrival_time "13:50")
+    // but seq 17 is the first pending stop, so matchedIndex > 0 => deferred
+    const mock = createMockSupabase({
+      activeShift: { id: "shift-1" },
+      pendingStops: [
+        pendingStop("entry-1340", "13:40", placeId, 50, 17),
+        pendingStop("entry-1350", "13:50", placeId, 50, 18),
+      ],
+      recentPings: [],
+    });
+
+    const result = await processDeviceGeofenceEvents({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase: mock as any,
+      vanId,
+      geofenceEvents: [{ placeId, enteredAt, eventId: "ev-defer" }],
+    });
+
+    expect(result).toHaveLength(0);
+    expect(mock._stopUpdates).toHaveLength(0);
+    expect(mock._eventUpdates).toHaveLength(0);
+  });
+
+  it("retries deferred event after earlier stop is passed", async () => {
+    // Seq 17 has already been passed and removed from pending.
+    // Only seq 18 remains, so it is head-of-line (matchedIndex === 0).
+    // The event is a duplicate (was deferred on a prior call).
+    const mock = createMockSupabase({
+      insertReturns: [], // duplicate
+      existingEvent: {
+        status: "received",
+        matched_schedule_entry_id: null,
+        matched_run_id: null,
+      },
+      activeShift: { id: "shift-1" },
+      pendingStops: [
+        pendingStop("entry-1350", "13:50", placeId, 50, 18),
+      ],
+      recentPings: [],
+    });
+
+    const result = await processDeviceGeofenceEvents({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase: mock as any,
+      vanId,
+      geofenceEvents: [{ placeId, enteredAt, eventId: "ev-retry-defer" }],
+    });
+
+    expect(result).toContain("ev-retry-defer");
+    expect(mock._stopUpdates).toHaveLength(1);
+    expect(mock._stopUpdates[0].payload).toMatchObject({
+      status: "passed",
+      pass_source: "device_geofence",
+    });
+    expect(mock._eventUpdates).toHaveLength(1);
+    expect(mock._eventUpdates[0].payload).toMatchObject({
+      status: "matched",
+      matched_run_id: "run-1",
+      matched_schedule_entry_id: "entry-1350",
+    });
+  });
+
+  it("deferred event remains deferred across multiple retries", async () => {
+    // Call 1: new event, both seq 17 and 18 pending => deferred
+    const mock1 = createMockSupabase({
+      insertReturns: [{ id: "ge-1" }],
+      activeShift: { id: "shift-1" },
+      pendingStops: [
+        pendingStop("entry-1340", "13:40", placeId, 50, 17),
+        pendingStop("entry-1350", "13:50", placeId, 50, 18),
+      ],
+      recentPings: [],
+    });
+
+    const result1 = await processDeviceGeofenceEvents({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase: mock1 as any,
+      vanId,
+      geofenceEvents: [{ placeId, enteredAt, eventId: "ev-multi" }],
+    });
+
+    expect(result1).toHaveLength(0);
+    expect(mock1._stopUpdates).toHaveLength(0);
+
+    // Call 2: duplicate event, both seq 17 and 18 still pending => still deferred
+    const mock2 = createMockSupabase({
+      insertReturns: [],
+      existingEvent: {
+        status: "received",
+        matched_schedule_entry_id: null,
+        matched_run_id: null,
+      },
+      activeShift: { id: "shift-1" },
+      pendingStops: [
+        pendingStop("entry-1340", "13:40", placeId, 50, 17),
+        pendingStop("entry-1350", "13:50", placeId, 50, 18),
+      ],
+      recentPings: [],
+    });
+
+    const result2 = await processDeviceGeofenceEvents({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase: mock2 as any,
+      vanId,
+      geofenceEvents: [{ placeId, enteredAt, eventId: "ev-multi" }],
+    });
+
+    expect(result2).toHaveLength(0);
+    expect(mock2._stopUpdates).toHaveLength(0);
+
+    // Call 3: duplicate event, only seq 18 pending (seq 17 removed) => matches
+    const mock3 = createMockSupabase({
+      insertReturns: [],
+      existingEvent: {
+        status: "received",
+        matched_schedule_entry_id: null,
+        matched_run_id: null,
+      },
+      activeShift: { id: "shift-1" },
+      pendingStops: [
+        pendingStop("entry-1350", "13:50", placeId, 50, 18),
+      ],
+      recentPings: [],
+    });
+
+    const result3 = await processDeviceGeofenceEvents({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase: mock3 as any,
+      vanId,
+      geofenceEvents: [{ placeId, enteredAt, eventId: "ev-multi" }],
+    });
+
+    expect(result3).toContain("ev-multi");
+    expect(mock3._stopUpdates).toHaveLength(1);
+    expect(mock3._stopUpdates[0].payload).toMatchObject({
       status: "passed",
       pass_source: "device_geofence",
     });
