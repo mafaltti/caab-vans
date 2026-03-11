@@ -21,12 +21,12 @@ export async function GET() {
   const now = nowBahia();
   const serviceDate = todayBahiaDate();
 
-  const { data: vanDrivers } = await supabase
-    .from("van_drivers")
-    .select("van_id")
+  const { data: routeDrivers } = await supabase
+    .from("route_drivers")
+    .select("route_id")
     .eq("driver_id", auth.user.id);
 
-  if (!vanDrivers || vanDrivers.length === 0) {
+  if (!routeDrivers || routeDrivers.length === 0) {
     return NextResponse.json({
       routes: [],
       serverTime: formatTime(now),
@@ -34,14 +34,7 @@ export async function GET() {
     });
   }
 
-  const vanIds = vanDrivers.map((vd) => vd.van_id);
-
-  const { data: vans } = await supabase
-    .from("vans")
-    .select("id, name")
-    .in("id", vanIds);
-
-  const vanMap = new Map((vans ?? []).map((v) => [v.id, v.name]));
+  const routeIds = routeDrivers.map((rd) => rd.route_id);
 
   const { data: routes } = await supabase
     .from("routes")
@@ -50,6 +43,7 @@ export async function GET() {
       id,
       name,
       van_id,
+      vans!inner(id, name),
       schedule_entries (
         id,
         arrival_time,
@@ -58,7 +52,14 @@ export async function GET() {
       )
     `,
     )
-    .in("van_id", vanIds);
+    .in("id", routeIds);
+
+  const vanMap = new Map(
+    (routes ?? []).map((r) => {
+      const van = r.vans as unknown as { id: string; name: string };
+      return [r.van_id, van.name];
+    }),
+  );
 
   if (!routes || routes.length === 0) {
     return NextResponse.json({
@@ -68,11 +69,11 @@ export async function GET() {
     });
   }
 
-  const routeIds = routes.map((r) => r.id);
+  const fetchedRouteIds = routes.map((r) => r.id);
   const { data: runs } = await supabase
     .from("route_runs")
     .select("id, route_id, service_date")
-    .in("route_id", routeIds)
+    .in("route_id", fetchedRouteIds)
     .eq("service_date", serviceDate);
 
   const runByRoute = new Map(

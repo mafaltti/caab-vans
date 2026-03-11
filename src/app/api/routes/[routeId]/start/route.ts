@@ -55,14 +55,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const van = route.van as unknown as { id: string };
 
   const { data: assignment } = await supabase
-    .from("van_drivers")
-    .select("van_id")
-    .eq("van_id", van.id)
+    .from("route_drivers")
+    .select("route_id")
+    .eq("route_id", routeId)
     .eq("driver_id", auth.user.id)
     .single();
 
   if (!assignment) {
-    return apiError("FORBIDDEN", "You are not assigned to this route's van", 403);
+    return apiError("FORBIDDEN", "You are not assigned to this route", 403);
   }
 
   const { count } = await supabase
