@@ -101,21 +101,21 @@ export async function inferStopProgress(args: {
   const { data: pendingStops, error: pendingError } = await supabase
     .from("route_run_stops")
     .select(
-      "schedule_entry_id, status, passed_at, schedule_entries!inner(time, stop_lat, stop_lng, geofence_radius_m, stop_group_id)",
+      "schedule_entry_id, status, passed_at, schedule_entries!inner(time, stop_lat, stop_lng, geofence_radius_m, stop_group_id, stop_sequence, arrival_time, departure_time)",
     )
     .eq("run_id", run.id)
     .eq("status", "pending")
     .not("schedule_entries.stop_lat", "is", null)
     .not("schedule_entries.stop_lng", "is", null)
-    .order("time", { referencedTable: "schedule_entries", ascending: true });
+    .order("stop_sequence", { referencedTable: "schedule_entries", ascending: true });
 
   // PostgREST referencedTable .order() only sorts the embedded sub-object,
   // not the parent rows. Sort in JS to guarantee chronological iteration.
   if (pendingStops) {
     pendingStops.sort((a, b) => {
-      const ta = (a.schedule_entries as unknown as { time: string }).time;
-      const tb = (b.schedule_entries as unknown as { time: string }).time;
-      return ta.localeCompare(tb);
+      const sa = (a.schedule_entries as unknown as { stop_sequence: number }).stop_sequence;
+      const sb = (b.schedule_entries as unknown as { stop_sequence: number }).stop_sequence;
+      return sa - sb;
     });
   }
 
@@ -146,6 +146,9 @@ export async function inferStopProgress(args: {
         stop_lng: number;
         geofence_radius_m: number;
         stop_group_id: string | null;
+        stop_sequence: number;
+        arrival_time: string;
+        departure_time: string;
       };
       const coordKey = entry.stop_group_id ?? `${entry.stop_lat.toFixed(6)},${entry.stop_lng.toFixed(6)}`;
       if (!coordGroups.has(coordKey)) coordGroups.set(coordKey, []);
@@ -176,6 +179,7 @@ export async function inferStopProgress(args: {
           stop_lat: number;
           stop_lng: number;
           geofence_radius_m: number;
+          departure_time: string;
         };
         const effectivePos = chooseEffectivePosition({
           rawLat,
@@ -192,24 +196,24 @@ export async function inferStopProgress(args: {
         perStopSnap.set(stop.schedule_entry_id, useSnappedForThisStop);
 
         if (distance > entry.geofence_radius_m) return false;
-        const stopTime = stopDateTime(entry.time);
+        const stopTime = stopDateTime(entry.departure_time);
         return eventTime >= stopTime.minus({ minutes: EARLY_ARRIVAL_WINDOW_MINUTES });
       });
       if (eligible.length === 0) continue;
 
-      // Pick stop with smallest |time - eventTime|
+      // Pick stop with smallest |time - eventTime| (using arrival_time for proximity)
       let bestStop = eligible[0];
       let bestDiff = Math.abs(
         stopDateTime(
-          (bestStop.schedule_entries as unknown as { time: string }).time,
+          (bestStop.schedule_entries as unknown as { arrival_time: string }).arrival_time,
         ).diff(eventTime, "minutes").minutes,
       );
       for (let i = 1; i < eligible.length; i++) {
         const entry = eligible[i].schedule_entries as unknown as {
-          time: string;
+          arrival_time: string;
         };
         const diff = Math.abs(
-          stopDateTime(entry.time).diff(eventTime, "minutes").minutes,
+          stopDateTime(entry.arrival_time).diff(eventTime, "minutes").minutes,
         );
         if (diff < bestDiff) {
           bestStop = eligible[i];
@@ -306,24 +310,24 @@ export async function inferStopProgress(args: {
 
   // 6b. Confidence-gated chronological backfill
   if (newlyPassedIds.length > 0 && pendingStops) {
-    // Find the max scheduled time and confidence among newly passed stops
-    let maxPassedTime = "";
+    // Find the max stop_sequence and confidence among newly passed stops
+    let maxPassedSeq = -1;
     let maxPassedConfidence = 0;
     for (const stop of pendingStops) {
       if (newlyPassedIds.includes(stop.schedule_entry_id)) {
-        const entry = stop.schedule_entries as unknown as { time: string };
-        if (entry.time > maxPassedTime) maxPassedTime = entry.time;
+        const entry = stop.schedule_entries as unknown as { stop_sequence: number };
+        if (entry.stop_sequence > maxPassedSeq) maxPassedSeq = entry.stop_sequence;
         const conf = newlyPassedConfidence.get(stop.schedule_entry_id) ?? 0;
         if (conf > maxPassedConfidence) maxPassedConfidence = conf;
       }
     }
 
-    // Collect IDs of pending stops with time < maxPassedTime that weren't already matched
+    // Collect IDs of pending stops with stop_sequence < maxPassedSeq that weren't already matched
     const backfillIds: string[] = [];
     for (const stop of pendingStops) {
       if (newlyPassedIds.includes(stop.schedule_entry_id)) continue;
-      const entry = stop.schedule_entries as unknown as { time: string };
-      if (entry.time < maxPassedTime) {
+      const entry = stop.schedule_entries as unknown as { stop_sequence: number };
+      if (entry.stop_sequence < maxPassedSeq) {
         backfillIds.push(stop.schedule_entry_id);
       }
     }
@@ -368,16 +372,16 @@ export async function inferStopProgress(args: {
   // 7. Build final result from current state
   const { data: allStops, error: allStopsError } = await supabase
     .from("route_run_stops")
-    .select("schedule_entry_id, status, schedule_entries!inner(time)")
+    .select("schedule_entry_id, status, schedule_entries!inner(time, stop_sequence)")
     .eq("run_id", run.id)
-    .order("time", { referencedTable: "schedule_entries", ascending: true });
+    .order("stop_sequence", { referencedTable: "schedule_entries", ascending: true });
 
-  // Same PostgREST caveat — sort parent rows by schedule time in JS.
+  // Same PostgREST caveat — sort parent rows by stop_sequence in JS.
   if (allStops) {
     allStops.sort((a, b) => {
-      const ta = (a.schedule_entries as unknown as { time: string }).time;
-      const tb = (b.schedule_entries as unknown as { time: string }).time;
-      return ta.localeCompare(tb);
+      const sa = (a.schedule_entries as unknown as { stop_sequence: number }).stop_sequence;
+      const sb = (b.schedule_entries as unknown as { stop_sequence: number }).stop_sequence;
+      return sa - sb;
     });
   }
 

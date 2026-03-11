@@ -30,24 +30,12 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
   const supabase = createServiceClient();
 
-  // Check duplicate time (excluding current entry)
-  const { data: existing } = await supabase
-    .from("schedule_entries")
-    .select("id")
-    .eq("route_id", routeId)
-    .eq("time", parsed.data.time)
-    .neq("id", entryId)
-    .limit(1);
-
-  if (existing && existing.length > 0) {
-    return apiError("CONFLICT", "Já existe um horário com este mesmo tempo nesta rota", 409);
-  }
-
   const { data, error } = await supabase
     .from("schedule_entries")
     .update({
       stop_name: parsed.data.stopName,
-      time: parsed.data.time,
+      arrival_time: parsed.data.arrivalTime,
+      departure_time: parsed.data.departureTime,
       stop_lat: parsed.data.stopLat ?? null,
       stop_lng: parsed.data.stopLng ?? null,
       stop_group_id: parsed.data.stopGroupId ?? null,
@@ -65,7 +53,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     entry: {
       id: data.id,
       stopName: data.stop_name,
-      time: data.time ? formatTimeString(data.time) : undefined,
+      arrivalTime: data.arrival_time ? formatTimeString(data.arrival_time) : undefined,
+      departureTime: data.departure_time ? formatTimeString(data.departure_time) : undefined,
+      stopSequence: data.stop_sequence,
       stopLat: data.stop_lat ?? null,
       stopLng: data.stop_lng ?? null,
       stopGroupId: data.stop_group_id ?? null,

@@ -2,9 +2,9 @@
 import { resolveNextStop } from "@/lib/tracking/eta";
 
 const entries = [
-  { id: "s1", stop_name: "Terminal A", time: "08:00:00", stop_lat: null, stop_lng: null },
-  { id: "s2", stop_name: "Centro", time: "08:15:00", stop_lat: null, stop_lng: null },
-  { id: "s3", stop_name: "Rodoviária", time: "08:30:00", stop_lat: null, stop_lng: null },
+  { id: "s1", stop_name: "Terminal A", time: "08:00:00", arrival_time: "08:00:00", departure_time: "08:00:00", stop_lat: null, stop_lng: null, stop_sequence: 1 },
+  { id: "s2", stop_name: "Centro", time: "08:15:00", arrival_time: "08:15:00", departure_time: "08:15:00", stop_lat: null, stop_lng: null, stop_sequence: 2 },
+  { id: "s3", stop_name: "Rodoviária", time: "08:30:00", arrival_time: "08:30:00", departure_time: "08:30:00", stop_lat: null, stop_lng: null, stop_sequence: 3 },
 ];
 
 const fmt = (t: string) => t.slice(0, 5);
@@ -14,7 +14,7 @@ describe("resolveNextStop", () => {
     const result = resolveNextStop(entries, "s2", fmt);
 
     expect(result).not.toBeNull();
-    expect(result!.nextStop).toEqual({ stopName: "Centro", time: "08:15" });
+    expect(result!.nextStop).toEqual({ stopName: "Centro", time: "08:15", departureTime: "08:15", stopSequence: 2 });
     expect(result!.currentStopIndex).toBe(1);
     expect(result!.nextStopEntry).toBe(entries[1]);
   });
@@ -52,5 +52,6 @@ describe("resolveNextStop", () => {
     const result = resolveNextStop(entries, "s2", customFmt);
 
     expect(result!.nextStop.time).toBe("T08:15:00");
+    expect(result!.nextStop.departureTime).toBe("T08:15:00");
   });
 });

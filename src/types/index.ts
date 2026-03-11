@@ -36,7 +36,9 @@ export type ScheduleEntry = {
   id: string;
   route_id: string;
   stop_name: string;
-  time: string; // HH:mm
+  arrival_time: string; // HH:mm
+  departure_time: string; // HH:mm
+  stop_sequence: number;
   stop_lat: number | null;
   stop_lng: number | null;
   geofence_radius_m: number;
@@ -106,7 +108,8 @@ export type ScheduleStatus = "active" | "ended" | "not_started";
 
 export type NextStop = {
   stopName: string;
-  time: string; // HH:mm
+  arrivalTime: string; // HH:mm
+  departureTime: string; // HH:mm
   id: string;
 };
 
@@ -150,7 +153,9 @@ export type RouteDetail = RouteWithStatus & {
   schedule: {
     id: string;
     stopName: string;
-    time: string;
+    arrivalTime: string;
+    departureTime: string;
+    stopSequence: number;
     stopLat: number | null;
     stopLng: number | null;
   }[];
@@ -218,7 +223,8 @@ export type TimelineStopStatus = "past" | "current" | "future" | "neutral";
 export type TimelineStop = {
   id: string;
   stopName: string;
-  time: string;
+  arrivalTime: string;
+  departureTime: string;
   status: TimelineStopStatus;
 };
 

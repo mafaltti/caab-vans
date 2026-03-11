@@ -79,9 +79,7 @@ export default function RouteDetailPage() {
   const nextStopId = route?.progress?.nextStopId
     ?? (route?.nextStop && route?.schedule
       ? (route.schedule.find(
-          (s) =>
-            s.stopName === route.nextStop!.stopName &&
-            s.time === route.nextStop!.time,
+          (s) => s.id === route.nextStop!.id,
         )?.id ?? null)
       : null);
 
@@ -130,8 +128,8 @@ export default function RouteDetailPage() {
   const totalStops = route?.schedule.length ?? 0;
   const firstStop = route?.schedule[0];
   const lastStop = route?.schedule[route.schedule.length - 1];
-  const firstStopLabel = firstStop ? `${firstStop.stopName} · ${firstStop.time}` : "";
-  const lastStopLabel = lastStop ? `${lastStop.stopName} · ${lastStop.time}` : "";
+  const firstStopLabel = firstStop ? `${firstStop.stopName} · ${firstStop.arrivalTime}` : "";
+  const lastStopLabel = lastStop ? `${lastStop.stopName} · ${lastStop.arrivalTime}` : "";
   const etaMinutes = route?.nextStop?.id === route?.progress?.nextStopId
     ? (route?.progress?.etaNextStopMinutes ?? null)
     : null;
@@ -228,7 +226,7 @@ export default function RouteDetailPage() {
               route!.nextStop ? (
                 <RouteDetailPeek
                   nextStopName={route!.nextStop.stopName}
-                  scheduledTime={route!.nextStop.time}
+                  scheduledTime={route!.nextStop.arrivalTime}
                   etaMinutes={etaMinutes}
                   etaStatus={route!.nextStop?.id === route!.progress?.nextStopId ? route!.progress?.etaStatus : undefined}
                   totalStops={totalStops}

@@ -35,7 +35,7 @@ function makeRoute(overrides: Partial<{
     trackingStatus: "live",
     isTrackingFresh: true,
     nextStop: overrides.nextStopId
-      ? { id: overrides.nextStopId, stopName: "Stop A", time: "08:00" }
+      ? { id: overrides.nextStopId, stopName: "Stop A", arrivalTime: "08:00", departureTime: "08:00" }
       : null,
     nextStopMode: overrides.nextStopId ? "live" : null,
     scheduleStatus: "active",

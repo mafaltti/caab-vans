@@ -162,7 +162,7 @@ async function processOneEvent(
   const { data: pendingStops, error: pendingError } = await supabase
     .from("route_run_stops")
     .select(
-      "schedule_entry_id, schedule_entries!inner(time, stop_lat, stop_lng, stop_group_id, geofence_radius_m)",
+      "schedule_entry_id, schedule_entries!inner(stop_lat, stop_lng, stop_group_id, geofence_radius_m, stop_sequence, arrival_time, departure_time)",
     )
     .eq("run_id", run.id)
     .eq("status", "pending")
@@ -182,11 +182,11 @@ async function processOneEvent(
     return;
   }
 
-  // Sort by scheduled time
+  // Sort by stop_sequence
   pendingStops.sort((a, b) => {
-    const ta = (a.schedule_entries as unknown as { time: string }).time;
-    const tb = (b.schedule_entries as unknown as { time: string }).time;
-    return ta.localeCompare(tb);
+    const sa = (a.schedule_entries as unknown as { stop_sequence: number }).stop_sequence;
+    const sb = (b.schedule_entries as unknown as { stop_sequence: number }).stop_sequence;
+    return sa - sb;
   });
 
   function stopDateTime(hhMm: string): DateTime {
@@ -196,11 +196,13 @@ async function processOneEvent(
 
   // Match by placeId + early arrival window, then pick closest-in-time
   type StopEntry = {
-    time: string;
     stop_lat: number;
     stop_lng: number;
     stop_group_id: string | null;
     geofence_radius_m: number;
+    stop_sequence: number;
+    arrival_time: string;
+    departure_time: string;
   };
 
   const eligible: { scheduleEntryId: string; entry: StopEntry; diff: number }[] = [];
@@ -210,10 +212,11 @@ async function processOneEvent(
     const stopPlaceId = entry.stop_group_id ?? `${entry.stop_lat.toFixed(6)},${entry.stop_lng.toFixed(6)}`;
     if (stopPlaceId !== placeId) continue;
 
-    const stopTime = stopDateTime(entry.time);
+    const stopTime = stopDateTime(entry.departure_time);
     if (eventTime < stopTime.minus({ minutes: EARLY_ARRIVAL_WINDOW_MINUTES })) continue;
 
-    const diff = Math.abs(stopTime.diff(eventTime, "minutes").minutes);
+    const arrivalTime = stopDateTime(entry.arrival_time);
+    const diff = Math.abs(arrivalTime.diff(eventTime, "minutes").minutes);
     eligible.push({ scheduleEntryId: stop.schedule_entry_id, entry, diff });
   }
 

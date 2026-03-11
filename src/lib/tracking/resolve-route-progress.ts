@@ -25,7 +25,9 @@ export interface RouteProgress {
 interface ScheduleEntry {
   id: string;
   stop_name: string;
-  time: string;
+  stop_sequence: number;
+  arrival_time: string;
+  departure_time: string;
   stop_lat: number | null;
   stop_lng: number | null;
   osrm_distance_m?: number | null;
@@ -39,10 +41,9 @@ export async function resolveRouteProgress(args: {
   vanId: string;
   vanPosition: VanPosition | null;
   now: DateTime;
-  times: string[];
   includeLastKnown?: boolean;
 }): Promise<RouteProgress | null> {
-  const { supabase, routeId, serviceDate, sortedEntries, vanId, vanPosition, now, times, includeLastKnown } = args;
+  const { supabase, routeId, serviceDate, sortedEntries, vanId, vanPosition, now, includeLastKnown } = args;
 
   // 1. Fetch route_run for today
   const { data: runData, error: runError } = await supabase
@@ -73,8 +74,7 @@ export async function resolveRouteProgress(args: {
   }
 
   const shiftsArr = shifts ?? [];
-  const sorted = [...times].sort();
-  const lastTime = sorted.length > 0 ? sorted[sorted.length - 1] : null;
+  const lastTime = sortedEntries.length > 0 ? sortedEntries[sortedEntries.length - 1].arrival_time : null;
   const isPastScheduleWindow = lastTime
     ? now.toFormat("HH:mm") > lastTime
     : false;
@@ -117,7 +117,7 @@ export async function resolveRouteProgress(args: {
   // 4. Fetch route_run_stops
   const { data: runStops, error: runStopsError } = await supabase
     .from("route_run_stops")
-    .select("schedule_entry_id, status, passed_at, schedule_entries!inner(time)")
+    .select("schedule_entry_id, status, passed_at, schedule_entries!inner(arrival_time, departure_time, stop_sequence)")
     .eq("run_id", runData.id);
 
   if (runStopsError) {
@@ -253,9 +253,16 @@ export async function resolveRouteProgress(args: {
   // 9. Compute ETA based on mode
   const stops = effectiveRunStops.map((rs) => {
     const coords = stopCoordsMap.get(rs.schedule_entry_id);
+    const entry = rs.schedule_entries as unknown as {
+      arrival_time: string;
+      departure_time: string;
+      stop_sequence: number;
+    };
     return {
       scheduleEntryId: rs.schedule_entry_id,
-      time: (rs.schedule_entries as unknown as { time: string }).time,
+      stopSequence: entry.stop_sequence,
+      arrivalTime: entry.arrival_time,
+      departureTime: entry.departure_time,
       status: rs.status as "pending" | "passed",
       passedAt: rs.passed_at,
       stopLat: coords?.stopLat ?? null,
@@ -341,10 +348,9 @@ export async function resolveRouteProgress(args: {
 
   // Compute run health for open shifts
   let runHealth: "normal" | "orphaned" = "normal";
-  if (activeShift && times.length > 0) {
-    const sorted = [...times].sort();
-    const lastTime = sorted[sorted.length - 1];
-    const [h, m] = lastTime.split(":").map(Number);
+  if (activeShift && sortedEntries.length > 0) {
+    const lastEntryTime = sortedEntries[sortedEntries.length - 1].arrival_time;
+    const [h, m] = lastEntryTime.split(":").map(Number);
     const scheduledEnd = DateTime.fromISO(serviceDate, { zone: now.zone })
       .set({ hour: h, minute: m, second: 0, millisecond: 0 });
 

@@ -40,26 +40,33 @@ const ENTRIES = [
     id: "entry-a",
     stop_name: "Stop A",
     time: "08:30",
+    arrival_time: "08:30",
+    departure_time: "08:30",
     stop_lat: -12.97,
     stop_lng: -38.51,
+    stop_sequence: 1,
   },
   {
     id: "entry-b",
     stop_name: "Stop B",
     time: "08:45",
+    arrival_time: "08:45",
+    departure_time: "08:45",
     stop_lat: -12.98,
     stop_lng: -38.52,
+    stop_sequence: 2,
   },
   {
     id: "entry-c",
     stop_name: "Stop C",
     time: "09:00",
+    arrival_time: "09:00",
+    departure_time: "09:00",
     stop_lat: -12.99,
     stop_lng: -38.53,
+    stop_sequence: 3,
   },
 ];
-
-const TIMES = ["08:30", "08:45", "09:00"];
 
 // --- Chainable Supabase mock builder ---
 
@@ -149,7 +156,6 @@ function makeArgs(supabase: import("@supabase/supabase-js").SupabaseClient, now?
     vanId: VAN_ID,
     vanPosition: null,
     now: now ?? makeNow(),
-    times: TIMES,
   };
 }
 

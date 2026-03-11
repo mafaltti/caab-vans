@@ -19,7 +19,7 @@ import type { DriverRoute, RunStatus } from "@/types";
 type StopSuggestion = {
   id: string;
   name: string;
-  time: string;
+  arrivalTime: string;
 };
 
 type ColdStartData = {
@@ -366,7 +366,7 @@ export function RouteCard({ route, userId, onUpdate }: RouteCardProps) {
               >
                 <div className="flex items-center justify-between">
                   <span className="font-medium">{coldStart.suggestedStop.name}</span>
-                  <span className="text-xs text-zinc-500">{coldStart.suggestedStop.time}</span>
+                  <span className="text-xs text-zinc-500">{coldStart.suggestedStop.arrivalTime}</span>
                 </div>
               </button>
             </div>
@@ -393,7 +393,7 @@ export function RouteCard({ route, userId, onUpdate }: RouteCardProps) {
                     >
                       <div className="flex items-center justify-between">
                         <span>{stop.name}</span>
-                        <span className="text-xs text-zinc-500">{stop.time}</span>
+                        <span className="text-xs text-zinc-500">{stop.arrivalTime}</span>
                       </div>
                     </button>
                   ))}

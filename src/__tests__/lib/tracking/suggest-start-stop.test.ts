@@ -13,8 +13,9 @@ function makeEntry(
   time: string,
   lat: number | null = -12.9714,
   lng: number | null = -38.5124,
+  seq: number = 1,
 ): ScheduleEntryForSuggestion {
-  return { id, stop_name: `Stop ${id}`, time, stop_lat: lat, stop_lng: lng };
+  return { id, stop_name: `Stop ${id}`, arrival_time: time, stop_sequence: seq, stop_lat: lat, stop_lng: lng };
 }
 
 // Position near CAAB (within 2km)
@@ -34,11 +35,11 @@ function nowAt(hh: string, mm: string): DateTime {
 
 describe("suggestStartStop", () => {
   const entries: ScheduleEntryForSuggestion[] = [
-    makeEntry("e1", "06:10"),
-    makeEntry("e2", "06:30"),
-    makeEntry("e3", "07:00"),
-    makeEntry("e4", "07:30"),
-    makeEntry("e5", "08:00"),
+    makeEntry("e1", "06:10", -12.9714, -38.5124, 1),
+    makeEntry("e2", "06:30", -12.9714, -38.5124, 2),
+    makeEntry("e3", "07:00", -12.9714, -38.5124, 3),
+    makeEntry("e4", "07:30", -12.9714, -38.5124, 4),
+    makeEntry("e5", "08:00", -12.9714, -38.5124, 5),
   ];
 
   describe("with GPS (proximity filter)", () => {
@@ -87,8 +88,8 @@ describe("suggestStartStop", () => {
 
     it("skips stops with null coordinates", () => {
       const mixed = [
-        makeEntry("e1", "07:00", null, null),
-        makeEntry("e2", "07:10"),
+        makeEntry("e1", "07:00", null, null, 1),
+        makeEntry("e2", "07:10", -12.9714, -38.5124, 2),
       ];
 
       const result = suggestStartStop({
@@ -104,9 +105,9 @@ describe("suggestStartStop", () => {
 
     it("disambiguates stops at same location by time closeness", () => {
       const samePlace = [
-        makeEntry("e1", "07:00"),
-        makeEntry("e2", "07:30"),
-        makeEntry("e3", "08:00"),
+        makeEntry("e1", "07:00", -12.9714, -38.5124, 1),
+        makeEntry("e2", "07:30", -12.9714, -38.5124, 2),
+        makeEntry("e3", "08:00", -12.9714, -38.5124, 3),
       ];
 
       const result = suggestStartStop({
@@ -149,7 +150,7 @@ describe("suggestStartStop", () => {
 
     it("caps at 5 alternatives", () => {
       const manyEntries = Array.from({ length: 10 }, (_, i) =>
-        makeEntry(`e${i}`, `07:${String(i * 3).padStart(2, "0")}`),
+        makeEntry(`e${i}`, `07:${String(i * 3).padStart(2, "0")}`, -12.9714, -38.5124, i + 1),
       );
 
       const result = suggestStartStop({
@@ -177,7 +178,7 @@ describe("suggestStartStop", () => {
     });
 
     it("filters out stops more than 30min in the future", () => {
-      const futureEntries = [makeEntry("e1", "10:00")];
+      const futureEntries = [makeEntry("e1", "10:00", -12.9714, -38.5124, 1)];
 
       const result = suggestStartStop({
         entries: futureEntries,

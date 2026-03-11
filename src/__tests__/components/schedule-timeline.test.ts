@@ -2,11 +2,11 @@
 import { deriveTimelineStops } from "@/components/public/schedule-timeline";
 
 const schedule = [
-  { id: "caab-0000", stopName: "CAAB", time: "00:00" },
-  { id: "stop-0800", stopName: "Stop A", time: "08:00" },
-  { id: "stop-1600", stopName: "Stop B", time: "16:00" },
-  { id: "stop-2200", stopName: "Stop C", time: "22:00" },
-  { id: "stop-2240", stopName: "Stop D", time: "22:40" },
+  { id: "caab-0000", stopName: "CAAB", arrivalTime: "00:00", departureTime: "00:00" },
+  { id: "stop-0800", stopName: "Stop A", arrivalTime: "08:00", departureTime: "08:00" },
+  { id: "stop-1600", stopName: "Stop B", arrivalTime: "16:00", departureTime: "16:00" },
+  { id: "stop-2200", stopName: "Stop C", arrivalTime: "22:00", departureTime: "22:00" },
+  { id: "stop-2240", stopName: "Stop D", arrivalTime: "22:40", departureTime: "22:40" },
 ];
 
 describe("deriveTimelineStops", () => {
@@ -69,7 +69,7 @@ describe("deriveTimelineStops", () => {
     const currentStops = result.filter((s) => s.status === "current");
     expect(currentStops).toHaveLength(1);
     expect(currentStops[0].id).toBe("stop-2240");
-    expect(currentStops[0].time).toBe("22:40");
+    expect(currentStops[0].arrivalTime).toBe("22:40");
   });
 
   it("falls back to index-based classification when no GPS data", () => {

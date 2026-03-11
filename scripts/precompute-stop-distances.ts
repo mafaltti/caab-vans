@@ -54,14 +54,14 @@ async function main() {
     const result = await pool.query<{
       id: string;
       route_id: string;
-      time: string;
+      arrival_time: string;
       stop_lat: number | null;
       stop_lng: number | null;
     }>(
-      `SELECT se.id, r.id as route_id, se.time, se.stop_lat, se.stop_lng
+      `SELECT se.id, r.id as route_id, se.arrival_time, se.stop_lat, se.stop_lng
        FROM schedule_entries se
        JOIN routes r ON r.id = se.route_id
-       ORDER BY r.id, se.time`,
+       ORDER BY r.id, se.stop_sequence`,
     );
 
     const rows = result.rows;
@@ -113,10 +113,10 @@ async function main() {
             `UPDATE schedule_entries SET osrm_distance_m = $1 WHERE id = $2`,
             [dist, from.id],
           );
-          console.log(`  ${from.time} → ${to.time}: ${dist.toFixed(0)}m`);
+          console.log(`  ${from.arrival_time} → ${to.arrival_time}: ${dist.toFixed(0)}m`);
           updated++;
         } else {
-          console.warn(`  ${from.time} → ${to.time}: OSRM failed, skipping`);
+          console.warn(`  ${from.arrival_time} → ${to.arrival_time}: OSRM failed, skipping`);
           failed++;
         }
       }

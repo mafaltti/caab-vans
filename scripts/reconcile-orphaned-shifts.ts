@@ -44,7 +44,7 @@ export async function findOrphanedShifts(
         routes!inner (
           id,
           van_id,
-          schedule_entries (time),
+          schedule_entries (stop_sequence, arrival_time),
           vans!inner (last_gps_fix_at)
         )
       )
@@ -71,7 +71,7 @@ export async function findOrphanedShifts(
       routes: {
         id: string;
         van_id: string;
-        schedule_entries: { time: string }[];
+        schedule_entries: { stop_sequence: number; arrival_time: string }[];
         vans: { last_gps_fix_at: string | null };
       };
     };
@@ -81,11 +81,11 @@ export async function findOrphanedShifts(
 
     if (scheduleEntries.length === 0) continue;
 
-    // Compute scheduled end: service_date + MAX(schedule_entries.time) in America/Bahia
-    const maxTime = scheduleEntries
-      .map((e) => e.time)
-      .sort()
+    // Compute scheduled end: service_date + last schedule entry's arrival_time in America/Bahia
+    const lastEntry = [...scheduleEntries]
+      .sort((a, b) => a.stop_sequence - b.stop_sequence)
       .at(-1)!;
+    const maxTime = lastEntry.arrival_time;
     const [hour, minute] = maxTime.split(":").map(Number);
     const scheduledEnd = DateTime.fromISO(run.service_date, { zone: TZ })
       .set({ hour, minute, second: 0, millisecond: 0 });

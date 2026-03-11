@@ -41,7 +41,9 @@ export async function GET(request: NextRequest) {
       schedule_entries (
         id,
         stop_name,
-        time,
+        stop_sequence,
+        arrival_time,
+        departure_time,
         stop_lat,
         stop_lng,
         osrm_distance_m
@@ -76,29 +78,37 @@ export async function GET(request: NextRequest) {
     const entries = (route.schedule_entries ?? []) as {
       id: string;
       stop_name: string;
-      time: string;
+      stop_sequence: number;
+      arrival_time: string;
+      departure_time: string;
       stop_lat: number | null;
       stop_lng: number | null;
       osrm_distance_m?: number | null;
     }[];
 
-    const times = entries.map((e) => e.time);
+    const scheduleWindowEntries = entries.map((e) => ({
+      departure_time: e.departure_time,
+      arrival_time: e.arrival_time,
+      stop_sequence: e.stop_sequence,
+    }));
     const entryMapped = entries.map((e) => ({
       stopName: e.stop_name,
-      time: formatTimeString(e.time),
+      time: formatTimeString(e.arrival_time),
+      departureTime: formatTimeString(e.departure_time),
+      stopSequence: e.stop_sequence,
     }));
 
     const locationFresh = van.last_gps_fix_at
       ? isLocationFresh(DateTime.fromISO(van.last_gps_fix_at))
       : false;
 
-    const withinWindow = isWithinScheduleWindow(times, now);
+    const withinWindow = isWithinScheduleWindow(scheduleWindowEntries, now);
 
     let scheduleStatus: ScheduleStatus = "not_started";
-    if (times.length > 0) {
-      const sorted = [...times].sort();
-      const lastTime = sorted[sorted.length - 1];
-      if (now.toFormat("HH:mm") > lastTime) {
+    if (scheduleWindowEntries.length > 0) {
+      const sorted = [...scheduleWindowEntries].sort((a, b) => a.stop_sequence - b.stop_sequence);
+      const lastTime = sorted[sorted.length - 1].arrival_time;
+      if (now.toFormat("HH:mm") > formatTimeString(lastTime)) {
         scheduleStatus = "ended";
       } else if (withinWindow) {
         scheduleStatus = "active";
@@ -106,7 +116,7 @@ export async function GET(request: NextRequest) {
     }
 
     const sortedEntries = [...entries].sort((a, b) =>
-      a.time.localeCompare(b.time),
+      a.stop_sequence - b.stop_sequence,
     );
     const totalStops = sortedEntries.length;
 
@@ -135,7 +145,6 @@ export async function GET(request: NextRequest) {
       vanId: van.id,
       vanPosition,
       now,
-      times,
       includeLastKnown,
     });
 
@@ -144,17 +153,17 @@ export async function GET(request: NextRequest) {
     const trackingStatus = deriveTrackingStatus(van.last_gps_fix_at, now);
     const isTrackingFresh = trackingStatus === "live";
 
-    let nextStop = isRunning ? getNextStop(entryMapped, now) : null;
+    let nextStop: { stopName: string; time: string; departureTime: string; stopSequence: number } | null = isRunning ? getNextStop(entryMapped, now) : null;
 
     let currentStopIndex = nextStop
       ? sortedEntries.findIndex(
-          (e) => formatTimeString(e.time) === nextStop!.time,
+          (e) => formatTimeString(e.arrival_time) === nextStop!.time,
         )
       : null;
 
-    let nextStopEntry = nextStop
+    let nextStopEntry: (typeof sortedEntries)[number] | undefined | null = nextStop
       ? sortedEntries.find(
-          (e) => formatTimeString(e.time) === nextStop!.time,
+          (e) => formatTimeString(e.arrival_time) === nextStop!.time,
         )
       : null;
 
@@ -192,7 +201,8 @@ export async function GET(request: NextRequest) {
       nextStop: nextStop
         ? {
             stopName: nextStop.stopName,
-            time: nextStop.time,
+            arrivalTime: nextStop.time,
+            departureTime: nextStop.departureTime,
             id: nextStopEntry?.id ?? null,
           }
         : null,

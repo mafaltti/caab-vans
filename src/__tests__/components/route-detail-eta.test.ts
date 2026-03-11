@@ -36,7 +36,7 @@ function makeRoute(overrides: Partial<{
     trackingStatus: "live",
     isTrackingFresh: true,
     nextStop: overrides.nextStopId
-      ? { id: overrides.nextStopId, stopName: "Stop A", time: "08:00" }
+      ? { id: overrides.nextStopId, stopName: "Stop A", arrivalTime: "08:00", departureTime: "08:00" }
       : null,
     nextStopMode: overrides.nextStopId ? "live" : null,
     scheduleStatus: "active",
@@ -64,8 +64,8 @@ function makeRoute(overrides: Partial<{
         }
       : null,
     schedule: [
-      { id: "stop-1", stopName: "Stop A", time: "08:00", stopLat: -12.97, stopLng: -38.51 },
-      { id: "stop-2", stopName: "Stop B", time: "09:00", stopLat: -12.98, stopLng: -38.52 },
+      { id: "stop-1", stopName: "Stop A", arrivalTime: "08:00", departureTime: "08:00", stopSequence: 1, stopLat: -12.97, stopLng: -38.51 },
+      { id: "stop-2", stopName: "Stop B", arrivalTime: "09:00", departureTime: "09:00", stopSequence: 2, stopLat: -12.98, stopLng: -38.52 },
     ],
   };
 }

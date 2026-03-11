@@ -169,7 +169,8 @@ async function sendPing(
 
 type ScheduleEntry = {
   stop_name: string;
-  time: string;
+  arrival_time: string;
+  stop_sequence: number;
   stop_lat: number | null;
   stop_lng: number | null;
 };
@@ -195,7 +196,7 @@ async function main() {
     .from("routes")
     .select(
       `id, name, van_id,
-      schedule_entries ( stop_name, time, stop_lat, stop_lng )`,
+      schedule_entries ( stop_name, arrival_time, stop_sequence, stop_lat, stop_lng )`,
     )
     .order("name");
 
@@ -224,7 +225,7 @@ async function main() {
 
     const entries = (route.schedule_entries as ScheduleEntry[])
       .filter((e) => e.stop_lat != null && e.stop_lng != null)
-      .sort((a, b) => a.time.localeCompare(b.time));
+      .sort((a, b) => a.stop_sequence - b.stop_sequence);
 
     if (entries.length < 2) {
       console.log("  Not enough entries with coordinates. Skipping.\n");
@@ -236,7 +237,7 @@ async function main() {
     let next = entries[0];
 
     for (let i = 0; i < entries.length; i++) {
-      if (toMinutes(entries[i].time) > nowMin) {
+      if (toMinutes(entries[i].arrival_time) > nowMin) {
         next = entries[i];
         prev = entries[i > 0 ? i - 1 : entries.length - 1];
         break;
@@ -248,8 +249,8 @@ async function main() {
       }
     }
 
-    const prevMin = toMinutes(prev.time);
-    const nextMin = toMinutes(next.time);
+    const prevMin = toMinutes(prev.arrival_time);
+    const nextMin = toMinutes(next.arrival_time);
     const span =
       nextMin > prevMin ? nextMin - prevMin : nextMin + 1440 - prevMin;
     const elapsed =
@@ -264,7 +265,7 @@ async function main() {
 
     console.log(`  [${source}] { lat: ${pos.lat.toFixed(6)}, lng: ${pos.lng.toFixed(6)} }`);
     process.stdout.write(
-      `  ${prev.stop_name} (${prev.time}) → ${next.stop_name} (${next.time}) [${(t * 100).toFixed(0)}%]... `,
+      `  ${prev.stop_name} (${prev.arrival_time}) → ${next.stop_name} (${next.arrival_time}) [${(t * 100).toFixed(0)}%]... `,
     );
     const ok = await sendPing(van.id, van.ingestion_token, pos.lat, pos.lng);
     console.log(ok ? "OK" : "FAILED");

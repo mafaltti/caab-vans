@@ -176,9 +176,9 @@ async function detectColdStart(args: {
   // Fetch schedule entries with time and coordinates
   const { data: entries } = await supabase
     .from("schedule_entries")
-    .select("id, stop_name, time, stop_lat, stop_lng")
+    .select("id, stop_name, arrival_time, departure_time, stop_sequence, stop_lat, stop_lng")
     .eq("route_id", routeId)
-    .order("time", { ascending: true });
+    .order("stop_sequence", { ascending: true });
 
   if (!entries || entries.length === 0) return null;
 
@@ -189,7 +189,7 @@ async function detectColdStart(args: {
   if (!hasCoordinates) return null;
 
   // Check if this is a cold start (30+ min past first stop)
-  const firstTime = entries[0].time;
+  const firstTime = entries[0].departure_time;
   const [fh, fm] = firstTime.split(":").map(Number);
   const firstStopTime = currentTime.set({
     hour: fh,
@@ -229,7 +229,8 @@ async function detectColdStart(args: {
     entries: entries.map((e) => ({
       id: e.id,
       stop_name: e.stop_name,
-      time: e.time,
+      arrival_time: e.arrival_time,
+      stop_sequence: e.stop_sequence,
       stop_lat: e.stop_lat,
       stop_lng: e.stop_lng,
     })),

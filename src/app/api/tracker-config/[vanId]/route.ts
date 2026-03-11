@@ -52,7 +52,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     .eq("route_id", route.id)
     .not("stop_lat", "is", null)
     .not("stop_lng", "is", null)
-    .order("time", { ascending: true });
+    .order("stop_sequence", { ascending: true });
 
   if (entriesError) {
     return apiError("INTERNAL_ERROR", "Failed to load schedule entries", 500);

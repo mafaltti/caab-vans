@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import type { RunStatus, TimelineStop, TimelineStopStatus } from "@/types";
 
 type ScheduleTimelineProps = {
-  schedule: Array<{ id: string; stopName: string; time: string }>;
+  schedule: Array<{ id: string; stopName: string; arrivalTime: string; departureTime: string }>;
   nextStopId: string | null;
   isRunning: boolean;
   passedStopIds?: string[];
@@ -21,7 +21,7 @@ type ScheduleTimelineProps = {
 };
 
 export function deriveTimelineStops(
-  schedule: Array<{ id: string; stopName: string; time: string }>,
+  schedule: Array<{ id: string; stopName: string; arrivalTime: string; departureTime: string }>,
   nextStopId: string | null,
   isRunning: boolean,
   passedStopIds?: string[],
@@ -58,7 +58,7 @@ export function deriveTimelineStops(
       // Fallback: no inferredNextStopId — use time-based
       return {
         ...entry,
-        status: serverTime && entry.time < serverTime
+        status: serverTime && entry.arrivalTime < serverTime
           ? ("past" as TimelineStopStatus)
           : ("future" as TimelineStopStatus),
       };
@@ -231,7 +231,9 @@ export function ScheduleTimeline({
                       : "text-zinc-700"
                 }`}
               >
-                {stop.time}
+                {stop.arrivalTime !== stop.departureTime
+                  ? `${stop.arrivalTime} - ${stop.departureTime}`
+                  : stop.arrivalTime}
               </span>
             </li>
           ))}

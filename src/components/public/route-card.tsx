@@ -64,7 +64,7 @@ export function RouteCard({ route }: RouteCardProps) {
                     {route.nextStop.stopName}
                   </span>
                   <span className="ml-auto shrink-0 text-sm font-medium text-zinc-900">
-                    {route.nextStop.time}
+                    {route.nextStop.arrivalTime}
                   </span>
                   <ChevronRight className="size-4 shrink-0 text-zinc-300 transition-colors group-hover:text-blue-500" />
                 </div>

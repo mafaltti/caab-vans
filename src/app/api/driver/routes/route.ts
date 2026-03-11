@@ -52,7 +52,9 @@ export async function GET() {
       van_id,
       schedule_entries (
         id,
-        time
+        arrival_time,
+        departure_time,
+        stop_sequence
       )
     `,
     )
@@ -115,8 +117,9 @@ export async function GET() {
   }
 
   const result = routes.map((route) => {
-    const entries = (route.schedule_entries ?? []) as { id: string; time: string }[];
-    const sortedTimes = entries.map((e) => e.time).sort();
+    const entries = (route.schedule_entries ?? []) as { id: string; arrival_time: string; departure_time: string; stop_sequence: number }[];
+    const sorted = [...entries].sort((a, b) => a.stop_sequence - b.stop_sequence);
+    const sortedTimes = sorted.map((e) => e.arrival_time);
     const run = runByRoute.get(route.id);
     const shifts = run ? (shiftsByRun.get(run.id) ?? []) : [];
 

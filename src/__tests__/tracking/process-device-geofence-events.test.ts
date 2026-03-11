@@ -44,11 +44,13 @@ function createMockSupabase(opts: {
   pendingStops?: Array<{
     schedule_entry_id: string;
     schedule_entries: {
-      time: string;
       stop_lat: number;
       stop_lng: number;
       stop_group_id: string | null;
       geofence_radius_m: number;
+      stop_sequence: number;
+      arrival_time: string;
+      departure_time: string;
     };
   }>;
   recentPings?: Array<{ lat: number; lng: number }>;
@@ -237,18 +239,21 @@ function createMockSupabase(opts: {
 // Helper to build a pending stop entry
 function pendingStop(
   id: string,
-  time: string,
+  arrivalTime: string,
   groupId: string | null = placeId,
   radius = 50,
+  seq = 1,
 ) {
   return {
     schedule_entry_id: id,
     schedule_entries: {
-      time,
+      arrival_time: arrivalTime,
+      departure_time: arrivalTime,
       stop_lat: stopLat,
       stop_lng: stopLng,
       stop_group_id: groupId,
       geofence_radius_m: radius,
+      stop_sequence: seq,
     },
   };
 }
@@ -393,8 +398,8 @@ describe("processDeviceGeofenceEvents", () => {
     const mock = createMockSupabase({
       activeShift: { id: "shift-1" },
       pendingStops: [
-        pendingStop("entry-1340", "13:40", null), // preceding stop, different place
-        pendingStop("entry-1350", "13:50"),        // matched stop
+        pendingStop("entry-1340", "13:40", null, 50, 1), // preceding stop, different place
+        pendingStop("entry-1350", "13:50", placeId, 50, 2), // matched stop
       ],
       recentPings: [],
     });
@@ -440,8 +445,8 @@ describe("processDeviceGeofenceEvents", () => {
     const mock = createMockSupabase({
       activeShift: { id: "shift-1" },
       pendingStops: [
-        pendingStop("entry-1300", "13:00"), // 55 min ago
-        pendingStop("entry-1400", "14:00"), // 5 min ahead
+        pendingStop("entry-1300", "13:00", placeId, 50, 1), // 55 min ago
+        pendingStop("entry-1400", "14:00", placeId, 50, 2), // 5 min ahead
       ],
       recentPings: [],
     });
