@@ -64,6 +64,17 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   const supabase = createServiceClient();
 
+  // Compute next stop_sequence: max existing + 1 (append to end)
+  const { data: maxRow } = await supabase
+    .from("schedule_entries")
+    .select("stop_sequence")
+    .eq("route_id", routeId)
+    .order("stop_sequence", { ascending: false })
+    .limit(1)
+    .single();
+
+  const nextSequence = (maxRow?.stop_sequence ?? 0) + 1;
+
   const { data, error } = await supabase
     .from("schedule_entries")
     .insert({
@@ -71,6 +82,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       stop_name: parsed.data.stopName,
       arrival_time: parsed.data.arrivalTime,
       departure_time: parsed.data.departureTime,
+      stop_sequence: nextSequence,
       stop_lat: parsed.data.stopLat ?? null,
       stop_lng: parsed.data.stopLng ?? null,
       stop_group_id: parsed.data.stopGroupId ?? null,
