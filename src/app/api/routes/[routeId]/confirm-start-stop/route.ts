@@ -42,7 +42,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   // Validate stopId belongs to this route's schedule entries
   const { data: entryCheck } = await supabase
     .from("schedule_entries")
-    .select("id, time")
+    .select("id")
     .eq("id", stopId)
     .eq("route_id", routeId)
     .single();
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const { data: allStops } = await supabase
     .from("route_run_stops")
     .select(
-      "schedule_entry_id, status, pass_source, schedule_entries!inner(time)",
+      "schedule_entry_id, status, pass_source, schedule_entries!inner(stop_sequence)",
     )
     .eq("run_id", run.id);
 
@@ -90,11 +90,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return apiError("INTERNAL_ERROR", "No stops found for this run", 500);
   }
 
-  // Sort by schedule time
+  // Sort by stop_sequence
   allStops.sort((a, b) => {
-    const ta = (a.schedule_entries as unknown as { time: string }).time;
-    const tb = (b.schedule_entries as unknown as { time: string }).time;
-    return ta.localeCompare(tb);
+    const sa = (a.schedule_entries as unknown as { stop_sequence: number }).stop_sequence;
+    const sb = (b.schedule_entries as unknown as { stop_sequence: number }).stop_sequence;
+    return sa - sb;
   });
 
   const targetStop = allStops.find(
@@ -152,14 +152,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  // Find all stops chronologically before the confirmed stop
-  const confirmedStopTime = (
-    targetStop!.schedule_entries as unknown as { time: string }
-  ).time;
+  // Find all stops sequentially before the confirmed stop
+  const confirmedStopSequence = (
+    targetStop!.schedule_entries as unknown as { stop_sequence: number }
+  ).stop_sequence;
   const priorStopIds = allStops
     .filter((s) => {
-      const t = (s.schedule_entries as unknown as { time: string }).time;
-      return t < confirmedStopTime && s.status === "pending";
+      const seq = (s.schedule_entries as unknown as { stop_sequence: number }).stop_sequence;
+      return seq < confirmedStopSequence && s.status === "pending";
     })
     .map((s) => s.schedule_entry_id);
 
@@ -191,14 +191,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   // Re-fetch stops after update for canonical enforcement
   const { data: updatedStops } = await supabase
     .from("route_run_stops")
-    .select("schedule_entry_id, status, schedule_entries!inner(time)")
+    .select("schedule_entry_id, status, schedule_entries!inner(stop_sequence)")
     .eq("run_id", run.id);
 
   if (updatedStops) {
     updatedStops.sort((a, b) => {
-      const ta = (a.schedule_entries as unknown as { time: string }).time;
-      const tb = (b.schedule_entries as unknown as { time: string }).time;
-      return ta.localeCompare(tb);
+      const sa = (a.schedule_entries as unknown as { stop_sequence: number }).stop_sequence;
+      const sb = (b.schedule_entries as unknown as { stop_sequence: number }).stop_sequence;
+      return sa - sb;
     });
   }
 

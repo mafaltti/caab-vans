@@ -19,9 +19,9 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 
   const { data, error } = await supabase
     .from("schedule_entries")
-    .select("id, stop_name, time, stop_lat, stop_lng, stop_group_id")
+    .select("id, stop_name, arrival_time, departure_time, stop_sequence, stop_lat, stop_lng, stop_group_id")
     .eq("route_id", routeId)
-    .order("time");
+    .order("stop_sequence");
 
   if (error) {
     return apiError("NOT_FOUND", "Failed to fetch schedule entries", 500);
@@ -30,7 +30,9 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   const entries = (data ?? []).map((e) => ({
     id: e.id,
     stopName: e.stop_name,
-    time: e.time ? formatTimeString(e.time) : undefined,
+    arrivalTime: e.arrival_time ? formatTimeString(e.arrival_time) : undefined,
+    departureTime: e.departure_time ? formatTimeString(e.departure_time) : undefined,
+    stopSequence: e.stop_sequence,
     stopLat: e.stop_lat ?? null,
     stopLng: e.stop_lng ?? null,
     stopGroupId: e.stop_group_id ?? null,
@@ -62,24 +64,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   const supabase = createServiceClient();
 
-  // Check duplicate time for this route
-  const { data: existing } = await supabase
-    .from("schedule_entries")
-    .select("id")
-    .eq("route_id", routeId)
-    .eq("time", parsed.data.time)
-    .limit(1);
-
-  if (existing && existing.length > 0) {
-    return apiError("CONFLICT", "Já existe um horário com este mesmo tempo nesta rota", 409);
-  }
-
   const { data, error } = await supabase
     .from("schedule_entries")
     .insert({
       route_id: routeId,
       stop_name: parsed.data.stopName,
-      time: parsed.data.time,
+      arrival_time: parsed.data.arrivalTime,
+      departure_time: parsed.data.departureTime,
       stop_lat: parsed.data.stopLat ?? null,
       stop_lng: parsed.data.stopLng ?? null,
       stop_group_id: parsed.data.stopGroupId ?? null,
@@ -96,7 +87,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       entry: {
         id: data.id,
         stopName: data.stop_name,
-        time: data.time ? formatTimeString(data.time) : undefined,
+        arrivalTime: data.arrival_time ? formatTimeString(data.arrival_time) : undefined,
+        departureTime: data.departure_time ? formatTimeString(data.departure_time) : undefined,
+        stopSequence: data.stop_sequence,
         stopLat: data.stop_lat ?? null,
         stopLng: data.stop_lng ?? null,
         stopGroupId: data.stop_group_id ?? null,

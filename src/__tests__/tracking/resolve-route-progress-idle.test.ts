@@ -49,12 +49,10 @@ const SERVICE_DATE = "2026-03-08";
 const NOW = DateTime.fromObject({ hour: 10, minute: 0 }, { zone: TZ });
 
 const SORTED_ENTRIES = [
-  { id: "entry-1", stop_name: "Stop A", time: "08:00", stop_lat: -12.97, stop_lng: -38.51 },
-  { id: "entry-2", stop_name: "Stop B", time: "08:30", stop_lat: -12.98, stop_lng: -38.52 },
-  { id: "entry-3", stop_name: "Stop C", time: "09:00", stop_lat: -12.99, stop_lng: -38.53 },
+  { id: "entry-1", stop_name: "Stop A", arrival_time: "08:00", departure_time: "08:00", stop_lat: -12.97, stop_lng: -38.51, stop_sequence: 1 },
+  { id: "entry-2", stop_name: "Stop B", arrival_time: "08:30", departure_time: "08:30", stop_lat: -12.98, stop_lng: -38.52, stop_sequence: 2 },
+  { id: "entry-3", stop_name: "Stop C", arrival_time: "09:00", departure_time: "09:00", stop_lat: -12.99, stop_lng: -38.53, stop_sequence: 3 },
 ];
-
-const TIMES = SORTED_ENTRIES.map((e) => e.time);
 
 describe("resolveRouteProgress – idle suppression (FR-011)", () => {
   const originalEnv = process.env.TRACKING_PROGRESS_SOURCE;
@@ -83,18 +81,17 @@ describe("resolveRouteProgress – idle suppression (FR-011)", () => {
         { id: "shift-1", started_at: NOW.minus({ hours: 2 }).toISO(), ended_at: NOW.minus({ hours: 1 }).toISO() },
       ],
       runStops: [
-        { schedule_entry_id: "entry-1", status: "passed", passed_at: NOW.minus({ hours: 2 }).toISO(), schedule_entries: { time: "08:00" } },
-        { schedule_entry_id: "entry-2", status: "pending", passed_at: null, schedule_entries: { time: "08:30" } },
-        { schedule_entry_id: "entry-3", status: "pending", passed_at: null, schedule_entries: { time: "09:00" } },
+        { schedule_entry_id: "entry-1", status: "passed", passed_at: NOW.minus({ hours: 2 }).toISO(), schedule_entries: { arrival_time: "08:00", departure_time: "08:00", stop_sequence: 1 } },
+        { schedule_entry_id: "entry-2", status: "pending", passed_at: null, schedule_entries: { arrival_time: "08:30", departure_time: "08:30", stop_sequence: 2 } },
+        { schedule_entry_id: "entry-3", status: "pending", passed_at: null, schedule_entries: { arrival_time: "09:00", departure_time: "09:00", stop_sequence: 3 } },
       ],
       pings: [],
     });
 
     // Use later times so isPastScheduleWindow is false → idle (not completed)
-    const laterTimes = ["08:00", "08:30", "11:00"];
     const laterEntries = [
       ...SORTED_ENTRIES.slice(0, 2),
-      { id: "entry-3", stop_name: "Stop C", time: "11:00", stop_lat: -12.99, stop_lng: -38.53 },
+      { id: "entry-3", stop_name: "Stop C", arrival_time: "11:00", departure_time: "11:00", stop_lat: -12.99, stop_lng: -38.53, stop_sequence: 3 },
     ];
 
     const result = await resolveRouteProgress({
@@ -105,7 +102,6 @@ describe("resolveRouteProgress – idle suppression (FR-011)", () => {
       vanId: "van-1",
       vanPosition: null,
       now: NOW,
-      times: laterTimes,
     });
 
     expect(result).not.toBeNull();
@@ -137,9 +133,9 @@ describe("resolveRouteProgress – idle suppression (FR-011)", () => {
         { id: "shift-2", started_at: shiftStartedAt, ended_at: null },
       ],
       runStops: [
-        { schedule_entry_id: "entry-1", status: "passed", passed_at: NOW.minus({ hours: 2 }).toISO(), schedule_entries: { time: "08:00" } },
-        { schedule_entry_id: "entry-2", status: "pending", passed_at: null, schedule_entries: { time: "08:30" } },
-        { schedule_entry_id: "entry-3", status: "pending", passed_at: null, schedule_entries: { time: "09:00" } },
+        { schedule_entry_id: "entry-1", status: "passed", passed_at: NOW.minus({ hours: 2 }).toISO(), schedule_entries: { arrival_time: "08:00", departure_time: "08:00", stop_sequence: 1 } },
+        { schedule_entry_id: "entry-2", status: "pending", passed_at: null, schedule_entries: { arrival_time: "08:30", departure_time: "08:30", stop_sequence: 2 } },
+        { schedule_entry_id: "entry-3", status: "pending", passed_at: null, schedule_entries: { arrival_time: "09:00", departure_time: "09:00", stop_sequence: 3 } },
       ],
       pings: [],
     });
@@ -152,7 +148,6 @@ describe("resolveRouteProgress – idle suppression (FR-011)", () => {
       vanId: "van-1",
       vanPosition: null,
       now: NOW,
-      times: TIMES,
     });
 
     expect(result).not.toBeNull();
@@ -184,18 +179,17 @@ describe("resolveRouteProgress – idle suppression (FR-011)", () => {
         { id: "shift-1", started_at: NOW.minus({ hours: 4 }).toISO(), ended_at: NOW.minus({ hours: 2 }).toISO() },
       ],
       runStops: [
-        { schedule_entry_id: "entry-1", status: "passed", passed_at: NOW.minus({ hours: 4 }).toISO(), schedule_entries: { time: "08:00" } },
-        { schedule_entry_id: "entry-2", status: "pending", passed_at: null, schedule_entries: { time: "08:30" } },
-        { schedule_entry_id: "entry-3", status: "pending", passed_at: null, schedule_entries: { time: "09:00" } },
+        { schedule_entry_id: "entry-1", status: "passed", passed_at: NOW.minus({ hours: 4 }).toISO(), schedule_entries: { arrival_time: "08:00", departure_time: "08:00", stop_sequence: 1 } },
+        { schedule_entry_id: "entry-2", status: "pending", passed_at: null, schedule_entries: { arrival_time: "08:30", departure_time: "08:30", stop_sequence: 2 } },
+        { schedule_entry_id: "entry-3", status: "pending", passed_at: null, schedule_entries: { arrival_time: "09:00", departure_time: "09:00", stop_sequence: 3 } },
       ],
       pings: [],
     });
 
     // Use later times so isPastScheduleWindow is false → idle
-    const laterTimes = ["08:00", "08:30", "11:00"];
     const laterEntries = [
       ...SORTED_ENTRIES.slice(0, 2),
-      { id: "entry-3", stop_name: "Stop C", time: "11:00", stop_lat: -12.99, stop_lng: -38.53 },
+      { id: "entry-3", stop_name: "Stop C", arrival_time: "11:00", departure_time: "11:00", stop_lat: -12.99, stop_lng: -38.53, stop_sequence: 3 },
     ];
 
     const result = await resolveRouteProgress({
@@ -206,7 +200,6 @@ describe("resolveRouteProgress – idle suppression (FR-011)", () => {
       vanId: "van-1",
       vanPosition: null,
       now: NOW,
-      times: laterTimes,
       includeLastKnown: true,
     });
 

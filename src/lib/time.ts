@@ -36,23 +36,41 @@ export function parseTime(hhMm: string): DateTime {
 }
 
 export function isWithinScheduleWindow(
-  times: string[],
+  entries: {
+    departure_time: string;
+    arrival_time: string;
+    stop_sequence: number;
+  }[],
   now: DateTime,
 ): boolean {
-  if (times.length === 0) return false;
-  const sorted = [...times].sort();
-  const first = parseTime(sorted[0]);
-  const last = parseTime(sorted[sorted.length - 1]);
+  if (entries.length === 0) return false;
+  const sorted = [...entries].sort(
+    (a, b) => a.stop_sequence - b.stop_sequence,
+  );
+  const first = parseTime(sorted[0].departure_time);
+  const last = parseTime(sorted[sorted.length - 1].arrival_time);
   return now >= first && now <= last;
 }
 
 export function getNextStop(
-  entries: { stopName: string; time: string }[],
+  entries: {
+    stopName: string;
+    time: string;
+    departureTime: string;
+    stopSequence: number;
+  }[],
   now: DateTime,
-): { stopName: string; time: string } | null {
-  const sorted = [...entries].sort((a, b) => a.time.localeCompare(b.time));
+): {
+  stopName: string;
+  time: string;
+  departureTime: string;
+  stopSequence: number;
+} | null {
+  const sorted = [...entries].sort(
+    (a, b) => a.stopSequence - b.stopSequence,
+  );
   for (const entry of sorted) {
-    const entryTime = parseTime(entry.time);
+    const entryTime = parseTime(entry.departureTime);
     if (entryTime >= now) {
       return entry;
     }

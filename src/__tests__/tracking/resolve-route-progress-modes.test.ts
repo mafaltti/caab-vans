@@ -34,12 +34,10 @@ function makeNow(hour = 10, minute = 0): DateTime {
 }
 
 const ENTRIES = [
-  { id: "entry-a", stop_name: "Stop A", time: "08:30", stop_lat: -12.97, stop_lng: -38.51 },
-  { id: "entry-b", stop_name: "Stop B", time: "08:45", stop_lat: -12.98, stop_lng: -38.52 },
-  { id: "entry-c", stop_name: "Stop C", time: "09:00", stop_lat: -12.99, stop_lng: -38.53 },
+  { id: "entry-a", stop_name: "Stop A", arrival_time: "08:30", departure_time: "08:30", stop_lat: -12.97, stop_lng: -38.51, stop_sequence: 1 },
+  { id: "entry-b", stop_name: "Stop B", arrival_time: "08:45", departure_time: "08:45", stop_lat: -12.98, stop_lng: -38.52, stop_sequence: 2 },
+  { id: "entry-c", stop_name: "Stop C", arrival_time: "09:00", departure_time: "09:00", stop_lat: -12.99, stop_lng: -38.53, stop_sequence: 3 },
 ];
-
-const TIMES = ["08:30", "08:45", "09:00"];
 
 // --- Chainable Supabase mock builder ---
 
@@ -77,7 +75,7 @@ function buildSupabase(config: {
     schedule_entry_id: string;
     status: "pending" | "passed";
     passed_at: string | null;
-    schedule_entries: { time: string };
+    schedule_entries: { arrival_time: string; departure_time: string; stop_sequence: number };
   }>;
   recentPings?: Array<{ speed_mps: number; device_ts: string }>;
 }) {
@@ -121,7 +119,6 @@ function makeArgs(supabase: import("@supabase/supabase-js").SupabaseClient, now?
     vanId: VAN_ID,
     vanPosition: null,
     now: now ?? makeNow(),
-    times: TIMES,
   };
 }
 
@@ -131,19 +128,19 @@ function standardRunStops() {
       schedule_entry_id: "entry-a",
       status: "passed" as const,
       passed_at: "2026-03-07T08:32:00-03:00",
-      schedule_entries: { time: "08:30" },
+      schedule_entries: { arrival_time: "08:30", departure_time: "08:30", stop_sequence: 1 },
     },
     {
       schedule_entry_id: "entry-b",
       status: "pending" as const,
       passed_at: null,
-      schedule_entries: { time: "08:45" },
+      schedule_entries: { arrival_time: "08:45", departure_time: "08:45", stop_sequence: 2 },
     },
     {
       schedule_entry_id: "entry-c",
       status: "pending" as const,
       passed_at: null,
-      schedule_entries: { time: "09:00" },
+      schedule_entries: { arrival_time: "09:00", departure_time: "09:00", stop_sequence: 3 },
     },
   ];
 }

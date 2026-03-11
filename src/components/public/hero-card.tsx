@@ -64,7 +64,7 @@ export function HeroCard({
         <p className="mt-2 text-lg font-semibold text-zinc-800">
           {nextStop.stopName}
         </p>
-        <p className="mt-1 text-sm text-zinc-400">às {nextStop.time}</p>
+        <p className="mt-1 text-sm text-zinc-400">às {nextStop.arrivalTime}</p>
       </div>
     );
   }
@@ -166,7 +166,7 @@ export function HeroCard({
           <h2 className="text-2xl font-bold text-white">{nextStop.stopName}</h2>
           <div className="mt-1 flex items-center gap-1.5 text-blue-100">
             <Clock className="size-4" />
-            <span className="font-mono text-lg">{nextStop.time}</span>
+            <span className="font-mono text-lg">{nextStop.arrivalTime}</span>
           </div>
         </div>
 

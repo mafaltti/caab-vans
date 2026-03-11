@@ -62,7 +62,7 @@ function makeOpenShift(opts: {
       routes: {
         id: "route-1",
         van_id: "van-1",
-        schedule_entries: [{ time: opts.maxScheduleTime }],
+        schedule_entries: [{ stop_sequence: 1, arrival_time: opts.maxScheduleTime }],
         vans: { last_gps_fix_at: opts.lastGpsFixAt ?? null },
       },
     },

@@ -12,7 +12,8 @@ describe("computeEta", () => {
     const stops = [
       {
         scheduleEntryId: "a",
-        time: "08:30",
+        arrivalTime: "08:30", departureTime: "08:30",
+        stopSequence: 1,
         status: "passed" as const,
         passedAt: DateTime.fromObject(
           { hour: 8, minute: 35 },
@@ -21,7 +22,8 @@ describe("computeEta", () => {
       },
       {
         scheduleEntryId: "b",
-        time: "08:45",
+        arrivalTime: "08:45", departureTime: "08:45",
+        stopSequence: 2,
         status: "pending" as const,
         passedAt: null,
       },
@@ -40,13 +42,15 @@ describe("computeEta", () => {
     const stops = [
       {
         scheduleEntryId: "a",
-        time: "09:00",
+        arrivalTime: "09:00", departureTime: "09:00",
+        stopSequence: 1,
         status: "pending" as const,
         passedAt: null,
       },
       {
         scheduleEntryId: "b",
-        time: "09:15",
+        arrivalTime: "09:15", departureTime: "09:15",
+        stopSequence: 2,
         status: "pending" as const,
         passedAt: null,
       },
@@ -65,13 +69,15 @@ describe("computeEta", () => {
     const stops = [
       {
         scheduleEntryId: "a",
-        time: "08:30",
+        arrivalTime: "08:30", departureTime: "08:30",
+        stopSequence: 1,
         status: "passed" as const,
         passedAt: "2026-03-01T08:32:00-03:00",
       },
       {
         scheduleEntryId: "b",
-        time: "08:45",
+        arrivalTime: "08:45", departureTime: "08:45",
+        stopSequence: 2,
         status: "passed" as const,
         passedAt: "2026-03-01T08:48:00-03:00",
       },
@@ -90,7 +96,8 @@ describe("computeEta", () => {
     const stops = [
       {
         scheduleEntryId: "a",
-        time: "08:30",
+        arrivalTime: "08:30", departureTime: "08:30",
+        stopSequence: 1,
         status: "passed" as const,
         passedAt: DateTime.fromObject(
           { hour: 8, minute: 25 },
@@ -99,7 +106,8 @@ describe("computeEta", () => {
       },
       {
         scheduleEntryId: "b",
-        time: "08:45",
+        arrivalTime: "08:45", departureTime: "08:45",
+        stopSequence: 2,
         status: "pending" as const,
         passedAt: null,
       },
@@ -119,7 +127,8 @@ describe("computeEta", () => {
     const stops = [
       {
         scheduleEntryId: "a",
-        time: "08:30",
+        arrivalTime: "08:30", departureTime: "08:30",
+        stopSequence: 1,
         status: "passed" as const,
         passedAt: DateTime.fromObject(
           { hour: 8, minute: 30 },
@@ -128,7 +137,8 @@ describe("computeEta", () => {
       },
       {
         scheduleEntryId: "b",
-        time: "08:45",
+        arrivalTime: "08:45", departureTime: "08:45",
+        stopSequence: 2,
         status: "pending" as const,
         passedAt: null,
       },
@@ -149,19 +159,22 @@ describe("computeEta", () => {
       const stops = [
         {
           scheduleEntryId: "caab-0000",
-          time: "00:00",
+          arrivalTime: "00:00", departureTime: "00:00",
+          stopSequence: 1,
           status: "pending" as const,
           passedAt: null,
         },
         {
           scheduleEntryId: "stop-0800",
-          time: "08:00",
+          arrivalTime: "08:00", departureTime: "08:00",
+          stopSequence: 2,
           status: "pending" as const,
           passedAt: null,
         },
         {
           scheduleEntryId: "stop-2200",
-          time: "22:00",
+          arrivalTime: "22:00", departureTime: "22:00",
+          stopSequence: 3,
           status: "passed" as const,
           passedAt: DateTime.fromObject(
             { hour: 22, minute: 2 },
@@ -170,7 +183,8 @@ describe("computeEta", () => {
         },
         {
           scheduleEntryId: "stop-2240",
-          time: "22:40",
+          arrivalTime: "22:40", departureTime: "22:40",
+          stopSequence: 4,
           status: "pending" as const,
           passedAt: null,
         },
@@ -188,25 +202,29 @@ describe("computeEta", () => {
       const stops = [
         {
           scheduleEntryId: "caab-0000",
-          time: "00:00",
+          arrivalTime: "00:00", departureTime: "00:00",
+          stopSequence: 1,
           status: "pending" as const,
           passedAt: null,
         },
         {
           scheduleEntryId: "stop-0800",
-          time: "08:00",
+          arrivalTime: "08:00", departureTime: "08:00",
+          stopSequence: 2,
           status: "pending" as const,
           passedAt: null,
         },
         {
           scheduleEntryId: "stop-2200",
-          time: "22:00",
+          arrivalTime: "22:00", departureTime: "22:00",
+          stopSequence: 3,
           status: "passed" as const,
           passedAt: "2026-03-01T22:02:00-03:00",
         },
         {
           scheduleEntryId: "stop-2220",
-          time: "22:20",
+          arrivalTime: "22:20", departureTime: "22:20",
+          stopSequence: 4,
           status: "passed" as const,
           passedAt: "2026-03-01T22:22:00-03:00",
         },
@@ -225,13 +243,15 @@ describe("computeEta", () => {
       const stops = [
         {
           scheduleEntryId: "a",
-          time: "09:00",
+          arrivalTime: "09:00", departureTime: "09:00",
+          stopSequence: 1,
           status: "pending" as const,
           passedAt: null,
         },
         {
           scheduleEntryId: "b",
-          time: "09:15",
+          arrivalTime: "09:15", departureTime: "09:15",
+          stopSequence: 2,
           status: "pending" as const,
           passedAt: null,
         },
@@ -248,25 +268,29 @@ describe("computeEta", () => {
       const stops = [
         {
           scheduleEntryId: "a",
-          time: "08:00",
+          arrivalTime: "08:00", departureTime: "08:00",
+          stopSequence: 1,
           status: "passed" as const,
           passedAt: "2026-03-01T08:02:00-03:00",
         },
         {
           scheduleEntryId: "b",
-          time: "08:15",
+          arrivalTime: "08:15", departureTime: "08:15",
+          stopSequence: 2,
           status: "passed" as const,
           passedAt: "2026-03-01T08:18:00-03:00",
         },
         {
           scheduleEntryId: "c-past-pending",
-          time: "08:30",
+          arrivalTime: "08:30", departureTime: "08:30",
+          stopSequence: 3,
           status: "pending" as const,
           passedAt: null,
         },
         {
           scheduleEntryId: "d",
-          time: "22:40",
+          arrivalTime: "22:40", departureTime: "22:40",
+          stopSequence: 4,
           status: "pending" as const,
           passedAt: null,
         },
@@ -308,7 +332,8 @@ describe("computeEta", () => {
       return [
         {
           scheduleEntryId: "a",
-          time: "08:30",
+          arrivalTime: "08:30", departureTime: "08:30",
+          stopSequence: 1,
           status: "passed" as const,
           passedAt: DateTime.fromObject(
             { hour: 8, minute: 35 },
@@ -319,7 +344,8 @@ describe("computeEta", () => {
         },
         {
           scheduleEntryId: "b",
-          time: "08:45",
+          arrivalTime: "08:45", departureTime: "08:45",
+          stopSequence: 2,
           status: "pending" as const,
           passedAt: null,
           stopLat: overrides.stopLat !== undefined ? overrides.stopLat : STOP_LAT,
@@ -428,7 +454,8 @@ describe("computeEta", () => {
       const stops = [
         {
           scheduleEntryId: "a",
-          time: "08:30",
+          arrivalTime: "08:30", departureTime: "08:30",
+          stopSequence: 1,
           status: "passed" as const,
           passedAt: DateTime.fromObject(
             { hour: 8, minute: 35 },
@@ -437,7 +464,8 @@ describe("computeEta", () => {
         },
         {
           scheduleEntryId: "b",
-          time: "08:45",
+          arrivalTime: "08:45", departureTime: "08:45",
+          stopSequence: 2,
           status: "pending" as const,
           passedAt: null,
         },
@@ -644,7 +672,8 @@ describe("computeEta", () => {
       const stops = [
         {
           scheduleEntryId: "caab-0700",
-          time: "07:00",
+          arrivalTime: "07:00", departureTime: "07:00",
+          stopSequence: 1,
           status: "passed" as const,
           passedAt: DateTime.fromObject(
             { hour: 7, minute: 3 },
@@ -655,7 +684,8 @@ describe("computeEta", () => {
         },
         {
           scheduleEntryId: "caab-0900",
-          time: "09:00",
+          arrivalTime: "09:00", departureTime: "09:00",
+          stopSequence: 2,
           status: "pending" as const,
           passedAt: null,
           stopLat: STOP_LAT,
@@ -986,14 +1016,16 @@ describe("segment-aware ETA fallback", () => {
     const stops = [
       {
         scheduleEntryId: "a",
-        time: "08:30",
+        arrivalTime: "08:30", departureTime: "08:30",
+        stopSequence: 1,
         status: "passed" as const,
         passedAt,
         osrmDistanceM, // distance from A to its successor (B)
       },
       {
         scheduleEntryId: "b",
-        time: "08:45",
+        arrivalTime: "08:45", departureTime: "08:45",
+        stopSequence: 2,
         status: "pending" as const,
         passedAt: null,
       },
@@ -1018,7 +1050,8 @@ describe("segment-aware ETA fallback", () => {
     const stops = [
       {
         scheduleEntryId: "a",
-        time: "08:30",
+        arrivalTime: "08:30", departureTime: "08:30",
+        stopSequence: 1,
         status: "passed" as const,
         passedAt: DateTime.fromObject(
           { hour: 8, minute: 35 },
@@ -1027,7 +1060,8 @@ describe("segment-aware ETA fallback", () => {
       },
       {
         scheduleEntryId: "b",
-        time: "08:45",
+        arrivalTime: "08:45", departureTime: "08:45",
+        stopSequence: 2,
         status: "pending" as const,
         passedAt: null,
         osrmDistanceM: null,
@@ -1044,7 +1078,8 @@ describe("segment-aware ETA fallback", () => {
     const stops = [
       {
         scheduleEntryId: "a",
-        time: "08:30",
+        arrivalTime: "08:30", departureTime: "08:30",
+        stopSequence: 1,
         status: "passed" as const,
         passedAt: DateTime.fromObject(
           { hour: 8, minute: 35 },
@@ -1053,7 +1088,8 @@ describe("segment-aware ETA fallback", () => {
       },
       {
         scheduleEntryId: "b",
-        time: "08:45",
+        arrivalTime: "08:45", departureTime: "08:45",
+        stopSequence: 2,
         status: "pending" as const,
         passedAt: null,
         // osrmDistanceM not set at all
@@ -1077,7 +1113,8 @@ describe("segment-aware ETA fallback", () => {
     const stops = [
       {
         scheduleEntryId: "a",
-        time: "08:30",
+        arrivalTime: "08:30", departureTime: "08:30",
+        stopSequence: 1,
         status: "passed" as const,
         passedAt: DateTime.fromObject(
           { hour: 8, minute: 35 },
@@ -1089,7 +1126,8 @@ describe("segment-aware ETA fallback", () => {
       },
       {
         scheduleEntryId: "b",
-        time: "08:45",
+        arrivalTime: "08:45", departureTime: "08:45",
+        stopSequence: 2,
         status: "pending" as const,
         passedAt: null,
         stopLat: -12.9814,
@@ -1118,14 +1156,16 @@ describe("segment-aware ETA fallback", () => {
     const stops = [
       {
         scheduleEntryId: "a",
-        time: "08:30",
+        arrivalTime: "08:30", departureTime: "08:30",
+        stopSequence: 1,
         status: "passed" as const,
         passedAt,
         osrmDistanceM,
       },
       {
         scheduleEntryId: "b",
-        time: "08:45",
+        arrivalTime: "08:45", departureTime: "08:45",
+        stopSequence: 2,
         status: "pending" as const,
         passedAt: null,
       },
@@ -1154,14 +1194,16 @@ describe("segment-aware ETA fallback", () => {
     const stops = [
       {
         scheduleEntryId: "a",
-        time: "08:30",
+        arrivalTime: "08:30", departureTime: "08:30",
+        stopSequence: 1,
         status: "passed" as const,
         passedAt,
         osrmDistanceM: 3000,
       },
       {
         scheduleEntryId: "b",
-        time: "08:45",
+        arrivalTime: "08:45", departureTime: "08:45",
+        stopSequence: 2,
         status: "pending" as const,
         passedAt: null,
       },
@@ -1180,19 +1222,22 @@ describe("explicit targetStopId", () => {
     const stops = [
       {
         scheduleEntryId: "a",
-        time: "08:30",
+        arrivalTime: "08:30", departureTime: "08:30",
+        stopSequence: 1,
         status: "passed" as const,
         passedAt: DateTime.fromObject({ hour: 8, minute: 35 }, { zone: TZ }).toISO()!,
       },
       {
         scheduleEntryId: "b",
-        time: "08:45",
+        arrivalTime: "08:45", departureTime: "08:45",
+        stopSequence: 2,
         status: "pending" as const,
         passedAt: null,
       },
       {
         scheduleEntryId: "c",
-        time: "09:00",
+        arrivalTime: "09:00", departureTime: "09:00",
+        stopSequence: 3,
         status: "pending" as const,
         passedAt: null,
       },
@@ -1210,13 +1255,15 @@ describe("explicit targetStopId", () => {
     const stops = [
       {
         scheduleEntryId: "a",
-        time: "08:30",
+        arrivalTime: "08:30", departureTime: "08:30",
+        stopSequence: 1,
         status: "passed" as const,
         passedAt: DateTime.fromObject({ hour: 8, minute: 35 }, { zone: TZ }).toISO()!,
       },
       {
         scheduleEntryId: "b",
-        time: "08:45",
+        arrivalTime: "08:45", departureTime: "08:45",
+        stopSequence: 2,
         status: "pending" as const,
         passedAt: null,
       },
@@ -1240,13 +1287,15 @@ describe("explicit targetStopId", () => {
     const stops = [
       {
         scheduleEntryId: "a",
-        time: "08:30",
+        arrivalTime: "08:30", departureTime: "08:30",
+        stopSequence: 1,
         status: "pending" as const,
         passedAt: null,
       },
       {
         scheduleEntryId: "b",
-        time: "09:00",
+        arrivalTime: "09:00", departureTime: "09:00",
+        stopSequence: 2,
         status: "pending" as const,
         passedAt: null,
       },
@@ -1266,13 +1315,15 @@ describe("explicit targetStopId", () => {
     const stops = [
       {
         scheduleEntryId: "a",
-        time: "08:30",
+        arrivalTime: "08:30", departureTime: "08:30",
+        stopSequence: 1,
         status: "passed" as const,
         passedAt: DateTime.fromObject({ hour: 8, minute: 32 }, { zone: TZ }).toISO()!,
       },
       {
         scheduleEntryId: "b",
-        time: "08:45",
+        arrivalTime: "08:45", departureTime: "08:45",
+        stopSequence: 2,
         status: "pending" as const,
         passedAt: null,
       },
@@ -1292,13 +1343,15 @@ describe("explicit targetStopId", () => {
     const stops = [
       {
         scheduleEntryId: "a",
-        time: "08:30",
+        arrivalTime: "08:30", departureTime: "08:30",
+        stopSequence: 1,
         status: "passed" as const,
         passedAt: "2026-03-01T08:32:00-03:00",
       },
       {
         scheduleEntryId: "b",
-        time: "08:45",
+        arrivalTime: "08:45", departureTime: "08:45",
+        stopSequence: 2,
         status: "passed" as const,
         passedAt: "2026-03-01T08:48:00-03:00",
       },
@@ -1318,19 +1371,22 @@ describe("explicit targetStopId", () => {
     const stops = [
       {
         scheduleEntryId: "a",
-        time: "08:30",
+        arrivalTime: "08:30", departureTime: "08:30",
+        stopSequence: 1,
         status: "passed" as const,
         passedAt: DateTime.fromObject({ hour: 8, minute: 35 }, { zone: TZ }).toISO()!,
       },
       {
         scheduleEntryId: "b",
-        time: "08:45",
+        arrivalTime: "08:45", departureTime: "08:45",
+        stopSequence: 2,
         status: "pending" as const,
         passedAt: null,
       },
       {
         scheduleEntryId: "c",
-        time: "09:00",
+        arrivalTime: "09:00", departureTime: "09:00",
+        stopSequence: 3,
         status: "pending" as const,
         passedAt: null,
       },
@@ -1358,14 +1414,16 @@ describe("explicit targetStopId", () => {
     const stops = [
       {
         scheduleEntryId: "a",
-        time: "08:30",
+        arrivalTime: "08:30", departureTime: "08:30",
+        stopSequence: 1,
         status: "passed" as const,
         passedAt: DateTime.fromObject({ hour: 8, minute: 35 }, { zone: TZ }).toISO()!,
         osrmDistanceM: 5000,
       },
       {
         scheduleEntryId: "b",
-        time: "08:45",
+        arrivalTime: "08:45", departureTime: "08:45",
+        stopSequence: 2,
         status: "pending" as const,
         passedAt: null,
         stopLat: -12.9814,
@@ -1373,7 +1431,8 @@ describe("explicit targetStopId", () => {
       },
       {
         scheduleEntryId: "c",
-        time: "09:00",
+        arrivalTime: "09:00", departureTime: "09:00",
+        stopSequence: 3,
         status: "pending" as const,
         passedAt: null,
         stopLat: -12.9900,
@@ -1396,19 +1455,22 @@ describe("explicit targetStopId", () => {
     const stops = [
       {
         scheduleEntryId: "a",
-        time: "08:30",
+        arrivalTime: "08:30", departureTime: "08:30",
+        stopSequence: 1,
         status: "passed" as const,
         passedAt: DateTime.fromObject({ hour: 8, minute: 35 }, { zone: TZ }).toISO()!,
       },
       {
         scheduleEntryId: "b",
-        time: "08:45",
+        arrivalTime: "08:45", departureTime: "08:45",
+        stopSequence: 2,
         status: "pending" as const,
         passedAt: null,
       },
       {
         scheduleEntryId: "c",
-        time: "09:00",
+        arrivalTime: "09:00", departureTime: "09:00",
+        stopSequence: 3,
         status: "pending" as const,
         passedAt: null,
       },
@@ -1432,21 +1494,24 @@ describe("multi-segment distance accumulation", () => {
     const stops = [
       {
         scheduleEntryId: "a",
-        time: "08:30",
+        arrivalTime: "08:30", departureTime: "08:30",
+        stopSequence: 1,
         status: "passed" as const,
         passedAt: DateTime.fromObject({ hour: 8, minute: 35 }, { zone: TZ }).toISO()!,
         osrmDistanceM: 5000,
       },
       {
         scheduleEntryId: "b",
-        time: "08:45",
+        arrivalTime: "08:45", departureTime: "08:45",
+        stopSequence: 2,
         status: "pending" as const,
         passedAt: null,
         osrmDistanceM: 5000,
       },
       {
         scheduleEntryId: "c",
-        time: "09:00",
+        arrivalTime: "09:00", departureTime: "09:00",
+        stopSequence: 3,
         status: "pending" as const,
         passedAt: null,
         osrmDistanceM: null,
@@ -1468,28 +1533,32 @@ describe("multi-segment distance accumulation", () => {
     const stops = [
       {
         scheduleEntryId: "a",
-        time: "08:30",
+        arrivalTime: "08:30", departureTime: "08:30",
+        stopSequence: 1,
         status: "passed" as const,
         passedAt: DateTime.fromObject({ hour: 8, minute: 35 }, { zone: TZ }).toISO()!,
         osrmDistanceM: 1000,
       },
       {
         scheduleEntryId: "b",
-        time: "08:45",
+        arrivalTime: "08:45", departureTime: "08:45",
+        stopSequence: 2,
         status: "pending" as const,
         passedAt: null,
         osrmDistanceM: 1500,
       },
       {
         scheduleEntryId: "c",
-        time: "09:00",
+        arrivalTime: "09:00", departureTime: "09:00",
+        stopSequence: 3,
         status: "pending" as const,
         passedAt: null,
         osrmDistanceM: 800,
       },
       {
         scheduleEntryId: "d",
-        time: "09:15",
+        arrivalTime: "09:15", departureTime: "09:15",
+        stopSequence: 4,
         status: "pending" as const,
         passedAt: null,
         osrmDistanceM: null,
@@ -1510,21 +1579,24 @@ describe("multi-segment distance accumulation", () => {
     const stops = [
       {
         scheduleEntryId: "a",
-        time: "08:30",
+        arrivalTime: "08:30", departureTime: "08:30",
+        stopSequence: 1,
         status: "passed" as const,
         passedAt: DateTime.fromObject({ hour: 8, minute: 35 }, { zone: TZ }).toISO()!,
         osrmDistanceM: 1000,
       },
       {
         scheduleEntryId: "b",
-        time: "08:45",
+        arrivalTime: "08:45", departureTime: "08:45",
+        stopSequence: 2,
         status: "pending" as const,
         passedAt: null,
         osrmDistanceM: null, // missing!
       },
       {
         scheduleEntryId: "c",
-        time: "09:00",
+        arrivalTime: "09:00", departureTime: "09:00",
+        stopSequence: 3,
         status: "pending" as const,
         passedAt: null,
         osrmDistanceM: 800,
@@ -1543,14 +1615,16 @@ describe("multi-segment distance accumulation", () => {
     const stops = [
       {
         scheduleEntryId: "a",
-        time: "08:30",
+        arrivalTime: "08:30", departureTime: "08:30",
+        stopSequence: 1,
         status: "passed" as const,
         passedAt: DateTime.fromObject({ hour: 8, minute: 35 }, { zone: TZ }).toISO()!,
         osrmDistanceM: 5000,
       },
       {
         scheduleEntryId: "b",
-        time: "08:45",
+        arrivalTime: "08:45", departureTime: "08:45",
+        stopSequence: 2,
         status: "pending" as const,
         passedAt: null,
         osrmDistanceM: null,
@@ -1573,19 +1647,22 @@ describe("route-order fallback (T016)", () => {
     const stops = [
       {
         scheduleEntryId: "a",
-        time: "08:30",
+        arrivalTime: "08:30", departureTime: "08:30",
+        stopSequence: 1,
         status: "passed" as const,
         passedAt: DateTime.fromObject({ hour: 8, minute: 35 }, { zone: TZ }).toISO()!,
       },
       {
         scheduleEntryId: "b",
-        time: "08:45",
+        arrivalTime: "08:45", departureTime: "08:45",
+        stopSequence: 2,
         status: "pending" as const,
         passedAt: null,
       },
       {
         scheduleEntryId: "c",
-        time: "09:00",
+        arrivalTime: "09:00", departureTime: "09:00",
+        stopSequence: 3,
         status: "pending" as const,
         passedAt: null,
       },
@@ -1611,7 +1688,8 @@ describe("etaStatus field", () => {
     const stops = [
       {
         scheduleEntryId: "a",
-        time: "08:00",
+        arrivalTime: "08:00", departureTime: "08:00",
+        stopSequence: 1,
         status: "passed" as const,
         passedAt: DateTime.fromObject({ hour: 8, minute: 5 }, { zone: TZ }).toISO()!,
         stopLat: -12.96,
@@ -1620,7 +1698,8 @@ describe("etaStatus field", () => {
       },
       {
         scheduleEntryId: "b",
-        time: "08:30",
+        arrivalTime: "08:30", departureTime: "08:30",
+        stopSequence: 2,
         status: "pending" as const,
         passedAt: null,
         stopLat: -12.97,
@@ -1645,13 +1724,15 @@ describe("etaStatus field", () => {
     const stops = [
       {
         scheduleEntryId: "a",
-        time: "08:30",
+        arrivalTime: "08:30", departureTime: "08:30",
+        stopSequence: 1,
         status: "passed" as const,
         passedAt: DateTime.fromObject({ hour: 8, minute: 35 }, { zone: TZ }).toISO()!,
       },
       {
         scheduleEntryId: "b",
-        time: "08:45",
+        arrivalTime: "08:45", departureTime: "08:45",
+        stopSequence: 2,
         status: "pending" as const,
         passedAt: null,
       },
@@ -1679,7 +1760,8 @@ describe("etaStatus field", () => {
     const stops = [
       {
         scheduleEntryId: "a",
-        time: "08:30",
+        arrivalTime: "08:30", departureTime: "08:30",
+        stopSequence: 1,
         status: "passed" as const,
         passedAt: DateTime.fromObject({ hour: 8, minute: 35 }, { zone: TZ }).toISO()!,
         stopLat: -12.96,
@@ -1687,7 +1769,8 @@ describe("etaStatus field", () => {
       },
       {
         scheduleEntryId: "b",
-        time: "08:45",
+        arrivalTime: "08:45", departureTime: "08:45",
+        stopSequence: 2,
         status: "pending" as const,
         passedAt: null,
         stopLat: STOP_LAT,
@@ -1708,13 +1791,15 @@ describe("etaStatus field", () => {
     const stops = [
       {
         scheduleEntryId: "a",
-        time: "08:30",
+        arrivalTime: "08:30", departureTime: "08:30",
+        stopSequence: 1,
         status: "passed" as const,
         passedAt: DateTime.fromObject({ hour: 8, minute: 35 }, { zone: TZ }).toISO()!,
       },
       {
         scheduleEntryId: "b",
-        time: "08:45",
+        arrivalTime: "08:45", departureTime: "08:45",
+        stopSequence: 2,
         status: "pending" as const,
         passedAt: null,
       },
@@ -1733,7 +1818,8 @@ describe("etaStatus field", () => {
     const stops = [
       {
         scheduleEntryId: "a",
-        time: "08:30",
+        arrivalTime: "08:30", departureTime: "08:30",
+        stopSequence: 1,
         status: "passed" as const,
         passedAt: DateTime.fromObject(
           { hour: 8, minute: 35 },
@@ -1742,7 +1828,8 @@ describe("etaStatus field", () => {
       },
       {
         scheduleEntryId: "b",
-        time: "08:45",
+        arrivalTime: "08:45", departureTime: "08:45",
+        stopSequence: 2,
         status: "pending" as const,
         passedAt: null,
       },
@@ -1772,7 +1859,8 @@ describe("etaStatus field", () => {
       const stops = [
         {
           scheduleEntryId: "a",
-          time: "08:30",
+          arrivalTime: "08:30", departureTime: "08:30",
+          stopSequence: 1,
           status: "passed" as const,
           passedAt: DateTime.fromObject(
             { year: 2026, month: 3, day: 2, hour: 8, minute: 25 },
@@ -1782,7 +1870,8 @@ describe("etaStatus field", () => {
         },
         {
           scheduleEntryId: "b",
-          time: "09:00", // scheduled time is in the future
+          arrivalTime: "09:00", departureTime: "09:00", // scheduled time is in the future
+          stopSequence: 2,
           status: "pending" as const,
           passedAt: null,
         },
@@ -1807,7 +1896,8 @@ describe("etaStatus field", () => {
       const stops = [
         {
           scheduleEntryId: "a",
-          time: "08:30",
+          arrivalTime: "08:30", departureTime: "08:30",
+          stopSequence: 1,
           status: "passed" as const,
           passedAt: DateTime.fromObject(
             { year: 2026, month: 3, day: 2, hour: 8, minute: 30 },
@@ -1817,7 +1907,8 @@ describe("etaStatus field", () => {
         },
         {
           scheduleEntryId: "b",
-          time: "09:00",
+          arrivalTime: "09:00", departureTime: "09:00",
+          stopSequence: 2,
           status: "pending" as const,
           passedAt: null,
         },
@@ -1841,7 +1932,8 @@ describe("etaStatus field", () => {
       const stops = [
         {
           scheduleEntryId: "a",
-          time: "08:00",
+          arrivalTime: "08:00", departureTime: "08:00",
+          stopSequence: 1,
           status: "passed" as const,
           passedAt: DateTime.fromObject(
             { year: 2026, month: 3, day: 2, hour: 8, minute: 5 },
@@ -1851,7 +1943,8 @@ describe("etaStatus field", () => {
         },
         {
           scheduleEntryId: "b",
-          time: "08:30", // scheduled time also in the past
+          arrivalTime: "08:30", departureTime: "08:30", // scheduled time also in the past
+          stopSequence: 2,
           status: "pending" as const,
           passedAt: null,
         },
@@ -1876,7 +1969,8 @@ describe("etaStatus field", () => {
       const stops = [
         {
           scheduleEntryId: "a",
-          time: "08:30",
+          arrivalTime: "08:30", departureTime: "08:30",
+          stopSequence: 1,
           status: "passed" as const,
           passedAt: DateTime.fromObject(
             { hour: 8, minute: 20 },
@@ -1886,7 +1980,8 @@ describe("etaStatus field", () => {
         },
         {
           scheduleEntryId: "b",
-          time: "09:00", // scheduled time is in the future
+          arrivalTime: "09:00", departureTime: "09:00", // scheduled time is in the future
+          stopSequence: 2,
           status: "pending" as const,
           passedAt: null,
         },
@@ -1909,7 +2004,8 @@ describe("etaStatus field", () => {
       const stops = [
         {
           scheduleEntryId: "a",
-          time: "08:30",
+          arrivalTime: "08:30", departureTime: "08:30",
+          stopSequence: 1,
           status: "passed" as const,
           passedAt: DateTime.fromObject(
             { hour: 8, minute: 35 },
@@ -1918,7 +2014,8 @@ describe("etaStatus field", () => {
         },
         {
           scheduleEntryId: "b",
-          time: "08:45", // scheduled time also in the past
+          arrivalTime: "08:45", departureTime: "08:45", // scheduled time also in the past
+          stopSequence: 2,
           status: "pending" as const,
           passedAt: null,
         },
@@ -1938,13 +2035,15 @@ describe("etaStatus field", () => {
     const stops = [
       {
         scheduleEntryId: "a",
-        time: "08:30",
+        arrivalTime: "08:30", departureTime: "08:30",
+        stopSequence: 1,
         status: "passed" as const,
         passedAt: "2026-03-01T08:32:00-03:00",
       },
       {
         scheduleEntryId: "b",
-        time: "08:45",
+        arrivalTime: "08:45", departureTime: "08:45",
+        stopSequence: 2,
         status: "passed" as const,
         passedAt: "2026-03-01T08:48:00-03:00",
       },

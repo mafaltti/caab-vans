@@ -8,7 +8,9 @@ import { getTimeFactor, REFERENCE_SPEED_MPS, type RecentRun } from "@/lib/tracki
 
 interface Stop {
   scheduleEntryId: string;
-  time: string; // HH:mm
+  stopSequence: number;
+  arrivalTime: string; // HH:mm
+  departureTime: string; // HH:mm
   status: "pending" | "passed";
   passedAt: string | null;
   stopLat?: number | null;
@@ -87,7 +89,7 @@ export async function computeEta(args: {
     const timeFloor = startedAt
       ? DateTime.fromISO(startedAt).setZone(now.zone).toFormat("HH:mm")
       : now.toFormat("HH:mm");
-    const futurePending = pending.filter((s) => s.time >= timeFloor);
+    const futurePending = pending.filter((s) => (s.departureTime) >= timeFloor);
 
     let selectedPending: Stop[];
     if (futurePending.length > 0) {
@@ -108,7 +110,7 @@ export async function computeEta(args: {
     }
 
     const sortedPending = [...selectedPending].sort((a, b) =>
-      a.time.localeCompare(b.time),
+      (a.stopSequence ?? 0) - (b.stopSequence ?? 0),
     );
     nextStop = sortedPending[0];
     nextStopId = nextStop.scheduleEntryId;
@@ -239,12 +241,12 @@ export async function computeEta(args: {
 
     // Still compute schedule delay for informational purposes
     const sortedPassed = [...passed].sort((a, b) =>
-      a.time.localeCompare(b.time),
+      (a.stopSequence ?? 0) - (b.stopSequence ?? 0),
     );
     const lastPassed = sortedPassed.length > 0 ? sortedPassed.at(-1)! : null;
     const delay = lastPassed
       ? DateTime.fromISO(lastPassed.passedAt!).diff(
-          parseTime(lastPassed.time),
+          parseTime(lastPassed.arrivalTime),
           "minutes",
         ).minutes
       : null;
@@ -262,7 +264,7 @@ export async function computeEta(args: {
 
   // Segment-aware fallback: use stored OSRM distance when GPS is unavailable.
   // Sum osrmDistanceM across all intermediate stops between last-passed and target.
-  const sortedAllForSegment = [...stops].sort((a, b) => a.time.localeCompare(b.time));
+  const sortedAllForSegment = [...stops].sort((a, b) => (a.stopSequence ?? 0) - (b.stopSequence ?? 0));
   const sortedPassedForSegment = sortedAllForSegment.filter((s) => s.status === "passed");
   const lastPassedForSegment = sortedPassedForSegment.length > 0 ? sortedPassedForSegment.at(-1)! : null;
 
@@ -291,10 +293,10 @@ export async function computeEta(args: {
         const travelMinutes = (accumulatedDistance / REFERENCE_SPEED_MPS / 60) * timeFactor;
         const etaDateTime = DateTime.fromISO(lastPassedForSegment.passedAt).setZone(now.zone).plus({ minutes: travelMinutes });
 
-        const delay = DateTime.fromISO(lastPassedForSegment.passedAt).diff(parseTime(lastPassedForSegment.time), "minutes").minutes;
+        const delay = DateTime.fromISO(lastPassedForSegment.passedAt).diff(parseTime(lastPassedForSegment.arrivalTime), "minutes").minutes;
 
         const scheduledTime = (() => {
-          const [h, m] = nextStop.time.split(":").map(Number);
+          const [h, m] = (nextStop.arrivalTime).split(":").map(Number);
           return now.set({ hour: h, minute: m, second: 0, millisecond: 0 });
         })();
         if (etaDateTime <= now && scheduledTime <= now) {
@@ -336,7 +338,7 @@ function scheduleDelayFallback(
   now: DateTime,
 ): EtaResult {
   const sortedPassed = [...passed].sort((a, b) =>
-    a.time.localeCompare(b.time),
+    (a.stopSequence ?? 0) - (b.stopSequence ?? 0),
   );
   const lastPassed = sortedPassed.length > 0 ? sortedPassed.at(-1)! : null;
 
@@ -344,15 +346,15 @@ function scheduleDelayFallback(
   let etaDateTime: DateTime;
 
   if (!lastPassed) {
-    etaDateTime = parseTime(nextStop.time);
+    etaDateTime = parseTime(nextStop.arrivalTime);
   } else {
     delay = DateTime.fromISO(lastPassed.passedAt!)
-      .diff(parseTime(lastPassed.time), "minutes").minutes;
-    etaDateTime = parseTime(nextStop.time).plus({ minutes: delay });
+      .diff(parseTime(lastPassed.arrivalTime), "minutes").minutes;
+    etaDateTime = parseTime(nextStop.arrivalTime).plus({ minutes: delay });
   }
 
   const scheduledTime = (() => {
-    const [h, m] = nextStop.time.split(":").map(Number);
+    const [h, m] = (nextStop.arrivalTime).split(":").map(Number);
     return now.set({ hour: h, minute: m, second: 0, millisecond: 0 });
   })();
   if (etaDateTime <= now && scheduledTime <= now) {
@@ -383,14 +385,16 @@ function scheduleDelayFallback(
 interface ScheduleEntry {
   id: string;
   stop_name: string;
-  time: string;
+  arrival_time: string;
+  departure_time: string;
+  stop_sequence: number;
   stop_lat: number | null;
   stop_lng: number | null;
   osrm_distance_m?: number | null;
 }
 
 interface ResolvedNextStop {
-  nextStop: { stopName: string; time: string };
+  nextStop: { stopName: string; time: string; departureTime: string; stopSequence: number };
   currentStopIndex: number;
   nextStopEntry: ScheduleEntry;
 }
@@ -409,7 +413,9 @@ export function resolveNextStop(
   return {
     nextStop: {
       stopName: trackedEntry.stop_name,
-      time: formatTime(trackedEntry.time),
+      time: formatTime(trackedEntry.arrival_time),
+      departureTime: formatTime(trackedEntry.departure_time),
+      stopSequence: trackedEntry.stop_sequence,
     },
     currentStopIndex: sortedEntries.indexOf(trackedEntry),
     nextStopEntry: trackedEntry,

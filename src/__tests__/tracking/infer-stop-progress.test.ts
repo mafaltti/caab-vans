@@ -90,17 +90,19 @@ function createMockSupabase(opts: {
   pendingStops: Array<{
     schedule_entry_id: string;
     schedule_entries: {
-      time: string;
       stop_lat: number;
       stop_lng: number;
       geofence_radius_m: number;
       stop_group_id?: string | null;
+      stop_sequence?: number;
+      arrival_time: string;
+      departure_time: string;
     };
   }>;
   allStops: Array<{
     schedule_entry_id: string;
     status: string;
-    schedule_entries: { time: string };
+    schedule_entries: { stop_sequence?: number };
   }>;
   stopCount?: number;
   shifts?: Array<{ id: string; ended_at: string | null; started_at?: string }>;
@@ -113,7 +115,22 @@ function createMockSupabase(opts: {
   const routeRunUpdates: RouteRunUpdateCall[] = [];
   const routeRunUpserts: Array<{ route_id: string; service_date: string }> = [];
   let pingsLimitSpy: ReturnType<typeof vi.fn> | null = null;
-  const { pendingStops, allStops, stopCount = 10, shifts = [], activeShiftOverride, pings = [] } = opts;
+  const { allStops: rawAllStops, stopCount = 10, shifts = [], activeShiftOverride, pings = [] } = opts;
+  // Auto-populate stop_sequence if not provided
+  const pendingStops = opts.pendingStops.map((s, i) => ({
+    ...s,
+    schedule_entries: {
+      ...s.schedule_entries,
+      stop_sequence: s.schedule_entries.stop_sequence ?? i + 1,
+    },
+  }));
+  const allStops = rawAllStops.map((s, i) => ({
+    ...s,
+    schedule_entries: {
+      ...s.schedule_entries,
+      stop_sequence: s.schedule_entries.stop_sequence ?? i + 1,
+    },
+  }));
 
   // Helper: build a chainable mock that terminates with the given result
   function chain(result: unknown) {
@@ -214,7 +231,7 @@ function createMockSupabase(opts: {
                 eq: () => ({ data: null, error: null, count: stopCount }),
               };
             }
-            if (selectStr.includes("schedule_entries!inner(time, stop_lat") && selectStr.includes("stop_group_id")) {
+            if (selectStr.includes("schedule_entries!inner(stop_lat") && selectStr.includes("stop_group_id")) {
               // Step 5: pending stops query
               return {
                 eq: vi.fn().mockReturnValue({
@@ -310,6 +327,9 @@ describe("inferStopProgress geofence dedup", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "08:00",
+          departure_time: "08:00",
         },
       },
     ];
@@ -317,7 +337,7 @@ describe("inferStopProgress geofence dedup", () => {
       {
         schedule_entry_id: "entry-0800",
         status: "passed",
-        schedule_entries: { time: "08:00" },
+        schedule_entries: { time: "08:00", stop_sequence: 1 },
       },
     ];
 
@@ -346,6 +366,9 @@ describe("inferStopProgress geofence dedup", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "07:00",
+          departure_time: "07:00",
         },
       },
       {
@@ -355,6 +378,9 @@ describe("inferStopProgress geofence dedup", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 2,
+          arrival_time: "09:00",
+          departure_time: "09:00",
         },
       },
       {
@@ -364,6 +390,9 @@ describe("inferStopProgress geofence dedup", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 3,
+          arrival_time: "11:00",
+          departure_time: "11:00",
         },
       },
     ];
@@ -371,17 +400,17 @@ describe("inferStopProgress geofence dedup", () => {
       {
         schedule_entry_id: "caab-0700",
         status: "passed",
-        schedule_entries: { time: "07:00" },
+        schedule_entries: { time: "07:00", stop_sequence: 1 },
       },
       {
         schedule_entry_id: "caab-0900",
         status: "pending",
-        schedule_entries: { time: "09:00" },
+        schedule_entries: { time: "09:00", stop_sequence: 2 },
       },
       {
         schedule_entry_id: "caab-1100",
         status: "pending",
-        schedule_entries: { time: "11:00" },
+        schedule_entries: { time: "11:00", stop_sequence: 3 },
       },
     ];
 
@@ -410,6 +439,9 @@ describe("inferStopProgress geofence dedup", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "09:00",
+          departure_time: "09:00",
         },
       },
     ];
@@ -417,7 +449,7 @@ describe("inferStopProgress geofence dedup", () => {
       {
         schedule_entry_id: "caab-0900",
         status: "pending",
-        schedule_entries: { time: "09:00" },
+        schedule_entries: { time: "09:00", stop_sequence: 1 },
       },
     ];
 
@@ -446,6 +478,9 @@ describe("inferStopProgress geofence dedup", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "09:00",
+          departure_time: "09:00",
         },
       },
       {
@@ -455,6 +490,9 @@ describe("inferStopProgress geofence dedup", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 2,
+          arrival_time: "11:00",
+          departure_time: "11:00",
         },
       },
     ];
@@ -462,17 +500,17 @@ describe("inferStopProgress geofence dedup", () => {
       {
         schedule_entry_id: "caab-0700",
         status: "passed",
-        schedule_entries: { time: "07:00" },
+        schedule_entries: { time: "07:00", stop_sequence: 1 },
       },
       {
         schedule_entry_id: "caab-0900",
         status: "passed",
-        schedule_entries: { time: "09:00" },
+        schedule_entries: { time: "09:00", stop_sequence: 2 },
       },
       {
         schedule_entry_id: "caab-1100",
         status: "pending",
-        schedule_entries: { time: "11:00" },
+        schedule_entries: { time: "11:00", stop_sequence: 3 },
       },
     ];
 
@@ -507,6 +545,9 @@ describe("inferStopProgress closest-in-time matching", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "07:00",
+          departure_time: "07:00",
         },
       },
       {
@@ -516,6 +557,9 @@ describe("inferStopProgress closest-in-time matching", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 2,
+          arrival_time: "11:00",
+          departure_time: "11:00",
         },
       },
     ];
@@ -523,12 +567,12 @@ describe("inferStopProgress closest-in-time matching", () => {
       {
         schedule_entry_id: "caab-0700",
         status: "pending",
-        schedule_entries: { time: "07:00" },
+        schedule_entries: { time: "07:00", stop_sequence: 1 },
       },
       {
         schedule_entry_id: "caab-1100",
         status: "passed",
-        schedule_entries: { time: "11:00" },
+        schedule_entries: { time: "11:00", stop_sequence: 2 },
       },
     ];
 
@@ -556,6 +600,9 @@ describe("inferStopProgress closest-in-time matching", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "07:00",
+          departure_time: "07:00",
         },
       },
       {
@@ -565,6 +612,9 @@ describe("inferStopProgress closest-in-time matching", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 2,
+          arrival_time: "11:00",
+          departure_time: "11:00",
         },
       },
     ];
@@ -572,12 +622,12 @@ describe("inferStopProgress closest-in-time matching", () => {
       {
         schedule_entry_id: "caab-0700",
         status: "passed",
-        schedule_entries: { time: "07:00" },
+        schedule_entries: { time: "07:00", stop_sequence: 1 },
       },
       {
         schedule_entry_id: "caab-1100",
         status: "pending",
-        schedule_entries: { time: "11:00" },
+        schedule_entries: { time: "11:00", stop_sequence: 2 },
       },
     ];
 
@@ -605,6 +655,9 @@ describe("inferStopProgress closest-in-time matching", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "07:00",
+          departure_time: "07:00",
         },
       },
       {
@@ -614,6 +667,9 @@ describe("inferStopProgress closest-in-time matching", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 2,
+          arrival_time: "11:00",
+          departure_time: "11:00",
         },
       },
       {
@@ -623,6 +679,9 @@ describe("inferStopProgress closest-in-time matching", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 3,
+          arrival_time: "15:00",
+          departure_time: "15:00",
         },
       },
     ];
@@ -630,17 +689,17 @@ describe("inferStopProgress closest-in-time matching", () => {
       {
         schedule_entry_id: "caab-0700",
         status: "pending",
-        schedule_entries: { time: "07:00" },
+        schedule_entries: { time: "07:00", stop_sequence: 1 },
       },
       {
         schedule_entry_id: "caab-1100",
         status: "passed",
-        schedule_entries: { time: "11:00" },
+        schedule_entries: { time: "11:00", stop_sequence: 2 },
       },
       {
         schedule_entry_id: "caab-1500",
         status: "pending",
-        schedule_entries: { time: "15:00" },
+        schedule_entries: { time: "15:00", stop_sequence: 3 },
       },
     ];
 
@@ -667,15 +726,21 @@ describe("inferStopProgress backfill", () => {
   it("backfills all earlier pending stops when mid-route stop is matched", async () => {
 
     // 10 stops at different coordinates (0.001 deg apart ~111m, well outside 50m geofence)
-    const pendingStops = Array.from({ length: 10 }, (_, i) => ({
-      schedule_entry_id: `stop-${i + 1}`,
-      schedule_entries: {
-        time: `${String(6 + Math.floor(i * 0.5)).padStart(2, "0")}:${i % 2 === 0 ? "00" : "30"}`,
-        stop_lat: -12.97 + i * 0.001,
-        stop_lng: -38.51 + i * 0.001,
-        geofence_radius_m: 50,
-      },
-    }));
+    const pendingStops = Array.from({ length: 10 }, (_, i) => {
+      const time = `${String(6 + Math.floor(i * 0.5)).padStart(2, "0")}:${i % 2 === 0 ? "00" : "30"}`;
+      return {
+        schedule_entry_id: `stop-${i + 1}`,
+        schedule_entries: {
+          time,
+          stop_lat: -12.97 + i * 0.001,
+          stop_lng: -38.51 + i * 0.001,
+          geofence_radius_m: 50,
+          stop_sequence: i + 1,
+          arrival_time: time,
+          departure_time: time,
+        },
+      };
+    });
 
     // Van is at stop 10's coordinates
     const vanLat = pendingStops[9].schedule_entries.stop_lat + 0.00003;
@@ -684,7 +749,7 @@ describe("inferStopProgress backfill", () => {
     const allStops = pendingStops.map((s) => ({
       schedule_entry_id: s.schedule_entry_id,
       status: "passed",
-      schedule_entries: { time: s.schedule_entries.time },
+      schedule_entries: { time: s.schedule_entries.time, stop_sequence: s.schedule_entries.stop_sequence },
     }));
 
     const mock = createMockSupabase({
@@ -727,6 +792,9 @@ describe("inferStopProgress backfill", () => {
           stop_lat: -12.960,
           stop_lng: -38.500,
           geofence_radius_m: 50,
+          stop_sequence: 6,
+          arrival_time: "08:00",
+          departure_time: "08:00",
         },
       },
       {
@@ -736,6 +804,9 @@ describe("inferStopProgress backfill", () => {
           stop_lat: -12.961,
           stop_lng: -38.501,
           geofence_radius_m: 50,
+          stop_sequence: 7,
+          arrival_time: "08:15",
+          departure_time: "08:15",
         },
       },
       {
@@ -745,6 +816,9 @@ describe("inferStopProgress backfill", () => {
           stop_lat: -12.962,
           stop_lng: -38.502,
           geofence_radius_m: 50,
+          stop_sequence: 8,
+          arrival_time: "08:30",
+          departure_time: "08:30",
         },
       },
     ];
@@ -758,12 +832,12 @@ describe("inferStopProgress backfill", () => {
       ...Array.from({ length: 5 }, (_, i) => ({
         schedule_entry_id: `stop-${i + 1}`,
         status: "passed",
-        schedule_entries: { time: `${String(6 + Math.floor(i * 0.5)).padStart(2, "0")}:${i % 2 === 0 ? "00" : "30"}` },
+        schedule_entries: { time: `${String(6 + Math.floor(i * 0.5)).padStart(2, "0")}:${i % 2 === 0 ? "00" : "30"}`, stop_sequence: i + 1 },
       })),
       // Stops 6-8 now passed (after backfill + geofence)
-      { schedule_entry_id: "stop-6", status: "passed", schedule_entries: { time: "08:00" } },
-      { schedule_entry_id: "stop-7", status: "passed", schedule_entries: { time: "08:15" } },
-      { schedule_entry_id: "stop-8", status: "passed", schedule_entries: { time: "08:30" } },
+      { schedule_entry_id: "stop-6", status: "passed", schedule_entries: { time: "08:00", stop_sequence: 6 } },
+      { schedule_entry_id: "stop-7", status: "passed", schedule_entries: { time: "08:15", stop_sequence: 7 } },
+      { schedule_entry_id: "stop-8", status: "passed", schedule_entries: { time: "08:30", stop_sequence: 8 } },
     ];
 
     const mock = createMockSupabase({
@@ -803,6 +877,9 @@ describe("inferStopProgress backfill", () => {
           stop_lat: -12.9700,
           stop_lng: -38.5100,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "06:00",
+          departure_time: "06:00",
         },
       },
     ];
@@ -812,7 +889,7 @@ describe("inferStopProgress backfill", () => {
     const vanLng = -38.5100 + 0.00003;
 
     const allStops = [
-      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "06:00" } },
+      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "06:00", stop_sequence: 1 } },
     ];
 
     const mock = createMockSupabase({ pendingStops, allStops, shifts: [{ id: "shift-1", ended_at: null }] });
@@ -841,6 +918,9 @@ describe("inferStopProgress backfill", () => {
           stop_lat: -12.950,
           stop_lng: -38.500,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "08:00",
+          departure_time: "08:00",
         },
       },
       {
@@ -850,6 +930,9 @@ describe("inferStopProgress backfill", () => {
           stop_lat: -12.951,
           stop_lng: -38.501,
           geofence_radius_m: 50,
+          stop_sequence: 2,
+          arrival_time: "09:00",
+          departure_time: "09:00",
         },
       },
       {
@@ -859,6 +942,9 @@ describe("inferStopProgress backfill", () => {
           stop_lat: -12.952,
           stop_lng: -38.502,
           geofence_radius_m: 50,
+          stop_sequence: 3,
+          arrival_time: "10:00",
+          departure_time: "10:00",
         },
       },
     ];
@@ -868,9 +954,9 @@ describe("inferStopProgress backfill", () => {
     const vanLng = -38.502 + 0.00003;
 
     const allStops = [
-      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00" } },
-      { schedule_entry_id: "stop-2", status: "passed", schedule_entries: { time: "09:00" } },
-      { schedule_entry_id: "stop-3", status: "passed", schedule_entries: { time: "10:00" } },
+      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00", stop_sequence: 1 } },
+      { schedule_entry_id: "stop-2", status: "passed", schedule_entries: { time: "09:00", stop_sequence: 2 } },
+      { schedule_entry_id: "stop-3", status: "passed", schedule_entries: { time: "10:00", stop_sequence: 3 } },
     ];
 
     const mock = createMockSupabase({
@@ -914,6 +1000,9 @@ describe("inferStopProgress edge cases", () => {
           stop_lat: -12.950,
           stop_lng: -38.500,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "08:00",
+          departure_time: "08:00",
         },
       },
       {
@@ -923,6 +1012,9 @@ describe("inferStopProgress edge cases", () => {
           stop_lat: -12.951,
           stop_lng: -38.501,
           geofence_radius_m: 50,
+          stop_sequence: 2,
+          arrival_time: "09:00",
+          departure_time: "09:00",
         },
       },
       {
@@ -932,6 +1024,9 @@ describe("inferStopProgress edge cases", () => {
           stop_lat: -12.952,
           stop_lng: -38.502,
           geofence_radius_m: 50,
+          stop_sequence: 3,
+          arrival_time: "10:00",
+          departure_time: "10:00",
         },
       },
     ];
@@ -942,9 +1037,9 @@ describe("inferStopProgress edge cases", () => {
 
     // After updates: all stops are passed
     const allStops = [
-      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00" } },
-      { schedule_entry_id: "stop-2", status: "passed", schedule_entries: { time: "09:00" } },
-      { schedule_entry_id: "stop-3", status: "passed", schedule_entries: { time: "10:00" } },
+      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00", stop_sequence: 1 } },
+      { schedule_entry_id: "stop-2", status: "passed", schedule_entries: { time: "09:00", stop_sequence: 2 } },
+      { schedule_entry_id: "stop-3", status: "passed", schedule_entries: { time: "10:00", stop_sequence: 3 } },
     ];
 
     const mock = createMockSupabase({
@@ -989,6 +1084,9 @@ describe("inferStopProgress edge cases", () => {
           stop_lat: -12.950,
           stop_lng: -38.500,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "08:00",
+          departure_time: "08:00",
         },
       },
       {
@@ -998,6 +1096,9 @@ describe("inferStopProgress edge cases", () => {
           stop_lat: -12.951,
           stop_lng: -38.501,
           geofence_radius_m: 50,
+          stop_sequence: 2,
+          arrival_time: "09:00",
+          departure_time: "09:00",
         },
       },
       {
@@ -1007,6 +1108,9 @@ describe("inferStopProgress edge cases", () => {
           stop_lat: -12.952,
           stop_lng: -38.502,
           geofence_radius_m: 50,
+          stop_sequence: 3,
+          arrival_time: "10:00",
+          departure_time: "10:00",
         },
       },
     ];
@@ -1017,9 +1121,9 @@ describe("inferStopProgress edge cases", () => {
 
     // All stops remain pending
     const allStops = [
-      { schedule_entry_id: "stop-1", status: "pending", schedule_entries: { time: "08:00" } },
-      { schedule_entry_id: "stop-2", status: "pending", schedule_entries: { time: "09:00" } },
-      { schedule_entry_id: "stop-3", status: "pending", schedule_entries: { time: "10:00" } },
+      { schedule_entry_id: "stop-1", status: "pending", schedule_entries: { time: "08:00", stop_sequence: 1 } },
+      { schedule_entry_id: "stop-2", status: "pending", schedule_entries: { time: "09:00", stop_sequence: 2 } },
+      { schedule_entry_id: "stop-3", status: "pending", schedule_entries: { time: "10:00", stop_sequence: 3 } },
     ];
 
     const mock = createMockSupabase({ pendingStops, allStops, shifts: [{ id: "shift-1", ended_at: null }] });
@@ -1048,13 +1152,16 @@ describe("inferStopProgress edge cases", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "09:00",
+          departure_time: "09:00",
         },
       },
     ];
 
     // Stop still pending (early arrival blocked the match)
     const allStops = [
-      { schedule_entry_id: "stop-1", status: "pending", schedule_entries: { time: "09:00" } },
+      { schedule_entry_id: "stop-1", status: "pending", schedule_entries: { time: "09:00", stop_sequence: 1 } },
     ];
 
     const mock = createMockSupabase({ pendingStops, allStops, shifts: [{ id: "shift-1", ended_at: null }] });
@@ -1081,14 +1188,17 @@ describe("inferStopProgress edge cases", () => {
         stop_lat: number;
         stop_lng: number;
         geofence_radius_m: number;
+        stop_sequence: number;
+        arrival_time: string;
+        departure_time: string;
       };
     }> = [];
 
     // All stops already passed
     const allStops = [
-      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00" } },
-      { schedule_entry_id: "stop-2", status: "passed", schedule_entries: { time: "09:00" } },
-      { schedule_entry_id: "stop-3", status: "passed", schedule_entries: { time: "10:00" } },
+      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00", stop_sequence: 1 } },
+      { schedule_entry_id: "stop-2", status: "passed", schedule_entries: { time: "09:00", stop_sequence: 2 } },
+      { schedule_entry_id: "stop-3", status: "passed", schedule_entries: { time: "10:00", stop_sequence: 3 } },
     ];
 
     const mock = createMockSupabase({ pendingStops, allStops, shifts: [{ id: "shift-1", ended_at: null }] });
@@ -1126,6 +1236,9 @@ describe("inferStopProgress shift gate", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "08:00",
+          departure_time: "08:00",
         },
       },
     ];
@@ -1133,7 +1246,7 @@ describe("inferStopProgress shift gate", () => {
       {
         schedule_entry_id: "entry-0800",
         status: "pending",
-        schedule_entries: { time: "08:00" },
+        schedule_entries: { time: "08:00", stop_sequence: 1 },
       },
     ];
 
@@ -1164,6 +1277,9 @@ describe("inferStopProgress shift gate", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "08:00",
+          departure_time: "08:00",
         },
       },
     ];
@@ -1171,7 +1287,7 @@ describe("inferStopProgress shift gate", () => {
       {
         schedule_entry_id: "entry-0800",
         status: "pending",
-        schedule_entries: { time: "08:00" },
+        schedule_entries: { time: "08:00", stop_sequence: 1 },
       },
     ];
 
@@ -1202,23 +1318,23 @@ describe("inferStopProgress shift gate", () => {
     const pendingStops = [
       {
         schedule_entry_id: "stop-1",
-        schedule_entries: { time: "07:00", stop_lat: -12.950, stop_lng: -38.500, geofence_radius_m: 50 },
+        schedule_entries: { time: "07:00", stop_lat: -12.950, stop_lng: -38.500, geofence_radius_m: 50, stop_sequence: 1, arrival_time: "07:00", departure_time: "07:00" },
       },
       {
         schedule_entry_id: "stop-2",
-        schedule_entries: { time: "07:30", stop_lat: -12.951, stop_lng: -38.501, geofence_radius_m: 50 },
+        schedule_entries: { time: "07:30", stop_lat: -12.951, stop_lng: -38.501, geofence_radius_m: 50, stop_sequence: 2, arrival_time: "07:30", departure_time: "07:30" },
       },
       {
         schedule_entry_id: "stop-3",
-        schedule_entries: { time: "08:00", stop_lat: -12.952, stop_lng: -38.502, geofence_radius_m: 50 },
+        schedule_entries: { time: "08:00", stop_lat: -12.952, stop_lng: -38.502, geofence_radius_m: 50, stop_sequence: 3, arrival_time: "08:00", departure_time: "08:00" },
       },
       {
         schedule_entry_id: "stop-4",
-        schedule_entries: { time: "09:00", stop_lat: -12.953, stop_lng: -38.503, geofence_radius_m: 50 },
+        schedule_entries: { time: "09:00", stop_lat: -12.953, stop_lng: -38.503, geofence_radius_m: 50, stop_sequence: 4, arrival_time: "09:00", departure_time: "09:00" },
       },
       {
         schedule_entry_id: "stop-5",
-        schedule_entries: { time: "10:00", stop_lat: -12.954, stop_lng: -38.504, geofence_radius_m: 50 },
+        schedule_entries: { time: "10:00", stop_lat: -12.954, stop_lng: -38.504, geofence_radius_m: 50, stop_sequence: 5, arrival_time: "10:00", departure_time: "10:00" },
       },
     ];
 
@@ -1227,11 +1343,11 @@ describe("inferStopProgress shift gate", () => {
     const vanLng = -38.502 + 0.00003;
 
     const allStops = [
-      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "07:00" } },
-      { schedule_entry_id: "stop-2", status: "passed", schedule_entries: { time: "07:30" } },
-      { schedule_entry_id: "stop-3", status: "passed", schedule_entries: { time: "08:00" } },
-      { schedule_entry_id: "stop-4", status: "pending", schedule_entries: { time: "09:00" } },
-      { schedule_entry_id: "stop-5", status: "pending", schedule_entries: { time: "10:00" } },
+      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "07:00", stop_sequence: 1 } },
+      { schedule_entry_id: "stop-2", status: "passed", schedule_entries: { time: "07:30", stop_sequence: 2 } },
+      { schedule_entry_id: "stop-3", status: "passed", schedule_entries: { time: "08:00", stop_sequence: 3 } },
+      { schedule_entry_id: "stop-4", status: "pending", schedule_entries: { time: "09:00", stop_sequence: 4 } },
+      { schedule_entry_id: "stop-5", status: "pending", schedule_entries: { time: "10:00", stop_sequence: 5 } },
     ];
 
     const mock = createMockSupabase({
@@ -1286,6 +1402,9 @@ describe("inferStopProgress persisted progress state", () => {
           stop_lat: -12.96,
           stop_lng: -38.5,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "08:00",
+          departure_time: "08:00",
         },
       },
       {
@@ -1295,6 +1414,9 @@ describe("inferStopProgress persisted progress state", () => {
           stop_lat: -12.961,
           stop_lng: -38.501,
           geofence_radius_m: 50,
+          stop_sequence: 2,
+          arrival_time: "08:30",
+          departure_time: "08:30",
         },
       },
       {
@@ -1304,6 +1426,9 @@ describe("inferStopProgress persisted progress state", () => {
           stop_lat: -12.962,
           stop_lng: -38.502,
           geofence_radius_m: 50,
+          stop_sequence: 3,
+          arrival_time: "09:00",
+          departure_time: "09:00",
         },
       },
     ];
@@ -1314,9 +1439,9 @@ describe("inferStopProgress persisted progress state", () => {
 
     // After updates: stop-1 and stop-2 passed, stop-3 pending
     const allStops = [
-      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00" } },
-      { schedule_entry_id: "stop-2", status: "passed", schedule_entries: { time: "08:30" } },
-      { schedule_entry_id: "stop-3", status: "pending", schedule_entries: { time: "09:00" } },
+      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00", stop_sequence: 1 } },
+      { schedule_entry_id: "stop-2", status: "passed", schedule_entries: { time: "08:30", stop_sequence: 2 } },
+      { schedule_entry_id: "stop-3", status: "pending", schedule_entries: { time: "09:00", stop_sequence: 3 } },
     ];
 
     const mock = createMockSupabase({
@@ -1351,6 +1476,9 @@ describe("inferStopProgress persisted progress state", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "08:00",
+          departure_time: "08:00",
         },
       },
     ];
@@ -1358,7 +1486,7 @@ describe("inferStopProgress persisted progress state", () => {
       {
         schedule_entry_id: "entry-0800",
         status: "passed",
-        schedule_entries: { time: "08:00" },
+        schedule_entries: { time: "08:00", stop_sequence: 1 },
       },
     ];
 
@@ -1393,6 +1521,9 @@ describe("inferStopProgress persisted progress state", () => {
         stop_lat: number;
         stop_lng: number;
         geofence_radius_m: number;
+        stop_sequence: number;
+        arrival_time: string;
+        departure_time: string;
       };
     }> = [];
 
@@ -1400,7 +1531,7 @@ describe("inferStopProgress persisted progress state", () => {
     const allStops: Array<{
       schedule_entry_id: string;
       status: string;
-      schedule_entries: { time: string };
+      schedule_entries: { time: string; stop_sequence: number };
     }> = [];
 
     const mock = createMockSupabase({
@@ -1435,11 +1566,11 @@ describe("inferStopProgress confidence gating", () => {
   it("single ping raw geofence match has confidence 0.7 and does NOT backfill large gap", async () => {
 
     const pendingStops = [
-      { schedule_entry_id: "stop-1", schedule_entries: { time: "07:00", stop_lat: -12.950, stop_lng: -38.500, geofence_radius_m: 50 } },
-      { schedule_entry_id: "stop-2", schedule_entries: { time: "08:00", stop_lat: -12.951, stop_lng: -38.501, geofence_radius_m: 50 } },
-      { schedule_entry_id: "stop-3", schedule_entries: { time: "09:00", stop_lat: -12.952, stop_lng: -38.502, geofence_radius_m: 50 } },
-      { schedule_entry_id: "stop-4", schedule_entries: { time: "09:30", stop_lat: -12.953, stop_lng: -38.503, geofence_radius_m: 50 } },
-      { schedule_entry_id: "stop-5", schedule_entries: { time: "10:00", stop_lat: -12.954, stop_lng: -38.504, geofence_radius_m: 50 } },
+      { schedule_entry_id: "stop-1", schedule_entries: { time: "07:00", stop_lat: -12.950, stop_lng: -38.500, geofence_radius_m: 50, stop_sequence: 1, arrival_time: "07:00", departure_time: "07:00" } },
+      { schedule_entry_id: "stop-2", schedule_entries: { time: "08:00", stop_lat: -12.951, stop_lng: -38.501, geofence_radius_m: 50, stop_sequence: 2, arrival_time: "08:00", departure_time: "08:00" } },
+      { schedule_entry_id: "stop-3", schedule_entries: { time: "09:00", stop_lat: -12.952, stop_lng: -38.502, geofence_radius_m: 50, stop_sequence: 3, arrival_time: "09:00", departure_time: "09:00" } },
+      { schedule_entry_id: "stop-4", schedule_entries: { time: "09:30", stop_lat: -12.953, stop_lng: -38.503, geofence_radius_m: 50, stop_sequence: 4, arrival_time: "09:30", departure_time: "09:30" } },
+      { schedule_entry_id: "stop-5", schedule_entries: { time: "10:00", stop_lat: -12.954, stop_lng: -38.504, geofence_radius_m: 50, stop_sequence: 5, arrival_time: "10:00", departure_time: "10:00" } },
     ];
 
     const vanLat = -12.954 + 0.00003;
@@ -1448,7 +1579,7 @@ describe("inferStopProgress confidence gating", () => {
     const allStops = pendingStops.map((s) => ({
       schedule_entry_id: s.schedule_entry_id,
       status: s.schedule_entry_id === "stop-5" ? "passed" : "pending",
-      schedule_entries: { time: s.schedule_entries.time },
+      schedule_entries: { time: s.schedule_entries.time, stop_sequence: s.schedule_entries.stop_sequence },
     }));
 
     const mock = createMockSupabase({
@@ -1482,9 +1613,9 @@ describe("inferStopProgress confidence gating", () => {
   it("2 pings within 5-min window yield higher confidence and trigger backfill", async () => {
 
     const pendingStops = [
-      { schedule_entry_id: "stop-1", schedule_entries: { time: "08:00", stop_lat: -12.950, stop_lng: -38.500, geofence_radius_m: 50 } },
-      { schedule_entry_id: "stop-2", schedule_entries: { time: "09:00", stop_lat: -12.951, stop_lng: -38.501, geofence_radius_m: 50 } },
-      { schedule_entry_id: "stop-3", schedule_entries: { time: "10:00", stop_lat: -12.952, stop_lng: -38.502, geofence_radius_m: 50 } },
+      { schedule_entry_id: "stop-1", schedule_entries: { time: "08:00", stop_lat: -12.950, stop_lng: -38.500, geofence_radius_m: 50, stop_sequence: 1, arrival_time: "08:00", departure_time: "08:00" } },
+      { schedule_entry_id: "stop-2", schedule_entries: { time: "09:00", stop_lat: -12.951, stop_lng: -38.501, geofence_radius_m: 50, stop_sequence: 2, arrival_time: "09:00", departure_time: "09:00" } },
+      { schedule_entry_id: "stop-3", schedule_entries: { time: "10:00", stop_lat: -12.952, stop_lng: -38.502, geofence_radius_m: 50, stop_sequence: 3, arrival_time: "10:00", departure_time: "10:00" } },
     ];
 
     const vanLat = -12.952 + 0.00003;
@@ -1493,7 +1624,7 @@ describe("inferStopProgress confidence gating", () => {
     const allStops = pendingStops.map((s) => ({
       schedule_entry_id: s.schedule_entry_id,
       status: "passed",
-      schedule_entries: { time: s.schedule_entries.time },
+      schedule_entries: { time: s.schedule_entries.time, stop_sequence: s.schedule_entries.stop_sequence },
     }));
 
     const mock = createMockSupabase({
@@ -1527,16 +1658,16 @@ describe("inferStopProgress confidence gating", () => {
   it("single ping does NOT backfill even for 1-stop gap (confidence 0.7 not > 0.7)", async () => {
 
     const pendingStops = [
-      { schedule_entry_id: "stop-1", schedule_entries: { time: "08:00", stop_lat: -12.950, stop_lng: -38.500, geofence_radius_m: 50 } },
-      { schedule_entry_id: "stop-2", schedule_entries: { time: "09:00", stop_lat: -12.951, stop_lng: -38.501, geofence_radius_m: 50 } },
+      { schedule_entry_id: "stop-1", schedule_entries: { time: "08:00", stop_lat: -12.950, stop_lng: -38.500, geofence_radius_m: 50, stop_sequence: 1, arrival_time: "08:00", departure_time: "08:00" } },
+      { schedule_entry_id: "stop-2", schedule_entries: { time: "09:00", stop_lat: -12.951, stop_lng: -38.501, geofence_radius_m: 50, stop_sequence: 2, arrival_time: "09:00", departure_time: "09:00" } },
     ];
 
     const vanLat = -12.951 + 0.00003;
     const vanLng = -38.501 + 0.00003;
 
     const allStops = [
-      { schedule_entry_id: "stop-1", status: "pending", schedule_entries: { time: "08:00" } },
-      { schedule_entry_id: "stop-2", status: "passed", schedule_entries: { time: "09:00" } },
+      { schedule_entry_id: "stop-1", status: "pending", schedule_entries: { time: "08:00", stop_sequence: 1 } },
+      { schedule_entry_id: "stop-2", status: "passed", schedule_entries: { time: "09:00", stop_sequence: 2 } },
     ];
 
     const mock = createMockSupabase({
@@ -1568,10 +1699,10 @@ describe("inferStopProgress confidence gating", () => {
   it("backfilled stops have pass_source backfill with scaled confidence", async () => {
 
     const pendingStops = [
-      { schedule_entry_id: "stop-1", schedule_entries: { time: "07:00", stop_lat: -12.950, stop_lng: -38.500, geofence_radius_m: 50 } },
-      { schedule_entry_id: "stop-2", schedule_entries: { time: "08:00", stop_lat: -12.951, stop_lng: -38.501, geofence_radius_m: 50 } },
-      { schedule_entry_id: "stop-3", schedule_entries: { time: "09:00", stop_lat: -12.952, stop_lng: -38.502, geofence_radius_m: 50 } },
-      { schedule_entry_id: "stop-4", schedule_entries: { time: "10:00", stop_lat: -12.953, stop_lng: -38.503, geofence_radius_m: 50 } },
+      { schedule_entry_id: "stop-1", schedule_entries: { time: "07:00", stop_lat: -12.950, stop_lng: -38.500, geofence_radius_m: 50, stop_sequence: 1, arrival_time: "07:00", departure_time: "07:00" } },
+      { schedule_entry_id: "stop-2", schedule_entries: { time: "08:00", stop_lat: -12.951, stop_lng: -38.501, geofence_radius_m: 50, stop_sequence: 2, arrival_time: "08:00", departure_time: "08:00" } },
+      { schedule_entry_id: "stop-3", schedule_entries: { time: "09:00", stop_lat: -12.952, stop_lng: -38.502, geofence_radius_m: 50, stop_sequence: 3, arrival_time: "09:00", departure_time: "09:00" } },
+      { schedule_entry_id: "stop-4", schedule_entries: { time: "10:00", stop_lat: -12.953, stop_lng: -38.503, geofence_radius_m: 50, stop_sequence: 4, arrival_time: "10:00", departure_time: "10:00" } },
     ];
 
     const vanLat = -12.953 + 0.00003;
@@ -1580,7 +1711,7 @@ describe("inferStopProgress confidence gating", () => {
     const allStops = pendingStops.map((s) => ({
       schedule_entry_id: s.schedule_entry_id,
       status: "passed",
-      schedule_entries: { time: s.schedule_entries.time },
+      schedule_entries: { time: s.schedule_entries.time, stop_sequence: s.schedule_entries.stop_sequence },
     }));
 
     const mock = createMockSupabase({
@@ -1619,12 +1750,15 @@ describe("inferStopProgress confidence gating", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "08:00",
+          departure_time: "08:00",
         },
       },
     ];
 
     const allStops = [
-      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00" } },
+      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00", stop_sequence: 1 } },
     ];
 
     // Raw GPS ~33m from stop, snapped very close (displacement ~33m < 50m)
@@ -1678,12 +1812,15 @@ describe("inferStopProgress hybrid raw/snapped position", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "08:00",
+          departure_time: "08:00",
         },
       },
     ];
 
     const allStops = [
-      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00" } },
+      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00", stop_sequence: 1 } },
     ];
 
     const rawLat = VAN_AT_CAAB_LAT;
@@ -1725,12 +1862,15 @@ describe("inferStopProgress hybrid raw/snapped position", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "08:00",
+          departure_time: "08:00",
         },
       },
     ];
 
     const allStops = [
-      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00" } },
+      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00", stop_sequence: 1 } },
     ];
 
     // Raw ~28m from stop, snapped ~6m from stop (displacement ~22m < 50m)
@@ -1771,12 +1911,15 @@ describe("inferStopProgress hybrid raw/snapped position", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "08:00",
+          departure_time: "08:00",
         },
       },
     ];
 
     const allStops = [
-      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00" } },
+      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00", stop_sequence: 1 } },
     ];
 
     const mock = createMockSupabase({
@@ -1811,12 +1954,15 @@ describe("inferStopProgress hybrid raw/snapped position", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "08:00",
+          departure_time: "08:00",
         },
       },
     ];
 
     const allStops = [
-      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00" } },
+      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00", stop_sequence: 1 } },
     ];
 
     const mock = createMockSupabase({
@@ -1858,6 +2004,9 @@ describe("inferStopProgress stop_group_id grouping", () => {
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
           stop_group_id: "group-caab",
+          stop_sequence: 1,
+          arrival_time: "08:00",
+          departure_time: "08:00",
         },
       },
       {
@@ -1868,12 +2017,15 @@ describe("inferStopProgress stop_group_id grouping", () => {
           stop_lng: -38.520,
           geofence_radius_m: 50,
           stop_group_id: "group-caab",
+          stop_sequence: 2,
+          arrival_time: "10:00",
+          departure_time: "10:00",
         },
       },
     ];
     const allStops = [
-      { schedule_entry_id: "entry-a", status: "passed", schedule_entries: { time: "08:00" } },
-      { schedule_entry_id: "entry-b", status: "pending", schedule_entries: { time: "10:00" } },
+      { schedule_entry_id: "entry-a", status: "passed", schedule_entries: { time: "08:00", stop_sequence: 1 } },
+      { schedule_entry_id: "entry-b", status: "pending", schedule_entries: { time: "10:00", stop_sequence: 2 } },
     ];
 
     const mock = createMockSupabase({ pendingStops, allStops, shifts: [{ id: "shift-1", ended_at: null }] });
@@ -1904,6 +2056,9 @@ describe("inferStopProgress stop_group_id grouping", () => {
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
           stop_group_id: null,
+          stop_sequence: 1,
+          arrival_time: "08:00",
+          departure_time: "08:00",
         },
       },
       {
@@ -1914,12 +2069,15 @@ describe("inferStopProgress stop_group_id grouping", () => {
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
           stop_group_id: null,
+          stop_sequence: 2,
+          arrival_time: "10:00",
+          departure_time: "10:00",
         },
       },
     ];
     const allStops = [
-      { schedule_entry_id: "entry-0800", status: "passed", schedule_entries: { time: "08:00" } },
-      { schedule_entry_id: "entry-1000", status: "pending", schedule_entries: { time: "10:00" } },
+      { schedule_entry_id: "entry-0800", status: "passed", schedule_entries: { time: "08:00", stop_sequence: 1 } },
+      { schedule_entry_id: "entry-1000", status: "pending", schedule_entries: { time: "10:00", stop_sequence: 2 } },
     ];
 
     const mock = createMockSupabase({ pendingStops, allStops, shifts: [{ id: "shift-1", ended_at: null }] });
@@ -1949,6 +2107,9 @@ describe("inferStopProgress stop_group_id grouping", () => {
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
           stop_group_id: "terminal-a",
+          stop_sequence: 1,
+          arrival_time: "07:00",
+          departure_time: "07:00",
         },
       },
       {
@@ -1959,6 +2120,9 @@ describe("inferStopProgress stop_group_id grouping", () => {
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
           stop_group_id: "terminal-a",
+          stop_sequence: 2,
+          arrival_time: "11:00",
+          departure_time: "11:00",
         },
       },
       {
@@ -1969,13 +2133,16 @@ describe("inferStopProgress stop_group_id grouping", () => {
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
           stop_group_id: "terminal-a",
+          stop_sequence: 3,
+          arrival_time: "15:00",
+          departure_time: "15:00",
         },
       },
     ];
     const allStops = [
-      { schedule_entry_id: "grp-0700", status: "pending", schedule_entries: { time: "07:00" } },
-      { schedule_entry_id: "grp-1100", status: "passed", schedule_entries: { time: "11:00" } },
-      { schedule_entry_id: "grp-1500", status: "pending", schedule_entries: { time: "15:00" } },
+      { schedule_entry_id: "grp-0700", status: "pending", schedule_entries: { time: "07:00", stop_sequence: 1 } },
+      { schedule_entry_id: "grp-1100", status: "passed", schedule_entries: { time: "11:00", stop_sequence: 2 } },
+      { schedule_entry_id: "grp-1500", status: "pending", schedule_entries: { time: "15:00", stop_sequence: 3 } },
     ];
 
     const mock = createMockSupabase({ pendingStops, allStops, shifts: [{ id: "shift-1", ended_at: null }] });
@@ -2042,6 +2209,9 @@ describe("inferStopProgress per-stop snap evaluation", () => {
           stop_lat: stopALat,
           stop_lng: stopALng,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "08:00",
+          departure_time: "08:00",
         },
       },
       {
@@ -2051,13 +2221,16 @@ describe("inferStopProgress per-stop snap evaluation", () => {
           stop_lat: stopBLat,
           stop_lng: stopBLng,
           geofence_radius_m: 50,
+          stop_sequence: 2,
+          arrival_time: "08:05",
+          departure_time: "08:05",
         },
       },
     ];
 
     const allStops = [
-      { schedule_entry_id: "stop-a", status: "passed", schedule_entries: { time: "08:00" } },
-      { schedule_entry_id: "stop-b", status: "passed", schedule_entries: { time: "08:05" } },
+      { schedule_entry_id: "stop-a", status: "passed", schedule_entries: { time: "08:00", stop_sequence: 1 } },
+      { schedule_entry_id: "stop-b", status: "passed", schedule_entries: { time: "08:05", stop_sequence: 2 } },
     ];
 
     const mock = createMockSupabase({
@@ -2102,12 +2275,15 @@ describe("inferStopProgress per-stop snap evaluation", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "08:00",
+          departure_time: "08:00",
         },
       },
     ];
 
     const allStops = [
-      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00" } },
+      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00", stop_sequence: 1 } },
     ];
 
     const rawLat = VAN_AT_CAAB_LAT;
@@ -2156,12 +2332,15 @@ describe("inferStopProgress confidence source alignment", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "08:00",
+          departure_time: "08:00",
         },
       },
     ];
 
     const allStops = [
-      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00" } },
+      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00", stop_sequence: 1 } },
     ];
 
     // Raw ~33m from stop, snapped very close (displacement ~33m < 50m)
@@ -2200,14 +2379,14 @@ describe("inferStopProgress confidence source alignment", () => {
   it("raw passage with 2+ pings still gets confidence 0.9 (T028)", async () => {
 
     const pendingStops = [
-      { schedule_entry_id: "stop-1", schedule_entries: { time: "10:00", stop_lat: -12.952, stop_lng: -38.502, geofence_radius_m: 50 } },
+      { schedule_entry_id: "stop-1", schedule_entries: { time: "10:00", stop_lat: -12.952, stop_lng: -38.502, geofence_radius_m: 50, stop_sequence: 1, arrival_time: "10:00", departure_time: "10:00" } },
     ];
 
     const vanLat = -12.952 + 0.00003;
     const vanLng = -38.502 + 0.00003;
 
     const allStops = [
-      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "10:00" } },
+      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "10:00", stop_sequence: 1 } },
     ];
 
     const mock = createMockSupabase({
@@ -2244,12 +2423,15 @@ describe("inferStopProgress confidence source alignment", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "08:00",
+          departure_time: "08:00",
         },
       },
     ];
 
     const allStops = [
-      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00" } },
+      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00", stop_sequence: 1 } },
     ];
 
     // Raw ~33m from stop, snapped very close
@@ -2293,16 +2475,16 @@ describe("inferStopProgress backfill gate tightening", () => {
   it("2-ping raw match (confidence 0.9) with gap=1 DOES trigger backfill (T033)", async () => {
 
     const pendingStops = [
-      { schedule_entry_id: "stop-1", schedule_entries: { time: "08:00", stop_lat: -12.950, stop_lng: -38.500, geofence_radius_m: 50 } },
-      { schedule_entry_id: "stop-2", schedule_entries: { time: "09:00", stop_lat: -12.951, stop_lng: -38.501, geofence_radius_m: 50 } },
+      { schedule_entry_id: "stop-1", schedule_entries: { time: "08:00", stop_lat: -12.950, stop_lng: -38.500, geofence_radius_m: 50, stop_sequence: 1, arrival_time: "08:00", departure_time: "08:00" } },
+      { schedule_entry_id: "stop-2", schedule_entries: { time: "09:00", stop_lat: -12.951, stop_lng: -38.501, geofence_radius_m: 50, stop_sequence: 2, arrival_time: "09:00", departure_time: "09:00" } },
     ];
 
     const vanLat = -12.951 + 0.00003;
     const vanLng = -38.501 + 0.00003;
 
     const allStops = [
-      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00" } },
-      { schedule_entry_id: "stop-2", status: "passed", schedule_entries: { time: "09:00" } },
+      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00", stop_sequence: 1 } },
+      { schedule_entry_id: "stop-2", status: "passed", schedule_entries: { time: "09:00", stop_sequence: 2 } },
     ];
 
     const mock = createMockSupabase({
@@ -2337,8 +2519,8 @@ describe("inferStopProgress backfill gate tightening", () => {
   it("snapped passage (confidence 0.85) with gap=1 DOES trigger backfill (T034)", async () => {
 
     const pendingStops = [
-      { schedule_entry_id: "stop-1", schedule_entries: { time: "08:00", stop_lat: -12.950, stop_lng: -38.500, geofence_radius_m: 50 } },
-      { schedule_entry_id: "stop-2", schedule_entries: { time: "09:00", stop_lat: -12.951, stop_lng: -38.501, geofence_radius_m: 50 } },
+      { schedule_entry_id: "stop-1", schedule_entries: { time: "08:00", stop_lat: -12.950, stop_lng: -38.500, geofence_radius_m: 50, stop_sequence: 1, arrival_time: "08:00", departure_time: "08:00" } },
+      { schedule_entry_id: "stop-2", schedule_entries: { time: "09:00", stop_lat: -12.951, stop_lng: -38.501, geofence_radius_m: 50, stop_sequence: 2, arrival_time: "09:00", departure_time: "09:00" } },
     ];
 
     // Raw far from stop-2, snapped close to stop-2
@@ -2348,8 +2530,8 @@ describe("inferStopProgress backfill gate tightening", () => {
     const snappedLng = -38.501;
 
     const allStops = [
-      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00" } },
-      { schedule_entry_id: "stop-2", status: "passed", schedule_entries: { time: "09:00" } },
+      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00", stop_sequence: 1 } },
+      { schedule_entry_id: "stop-2", status: "passed", schedule_entries: { time: "09:00", stop_sequence: 2 } },
     ];
 
     const mock = createMockSupabase({
@@ -2399,11 +2581,14 @@ describe("write error logging", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "08:00",
+          departure_time: "08:00",
         },
       },
     ];
     const allStops = [
-      { schedule_entry_id: "entry-0800", status: "passed", schedule_entries: { time: "08:00" } },
+      { schedule_entry_id: "entry-0800", status: "passed", schedule_entries: { time: "08:00", stop_sequence: 1 } },
     ];
 
     const mock = createMockSupabase({ pendingStops, allStops, shifts: [{ id: "shift-1", ended_at: null }] });
@@ -2460,6 +2645,9 @@ describe("write error logging", () => {
           stop_lat: CAAB_LAT + 0.01, // far from van
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "08:00",
+          departure_time: "08:00",
         },
       },
       {
@@ -2469,12 +2657,15 @@ describe("write error logging", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 2,
+          arrival_time: "09:00",
+          departure_time: "09:00",
         },
       },
     ];
     const allStops = [
-      { schedule_entry_id: "entry-0800", status: "passed", schedule_entries: { time: "08:00" } },
-      { schedule_entry_id: "entry-0900", status: "passed", schedule_entries: { time: "09:00" } },
+      { schedule_entry_id: "entry-0800", status: "passed", schedule_entries: { time: "08:00", stop_sequence: 1 } },
+      { schedule_entry_id: "entry-0900", status: "passed", schedule_entries: { time: "09:00", stop_sequence: 2 } },
     ];
 
     const mock = createMockSupabase({
@@ -2550,11 +2741,14 @@ describe("write error logging", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "08:00",
+          departure_time: "08:00",
         },
       },
     ];
     const allStops = [
-      { schedule_entry_id: "entry-0800", status: "passed", schedule_entries: { time: "08:00" } },
+      { schedule_entry_id: "entry-0800", status: "passed", schedule_entries: { time: "08:00", stop_sequence: 1 } },
     ];
 
     const mock = createMockSupabase({ pendingStops, allStops, shifts: [{ id: "shift-1", ended_at: null }] });
@@ -2612,6 +2806,9 @@ describe("inferStopProgress evidence query hoisting", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "08:00",
+          departure_time: "08:00",
         },
       },
     ];
@@ -2619,7 +2816,7 @@ describe("inferStopProgress evidence query hoisting", () => {
       {
         schedule_entry_id: "entry-0800",
         status: "passed",
-        schedule_entries: { time: "08:00" },
+        schedule_entries: { time: "08:00", stop_sequence: 1 },
       },
     ];
 
@@ -2662,6 +2859,9 @@ describe("inferStopProgress evidence query hoisting", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "08:00",
+          departure_time: "08:00",
         },
       },
       {
@@ -2671,6 +2871,9 @@ describe("inferStopProgress evidence query hoisting", () => {
           stop_lat: -12.980,
           stop_lng: -38.520,
           geofence_radius_m: 50,
+          stop_sequence: 2,
+          arrival_time: "08:00",
+          departure_time: "08:00",
         },
       },
     ];
@@ -2678,12 +2881,12 @@ describe("inferStopProgress evidence query hoisting", () => {
       {
         schedule_entry_id: "stop-a",
         status: "passed",
-        schedule_entries: { time: "08:00" },
+        schedule_entries: { time: "08:00", stop_sequence: 1 },
       },
       {
         schedule_entry_id: "stop-b",
         status: "pending",
-        schedule_entries: { time: "08:00" },
+        schedule_entries: { time: "08:00", stop_sequence: 2 },
       },
     ];
 
@@ -2719,6 +2922,9 @@ describe("inferStopProgress evidence query hoisting", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "08:00",
+          departure_time: "08:00",
         },
       },
     ];
@@ -2726,7 +2932,7 @@ describe("inferStopProgress evidence query hoisting", () => {
       {
         schedule_entry_id: "entry-0800",
         status: "passed",
-        schedule_entries: { time: "08:00" },
+        schedule_entries: { time: "08:00", stop_sequence: 1 },
       },
     ];
 
@@ -2765,6 +2971,9 @@ describe("inferStopProgress evidence query hoisting", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "08:00",
+          departure_time: "08:00",
         },
       },
     ];
@@ -2772,7 +2981,7 @@ describe("inferStopProgress evidence query hoisting", () => {
       {
         schedule_entry_id: "entry-0800",
         status: "passed",
-        schedule_entries: { time: "08:00" },
+        schedule_entries: { time: "08:00", stop_sequence: 1 },
       },
     ];
     const pings = [
@@ -2831,6 +3040,9 @@ describe("inferStopProgress monotonic snapped confidence", () => {
         stop_lat: STOP_LAT,
         stop_lng: STOP_LNG,
         geofence_radius_m: 50,
+        stop_sequence: 1,
+        arrival_time: "08:00",
+        departure_time: "08:00",
       },
     }];
   }
@@ -2839,7 +3051,7 @@ describe("inferStopProgress monotonic snapped confidence", () => {
     return [{
       schedule_entry_id: "entry-0800",
       status: "passed",
-      schedule_entries: { time: "08:00" },
+      schedule_entries: { time: "08:00", stop_sequence: 1 },
     }];
   }
 
@@ -3054,15 +3266,18 @@ describe("inferStopProgress adjacency validation", () => {
           stop_lat: -12.952,
           stop_lng: -38.502,
           geofence_radius_m: 50,
+          stop_sequence: 3,
+          arrival_time: "09:00",
+          departure_time: "09:00",
         },
       },
     ];
 
     // After the write path: stop-1 and stop-2 are pending, stop-3 is passed (gap)
     const allStops = [
-      { schedule_entry_id: "stop-1", status: "pending", schedule_entries: { time: "08:00" } },
-      { schedule_entry_id: "stop-2", status: "pending", schedule_entries: { time: "08:30" } },
-      { schedule_entry_id: "stop-3", status: "passed", schedule_entries: { time: "09:00" } },
+      { schedule_entry_id: "stop-1", status: "pending", schedule_entries: { time: "08:00", stop_sequence: 1 } },
+      { schedule_entry_id: "stop-2", status: "pending", schedule_entries: { time: "08:30", stop_sequence: 2 } },
+      { schedule_entry_id: "stop-3", status: "passed", schedule_entries: { time: "09:00", stop_sequence: 3 } },
     ];
 
     const vanLat = -12.952 + 0.00003;
@@ -3107,6 +3322,9 @@ describe("inferStopProgress adjacency validation", () => {
           stop_lat: -12.950,
           stop_lng: -38.500,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "08:00",
+          departure_time: "08:00",
         },
       },
       {
@@ -3116,6 +3334,9 @@ describe("inferStopProgress adjacency validation", () => {
           stop_lat: -12.951,
           stop_lng: -38.501,
           geofence_radius_m: 50,
+          stop_sequence: 2,
+          arrival_time: "08:30",
+          departure_time: "08:30",
         },
       },
       {
@@ -3125,6 +3346,9 @@ describe("inferStopProgress adjacency validation", () => {
           stop_lat: -12.952,
           stop_lng: -38.502,
           geofence_radius_m: 50,
+          stop_sequence: 3,
+          arrival_time: "09:00",
+          departure_time: "09:00",
         },
       },
     ];
@@ -3134,10 +3358,10 @@ describe("inferStopProgress adjacency validation", () => {
 
     // After backfill succeeds: all passed, stop-4 is next pending
     const allStops = [
-      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00" } },
-      { schedule_entry_id: "stop-2", status: "passed", schedule_entries: { time: "08:30" } },
-      { schedule_entry_id: "stop-3", status: "passed", schedule_entries: { time: "09:00" } },
-      { schedule_entry_id: "stop-4", status: "pending", schedule_entries: { time: "09:30" } },
+      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00", stop_sequence: 1 } },
+      { schedule_entry_id: "stop-2", status: "passed", schedule_entries: { time: "08:30", stop_sequence: 2 } },
+      { schedule_entry_id: "stop-3", status: "passed", schedule_entries: { time: "09:00", stop_sequence: 3 } },
+      { schedule_entry_id: "stop-4", status: "pending", schedule_entries: { time: "09:30", stop_sequence: 4 } },
     ];
 
     const mock = createMockSupabase({
@@ -3179,10 +3403,10 @@ describe("inferStopProgress insertion-order resilience", () => {
     // Schedule order: stop-A 07:00, stop-B 08:00, stop-C 09:00, stop-D 10:00
     // Insertion order (scrambled): stop-C, stop-A, stop-D, stop-B
     const allStops = [
-      { schedule_entry_id: "stop-C", status: "passed",  schedule_entries: { time: "09:00" } },
-      { schedule_entry_id: "stop-A", status: "passed",  schedule_entries: { time: "07:00" } },
-      { schedule_entry_id: "stop-D", status: "pending", schedule_entries: { time: "10:00" } },
-      { schedule_entry_id: "stop-B", status: "passed",  schedule_entries: { time: "08:00" } },
+      { schedule_entry_id: "stop-C", status: "passed",  schedule_entries: { time: "09:00", stop_sequence: 3 } },
+      { schedule_entry_id: "stop-A", status: "passed",  schedule_entries: { time: "07:00", stop_sequence: 1 } },
+      { schedule_entry_id: "stop-D", status: "pending", schedule_entries: { time: "10:00", stop_sequence: 4 } },
+      { schedule_entry_id: "stop-B", status: "passed",  schedule_entries: { time: "08:00", stop_sequence: 2 } },
     ];
 
     const mock = createMockSupabase({
@@ -3221,18 +3445,18 @@ describe("inferStopProgress insertion-order resilience", () => {
     const pendingStops = [
       {
         schedule_entry_id: "stop-F",
-        schedule_entries: { time: "14:00", stop_lat: -13.5, stop_lng: -39.0, geofence_radius_m: 50, stop_group_id: null },
+        schedule_entries: { time: "14:00", stop_lat: -13.5, stop_lng: -39.0, geofence_radius_m: 50, stop_group_id: null, stop_sequence: 2, arrival_time: "14:00", departure_time: "14:00" },
       },
       {
         schedule_entry_id: "stop-E",
-        schedule_entries: { time: "13:00", stop_lat: CAAB_LAT, stop_lng: CAAB_LNG, geofence_radius_m: 50, stop_group_id: null },
+        schedule_entries: { time: "13:00", stop_lat: CAAB_LAT, stop_lng: CAAB_LNG, geofence_radius_m: 50, stop_group_id: null, stop_sequence: 1, arrival_time: "13:00", departure_time: "13:00" },
       },
     ];
 
     // After geofence pass on stop-E, allStops reflects it (scrambled order)
     const allStops = [
-      { schedule_entry_id: "stop-F", status: "pending", schedule_entries: { time: "14:00" } },
-      { schedule_entry_id: "stop-E", status: "passed",  schedule_entries: { time: "13:00" } },
+      { schedule_entry_id: "stop-F", status: "pending", schedule_entries: { time: "14:00", stop_sequence: 2 } },
+      { schedule_entry_id: "stop-E", status: "passed",  schedule_entries: { time: "13:00", stop_sequence: 1 } },
     ];
 
     const mock = createMockSupabase({
@@ -3278,6 +3502,9 @@ describe("inferStopProgress event-time service date derivation", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "22:00",
+          departure_time: "22:00",
         },
       },
     ];
@@ -3285,7 +3512,7 @@ describe("inferStopProgress event-time service date derivation", () => {
       {
         schedule_entry_id: "entry-2200",
         status: "passed",
-        schedule_entries: { time: "22:00" },
+        schedule_entries: { time: "22:00", stop_sequence: 1 },
       },
     ];
 
@@ -3328,6 +3555,9 @@ describe("inferStopProgress shift-active-at-event-time replay", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "10:00",
+          departure_time: "10:00",
         },
       },
     ];
@@ -3335,7 +3565,7 @@ describe("inferStopProgress shift-active-at-event-time replay", () => {
       {
         schedule_entry_id: "entry-1000",
         status: "passed",
-        schedule_entries: { time: "10:00" },
+        schedule_entries: { time: "10:00", stop_sequence: 1 },
       },
     ];
 
@@ -3384,6 +3614,9 @@ describe("inferStopProgress passed_at uses eventTs", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "09:00",
+          departure_time: "09:00",
         },
       },
     ];
@@ -3391,7 +3624,7 @@ describe("inferStopProgress passed_at uses eventTs", () => {
       {
         schedule_entry_id: "entry-0900",
         status: "passed",
-        schedule_entries: { time: "09:00" },
+        schedule_entries: { time: "09:00", stop_sequence: 1 },
       },
     ];
 
@@ -3440,6 +3673,9 @@ describe("inferStopProgress contiguity enforcement (T024–T026)", () => {
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
           stop_group_id: null,
+          stop_sequence: 1,
+          arrival_time: "08:00",
+          departure_time: "08:00",
         },
       },
       {
@@ -3450,15 +3686,18 @@ describe("inferStopProgress contiguity enforcement (T024–T026)", () => {
           stop_lng: stopD_lng,
           geofence_radius_m: 50,
           stop_group_id: null,
+          stop_sequence: 2,
+          arrival_time: "08:30",
+          departure_time: "08:30",
         },
       },
     ];
 
     const allStops = [
-      { schedule_entry_id: "stop-A", status: "passed", schedule_entries: { time: "07:00" } },
-      { schedule_entry_id: "stop-B", status: "passed", schedule_entries: { time: "07:30" } },
-      { schedule_entry_id: "stop-C", status: "pending", schedule_entries: { time: "08:00" } },
-      { schedule_entry_id: "stop-D", status: "passed", schedule_entries: { time: "08:30" } },
+      { schedule_entry_id: "stop-A", status: "passed", schedule_entries: { time: "07:00", stop_sequence: 1 } },
+      { schedule_entry_id: "stop-B", status: "passed", schedule_entries: { time: "07:30", stop_sequence: 2 } },
+      { schedule_entry_id: "stop-C", status: "pending", schedule_entries: { time: "08:00", stop_sequence: 3 } },
+      { schedule_entry_id: "stop-D", status: "passed", schedule_entries: { time: "08:30", stop_sequence: 4 } },
     ];
 
     const mock = createMockSupabase({
@@ -3502,6 +3741,9 @@ describe("inferStopProgress contiguity enforcement (T024–T026)", () => {
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
           stop_group_id: null,
+          stop_sequence: 1,
+          arrival_time: "08:00",
+          departure_time: "08:00",
         },
       },
       {
@@ -3512,16 +3754,19 @@ describe("inferStopProgress contiguity enforcement (T024–T026)", () => {
           stop_lng: -38.52,
           geofence_radius_m: 50,
           stop_group_id: null,
+          stop_sequence: 2,
+          arrival_time: "09:00",
+          departure_time: "09:00",
         },
       },
     ];
 
     const allStops = [
-      { schedule_entry_id: "stop-A", status: "passed", schedule_entries: { time: "07:00" } },
-      { schedule_entry_id: "stop-B", status: "passed", schedule_entries: { time: "07:30" } },
-      { schedule_entry_id: "stop-C", status: "pending", schedule_entries: { time: "08:00" } },
-      { schedule_entry_id: "stop-D", status: "passed", schedule_entries: { time: "08:30" } },
-      { schedule_entry_id: "stop-E", status: "pending", schedule_entries: { time: "09:00" } },
+      { schedule_entry_id: "stop-A", status: "passed", schedule_entries: { time: "07:00", stop_sequence: 1 } },
+      { schedule_entry_id: "stop-B", status: "passed", schedule_entries: { time: "07:30", stop_sequence: 2 } },
+      { schedule_entry_id: "stop-C", status: "pending", schedule_entries: { time: "08:00", stop_sequence: 3 } },
+      { schedule_entry_id: "stop-D", status: "passed", schedule_entries: { time: "08:30", stop_sequence: 4 } },
+      { schedule_entry_id: "stop-E", status: "pending", schedule_entries: { time: "09:00", stop_sequence: 5 } },
     ];
 
     const mock = createMockSupabase({
@@ -3561,6 +3806,9 @@ describe("inferStopProgress contiguity enforcement (T024–T026)", () => {
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
           stop_group_id: "group-terminal",
+          stop_sequence: 1,
+          arrival_time: "07:30",
+          departure_time: "07:30",
         },
       },
       {
@@ -3571,14 +3819,17 @@ describe("inferStopProgress contiguity enforcement (T024–T026)", () => {
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
           stop_group_id: "group-terminal",
+          stop_sequence: 2,
+          arrival_time: "08:00",
+          departure_time: "08:00",
         },
       },
     ];
 
     const allStops = [
-      { schedule_entry_id: "stop-A", status: "passed", schedule_entries: { time: "07:00" } },
-      { schedule_entry_id: "stop-B", status: "passed", schedule_entries: { time: "07:30" } },
-      { schedule_entry_id: "stop-C", status: "passed", schedule_entries: { time: "08:00" } },
+      { schedule_entry_id: "stop-A", status: "passed", schedule_entries: { time: "07:00", stop_sequence: 1 } },
+      { schedule_entry_id: "stop-B", status: "passed", schedule_entries: { time: "07:30", stop_sequence: 2 } },
+      { schedule_entry_id: "stop-C", status: "passed", schedule_entries: { time: "08:00", stop_sequence: 3 } },
     ];
 
     const mock = createMockSupabase({
@@ -3630,12 +3881,15 @@ describe("inferStopProgress source-aligned confidence scoring", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "08:00",
+          departure_time: "08:00",
         },
       },
     ];
 
     const allStops = [
-      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00" } },
+      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00", stop_sequence: 1 } },
     ];
 
     const mock = createMockSupabase({
@@ -3671,12 +3925,15 @@ describe("inferStopProgress source-aligned confidence scoring", () => {
           stop_lat: CAAB_LAT,
           stop_lng: CAAB_LNG,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "08:00",
+          departure_time: "08:00",
         },
       },
     ];
 
     const allStops = [
-      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00" } },
+      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "08:00", stop_sequence: 1 } },
     ];
 
     // Raw is ~33m from stop, snapped is very close — triggers snapped match
@@ -3733,12 +3990,15 @@ describe("inferStopProgress source-aligned confidence scoring", () => {
           stop_lat: stopLat,
           stop_lng: stopLng,
           geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "10:00",
+          departure_time: "10:00",
         },
       },
     ];
 
     const allStops = [
-      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "10:00" } },
+      { schedule_entry_id: "stop-1", status: "passed", schedule_entries: { time: "10:00", stop_sequence: 1 } },
     ];
 
     // Van raw position is inside geofence (~3m)

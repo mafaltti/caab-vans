@@ -160,7 +160,7 @@ async function main() {
       passed_at: string;
       stop_lat: number;
       stop_lng: number;
-      time: string;
+      arrival_time: string;
       route_id: string;
       van_id: string;
       service_date: string;
@@ -171,7 +171,7 @@ async function main() {
         rrs.passed_at,
         se.stop_lat,
         se.stop_lng,
-        se.time,
+        se.arrival_time,
         rr.route_id,
         r.van_id,
         rr.service_date

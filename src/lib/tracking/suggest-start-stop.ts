@@ -11,7 +11,8 @@ const MAX_TIME_ONLY = 5;
 export interface ScheduleEntryForSuggestion {
   id: string;
   stop_name: string;
-  time: string; // HH:mm
+  arrival_time: string; // HH:mm
+  stop_sequence: number;
   stop_lat: number | null;
   stop_lng: number | null;
 }
@@ -19,7 +20,7 @@ export interface ScheduleEntryForSuggestion {
 export interface StopSuggestion {
   id: string;
   name: string;
-  time: string;
+  arrivalTime: string;
 }
 
 export interface ColdStartSuggestion {
@@ -47,17 +48,17 @@ export function suggestStartStop(args: {
   const toStopSuggestion = (e: ScheduleEntryForSuggestion): StopSuggestion => ({
     id: e.id,
     name: e.stop_name,
-    time: e.time,
+    arrivalTime: e.arrival_time,
   });
 
   const timeDiff = (e: ScheduleEntryForSuggestion): number => {
-    const [h, m] = e.time.split(":").map(Number);
+    const [h, m] = e.arrival_time.split(":").map(Number);
     const stopTime = now.set({ hour: h, minute: m, second: 0, millisecond: 0 });
     return Math.abs(now.diff(stopTime, "minutes").minutes);
   };
 
   const isWithinTimeWindow = (e: ScheduleEntryForSuggestion): boolean => {
-    const [h, m] = e.time.split(":").map(Number);
+    const [h, m] = e.arrival_time.split(":").map(Number);
     const stopTime = now.set({ hour: h, minute: m, second: 0, millisecond: 0 });
     return stopTime <= now.plus({ minutes: TIME_WINDOW_MINUTES });
   };

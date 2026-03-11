@@ -8,7 +8,9 @@ import { Trash2, Plus, Save } from "lucide-react";
 type EntryData = {
   id: string;
   stopName: string;
-  time: string;
+  arrivalTime: string;
+  departureTime: string;
+  stopSequence: number;
   stopLat: number | null;
   stopLng: number | null;
 };
@@ -21,12 +23,14 @@ export function ScheduleEditor({ routeId }: ScheduleEditorProps) {
   const [entries, setEntries] = useState<EntryData[]>([]);
   const [loading, setLoading] = useState(true);
   const [newStopName, setNewStopName] = useState("");
-  const [newTime, setNewTime] = useState("");
+  const [newArrivalTime, setNewArrivalTime] = useState("");
+  const [newDepartureTime, setNewDepartureTime] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editStopName, setEditStopName] = useState("");
-  const [editTime, setEditTime] = useState("");
+  const [editArrivalTime, setEditArrivalTime] = useState("");
+  const [editDepartureTime, setEditDepartureTime] = useState("");
   const [newStopLat, setNewStopLat] = useState("");
   const [newStopLng, setNewStopLng] = useState("");
   const [editStopLat, setEditStopLat] = useState("");
@@ -43,7 +47,11 @@ export function ScheduleEditor({ routeId }: ScheduleEditorProps) {
   }, [routeId]);
 
   async function handleAdd() {
-    if (!newStopName.trim() || !newTime.trim()) return;
+    if (!newStopName.trim() || !newArrivalTime.trim() || !newDepartureTime.trim()) return;
+    if (newDepartureTime < newArrivalTime) {
+      setError("Horário de saída não pode ser antes da chegada");
+      return;
+    }
     setError("");
     setSaving(true);
 
@@ -52,7 +60,8 @@ export function ScheduleEditor({ routeId }: ScheduleEditorProps) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         stopName: newStopName,
-        time: newTime,
+        arrivalTime: newArrivalTime,
+        departureTime: newDepartureTime,
         stopLat: newStopLat.trim() ? parseFloat(newStopLat) : null,
         stopLng: newStopLng.trim() ? parseFloat(newStopLng) : null,
       }),
@@ -61,10 +70,11 @@ export function ScheduleEditor({ routeId }: ScheduleEditorProps) {
     if (res.ok) {
       const data = await res.json();
       setEntries((prev) =>
-        [...prev, data.entry].sort((a, b) => a.time.localeCompare(b.time)),
+        [...prev, data.entry].sort((a, b) => a.stopSequence - b.stopSequence),
       );
       setNewStopName("");
-      setNewTime("");
+      setNewArrivalTime("");
+      setNewDepartureTime("");
       setNewStopLat("");
       setNewStopLng("");
     } else {
@@ -77,7 +87,8 @@ export function ScheduleEditor({ routeId }: ScheduleEditorProps) {
   function startEdit(entry: EntryData) {
     setEditingId(entry.id);
     setEditStopName(entry.stopName);
-    setEditTime(entry.time);
+    setEditArrivalTime(entry.arrivalTime);
+    setEditDepartureTime(entry.departureTime);
     setEditStopLat(entry.stopLat != null ? String(entry.stopLat) : "");
     setEditStopLng(entry.stopLng != null ? String(entry.stopLng) : "");
     setError("");
@@ -85,6 +96,10 @@ export function ScheduleEditor({ routeId }: ScheduleEditorProps) {
 
   async function handleSaveEdit() {
     if (!editingId) return;
+    if (editDepartureTime < editArrivalTime) {
+      setError("Horário de saída não pode ser antes da chegada");
+      return;
+    }
     setError("");
     setSaving(true);
 
@@ -95,7 +110,8 @@ export function ScheduleEditor({ routeId }: ScheduleEditorProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           stopName: editStopName,
-          time: editTime,
+          arrivalTime: editArrivalTime,
+          departureTime: editDepartureTime,
           stopLat: editStopLat.trim() ? parseFloat(editStopLat) : null,
           stopLng: editStopLng.trim() ? parseFloat(editStopLng) : null,
         }),
@@ -107,7 +123,7 @@ export function ScheduleEditor({ routeId }: ScheduleEditorProps) {
       setEntries((prev) =>
         prev
           .map((e) => (e.id === editingId ? data.entry : e))
-          .sort((a, b) => a.time.localeCompare(b.time)),
+          .sort((a, b) => a.stopSequence - b.stopSequence),
       );
       setEditingId(null);
     } else {
@@ -146,9 +162,15 @@ export function ScheduleEditor({ routeId }: ScheduleEditorProps) {
           {editingId === entry.id ? (
             <>
               <Input
-                value={editTime}
-                onChange={(e) => setEditTime(e.target.value)}
-                placeholder="HH:mm"
+                value={editArrivalTime}
+                onChange={(e) => setEditArrivalTime(e.target.value)}
+                placeholder="Chegada"
+                className="w-16 sm:w-20"
+              />
+              <Input
+                value={editDepartureTime}
+                onChange={(e) => setEditDepartureTime(e.target.value)}
+                placeholder="Saída"
                 className="w-16 sm:w-20"
               />
               <Input
@@ -188,8 +210,11 @@ export function ScheduleEditor({ routeId }: ScheduleEditorProps) {
             </>
           ) : (
             <>
-              <span className="w-14 shrink-0 font-mono text-sm font-medium">
-                {entry.time}
+              <span className="shrink-0 font-mono text-sm font-medium">
+                {entry.arrivalTime}
+                {entry.departureTime !== entry.arrivalTime && (
+                  <span className="text-zinc-400"> – {entry.departureTime}</span>
+                )}
               </span>
               <span className="flex-1">
                 <span className="text-sm">{entry.stopName}</span>
@@ -221,9 +246,15 @@ export function ScheduleEditor({ routeId }: ScheduleEditorProps) {
 
       <div className="flex flex-wrap items-center gap-2 rounded-md border border-dashed border-zinc-300 p-2">
         <Input
-          value={newTime}
-          onChange={(e) => setNewTime(e.target.value)}
-          placeholder="HH:mm"
+          value={newArrivalTime}
+          onChange={(e) => setNewArrivalTime(e.target.value)}
+          placeholder="Chegada"
+          className="w-16 sm:w-20"
+        />
+        <Input
+          value={newDepartureTime}
+          onChange={(e) => setNewDepartureTime(e.target.value)}
+          placeholder="Saída"
           className="w-16 sm:w-20"
         />
         <Input

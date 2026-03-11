@@ -144,9 +144,9 @@ describe("start endpoint cold-start detection", () => {
   describe("no-GPS fallback (FR-012)", () => {
     it("returns null suggestedStop with time-only alternatives", () => {
       const entries = [
-        { id: "e1", stop_name: "Stop 1", time: "06:10", stop_lat: -12.97, stop_lng: -38.51 },
-        { id: "e2", stop_name: "Stop 2", time: "06:30", stop_lat: -12.97, stop_lng: -38.51 },
-        { id: "e3", stop_name: "Stop 3", time: "07:00", stop_lat: -12.97, stop_lng: -38.51 },
+        { id: "e1", stop_name: "Stop 1", arrival_time: "06:10", stop_lat: -12.97, stop_lng: -38.51, stop_sequence: 1 },
+        { id: "e2", stop_name: "Stop 2", arrival_time: "06:30", stop_lat: -12.97, stop_lng: -38.51, stop_sequence: 2 },
+        { id: "e3", stop_name: "Stop 3", arrival_time: "07:00", stop_lat: -12.97, stop_lng: -38.51, stop_sequence: 3 },
       ];
 
       const result = suggestStartStop({
@@ -164,8 +164,8 @@ describe("start endpoint cold-start detection", () => {
   describe("no-coordinates route (FR-013)", () => {
     it("returns empty suggestions when entries have no coordinates", () => {
       const entries = [
-        { id: "e1", stop_name: "Stop 1", time: "06:10", stop_lat: null, stop_lng: null },
-        { id: "e2", stop_name: "Stop 2", time: "06:30", stop_lat: null, stop_lng: null },
+        { id: "e1", stop_name: "Stop 1", arrival_time: "06:10", stop_lat: null, stop_lng: null, stop_sequence: 1 },
+        { id: "e2", stop_name: "Stop 2", arrival_time: "06:30", stop_lat: null, stop_lng: null, stop_sequence: 2 },
       ];
 
       // When all entries lack coordinates, no nearby matches
