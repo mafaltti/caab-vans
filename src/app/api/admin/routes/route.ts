@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/api/auth";
+import { requireRole } from "@/lib/api/auth";
 import { apiError, validationError } from "@/lib/api/errors";
 import { createServiceClient } from "@/lib/supabase/server";
 import { createRouteSchema } from "@/lib/validators/route";
 
 export async function GET() {
   try {
-    await requireAuth();
+    await requireRole("admin");
   } catch (e) {
     return e as NextResponse;
   }
@@ -50,7 +50,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    await requireAuth();
+    await requireRole("admin");
   } catch (e) {
     return e as NextResponse;
   }

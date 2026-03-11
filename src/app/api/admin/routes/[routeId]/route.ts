@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/api/auth";
+import { requireRole } from "@/lib/api/auth";
 import { apiError, validationError } from "@/lib/api/errors";
 import { createServiceClient } from "@/lib/supabase/server";
 import { updateRouteSchema } from "@/lib/validators/route";
@@ -8,7 +8,7 @@ type RouteParams = { params: Promise<{ routeId: string }> };
 
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
-    await requireAuth();
+    await requireRole("admin");
   } catch (e) {
     return e as NextResponse;
   }
@@ -69,12 +69,23 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   }
 
   // Full-replacement semantics: delete all, then insert new set
-  await supabase.from("route_drivers").delete().eq("route_id", routeId);
+  const { error: delError } = await supabase
+    .from("route_drivers")
+    .delete()
+    .eq("route_id", routeId);
+
+  if (delError) {
+    return apiError("INTERNAL_ERROR", "Failed to update driver assignments", 500);
+  }
 
   if (driverIds.length > 0) {
-    await supabase
+    const { error: insError } = await supabase
       .from("route_drivers")
       .insert(driverIds.map((dId) => ({ route_id: routeId, driver_id: dId })));
+
+    if (insError) {
+      return apiError("INTERNAL_ERROR", "Failed to assign drivers", 500);
+    }
   }
 
   return NextResponse.json({
@@ -89,7 +100,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
 export async function DELETE(_request: NextRequest, { params }: RouteParams) {
   try {
-    await requireAuth();
+    await requireRole("admin");
   } catch (e) {
     return e as NextResponse;
   }
