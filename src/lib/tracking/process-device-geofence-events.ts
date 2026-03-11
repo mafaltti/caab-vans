@@ -158,16 +158,14 @@ async function processOneEvent(
   // 4. Seed route_run_stops
   await seedRouteRunStops(supabase, run.id, route.id);
 
-  // 5. Resolve placeId to pending stops
-  const { data: pendingStops, error: pendingError } = await supabase
+  // 5. Resolve placeId to pending stops (includes ungeocoded stops for ordering)
+  const { data: allPendingStops, error: pendingError } = await supabase
     .from("route_run_stops")
     .select(
       "schedule_entry_id, schedule_entries!inner(stop_lat, stop_lng, stop_group_id, geofence_radius_m, stop_sequence, arrival_time, departure_time)",
     )
     .eq("run_id", run.id)
-    .eq("status", "pending")
-    .not("schedule_entries.stop_lat", "is", null)
-    .not("schedule_entries.stop_lng", "is", null);
+    .eq("status", "pending");
 
   if (pendingError) {
     console.error("processDeviceGeofenceEvents: pending stops query failed", {
@@ -177,22 +175,17 @@ async function processOneEvent(
     return;
   }
 
-  if (!pendingStops || pendingStops.length === 0) {
+  if (!allPendingStops || allPendingStops.length === 0) {
     await updateEventStatus(supabase, vanId, eventId, "no_match");
     return;
   }
 
   // Sort by stop_sequence
-  pendingStops.sort((a, b) => {
+  allPendingStops.sort((a, b) => {
     const sa = (a.schedule_entries as unknown as { stop_sequence: number }).stop_sequence;
     const sb = (b.schedule_entries as unknown as { stop_sequence: number }).stop_sequence;
     return sa - sb;
   });
-
-  function stopDateTime(hhMm: string): DateTime {
-    const [hour, minute] = hhMm.split(":").map(Number);
-    return eventTime.set({ hour, minute, second: 0, millisecond: 0 });
-  }
 
   // Match by placeId + early arrival window, then pick closest-in-time
   type StopEntry = {
@@ -204,6 +197,22 @@ async function processOneEvent(
     arrival_time: string;
     departure_time: string;
   };
+
+  // Filter to geocoded stops only for geofence matching
+  const pendingStops = allPendingStops.filter((s) => {
+    const entry = s.schedule_entries as unknown as StopEntry;
+    return entry.stop_lat != null && entry.stop_lng != null;
+  });
+
+  if (pendingStops.length === 0) {
+    await updateEventStatus(supabase, vanId, eventId, "no_match");
+    return;
+  }
+
+  function stopDateTime(hhMm: string): DateTime {
+    const [hour, minute] = hhMm.split(":").map(Number);
+    return eventTime.set({ hour, minute, second: 0, millisecond: 0 });
+  }
 
   const eligible: { scheduleEntryId: string; entry: StopEntry; diff: number }[] = [];
 
@@ -252,7 +261,30 @@ async function processOneEvent(
     }
   }
 
-  // 7. Mark stop as passed
+  // 7. Contiguous-prefix guard: only mark head-of-line pending stop
+  // Use allPendingStops (including ungeocoded) so an earlier ungeocoded stop
+  // correctly blocks advancement of a later geocoded stop.
+  const matchedIndex = allPendingStops.findIndex(
+    (s) => s.schedule_entry_id === matched.scheduleEntryId,
+  );
+
+  if (matchedIndex > 0) {
+    const firstPending = allPendingStops[0].schedule_entries as unknown as { stop_sequence: number };
+    const matchedEntry = matched.entry;
+    console.warn("processDeviceGeofenceEvents: deferred non-adjacent device geofence", {
+      vanId,
+      runId: run.id,
+      eventId,
+      placeId,
+      matchedScheduleEntryId: matched.scheduleEntryId,
+      firstPendingScheduleEntryId: allPendingStops[0].schedule_entry_id,
+      matchedSequence: matchedEntry.stop_sequence,
+      firstPendingSequence: firstPending.stop_sequence,
+    });
+    return;
+  }
+
+  // 8. Mark stop as passed
   const { error: passError } = await supabase
     .from("route_run_stops")
     .update({
@@ -270,32 +302,6 @@ async function processOneEvent(
     });
     await updateEventStatus(supabase, vanId, eventId, "no_match");
     return;
-  }
-
-  // 8. Conservative gap-1 backfill
-  const matchedIndex = pendingStops.findIndex(
-    (s) => s.schedule_entry_id === matched.scheduleEntryId,
-  );
-  if (matchedIndex > 0) {
-    const prev = pendingStops[matchedIndex - 1];
-    // Only backfill if it's the immediately preceding pending stop
-    const { error: backfillError } = await supabase
-      .from("route_run_stops")
-      .update({
-        status: "passed",
-        passed_at: eventTs,
-        pass_source: "backfill",
-        pass_confidence: 0.80,
-      })
-      .eq("run_id", run.id)
-      .eq("schedule_entry_id", prev.schedule_entry_id)
-      .eq("status", "pending");
-
-    if (backfillError) {
-      console.error("processDeviceGeofenceEvents: backfill failed", {
-        runId: run.id, scheduleEntryId: prev.schedule_entry_id, error: backfillError.message,
-      });
-    }
   }
 
   // 9. Update ledger
