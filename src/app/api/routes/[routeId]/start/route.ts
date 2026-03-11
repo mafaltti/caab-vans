@@ -4,6 +4,8 @@ import { requireAuth } from "@/lib/api/auth";
 import { apiError } from "@/lib/api/errors";
 import { createServiceClient } from "@/lib/supabase/server";
 import { nowBahia, todayBahiaDate } from "@/lib/time";
+import { persistCanonicalProgress } from "@/lib/tracking/persist-canonical-progress";
+import { seedRouteRunStops } from "@/lib/tracking/seed-route-run-stops";
 import { suggestStartStop } from "@/lib/tracking/suggest-start-stop";
 import { StartShiftBodySchema } from "@/lib/validators/route";
 
@@ -97,6 +99,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
     runId = newRun.id;
   }
+
+  // Seed route_run_stops and initialize progress pointers
+  await seedRouteRunStops(supabase, runId, routeId);
+  await persistCanonicalProgress(supabase, runId);
 
   const { data: activeShift } = await supabase
     .from("route_shifts")

@@ -247,10 +247,7 @@ export async function resolveRouteProgress(args: {
     }
   }
 
-  // 8. Read progress source mode
-  const mode = parseProgressSource(process.env.TRACKING_PROGRESS_SOURCE);
-
-  // 9. Compute ETA based on mode
+  // 8. Compute ETA
   const stops = effectiveRunStops.map((rs) => {
     const coords = stopCoordsMap.get(rs.schedule_entry_id);
     const entry = rs.schedule_entries as unknown as {
@@ -284,57 +281,54 @@ export async function resolveRouteProgress(args: {
 
   let etaResult: Awaited<ReturnType<typeof computeEta>>;
 
-  if (mode === "shadow") {
-    // Compute both legacy and persisted, serve legacy, log mismatches
-    const legacyResult = await computeEta(etaArgs);
-    const persistedResult = targetStopId
-      ? await computeEta({ ...etaArgs, targetStopId })
-      : legacyResult;
-
-    if (legacyResult.nextStopId !== persistedResult.nextStopId) {
-      console.log(JSON.stringify({
-        event: "progress_source_mismatch",
-        routeId,
-        runId: runData.id,
-        runStatus,
-        legacyNextStopId: legacyResult.nextStopId,
-        persistedNextStopId: persistedResult.nextStopId,
-        etaSource: legacyResult.etaSource,
-        reason: !targetStopId ? "pointer_missing_or_invalid" : "different_selection",
-      }));
-    }
-
-    etaResult = legacyResult;
-  } else if (mode === "persisted") {
-    if (targetStopId) {
-      etaResult = await computeEta({ ...etaArgs, targetStopId });
-    } else {
-      // Fallback to legacy when pointer is invalid/missing/stale
-      if (runData.next_stop_id) {
-        const pointerAge = runData.progress_updated_at
-          ? now.diff(DateTime.fromISO(runData.progress_updated_at), "minutes").minutes
-          : Infinity;
-        let reason: string;
-        if (!entryIds.has(runData.next_stop_id)) {
-          reason = "pointer_invalid";
-        } else if (pointerAge >= POINTER_ABSOLUTE_CEILING_MINUTES) {
-          reason = "pointer_expired";
-        } else {
-          reason = "pointer_stale_or_not_pending";
+  if (targetStopId) {
+    etaResult = await computeEta({ ...etaArgs, targetStopId });
+  } else {
+    // Self-heal: pointer invalid/missing — derive from contiguous prefix and repair
+    if (contiguousPassedIds.size > 0 || sortedEntries.length > 0) {
+      // Derive correct pointer from contiguous prefix
+      let healedNextStopId: string | undefined;
+      for (const entry of sortedEntries) {
+        if (!contiguousPassedIds.has(entry.id)) {
+          healedNextStopId = entry.id;
+          break;
         }
+      }
+
+      let healedLastPassedStopId: string | null = null;
+      const passedArr = [...contiguousPassedIds];
+      if (passedArr.length > 0) {
+        healedLastPassedStopId = passedArr[passedArr.length - 1];
+      }
+
+      if (healedNextStopId || healedLastPassedStopId) {
+        // Persist repaired pointer
+        await supabase
+          .from("route_runs")
+          .update({
+            last_passed_stop_id: healedLastPassedStopId,
+            next_stop_id: healedNextStopId ?? null,
+            progress_updated_at: new Date().toISOString(),
+          })
+          .eq("id", runData.id);
+
         console.log(JSON.stringify({
-          event: "progress_source_fallback",
+          event: "progress_pointer_healed",
           routeId,
           runId: runData.id,
-          runStatus,
-          reason,
+          healedNextStopId: healedNextStopId ?? null,
+          healedLastPassedStopId,
         }));
       }
+
+      if (healedNextStopId) {
+        etaResult = await computeEta({ ...etaArgs, targetStopId: healedNextStopId });
+      } else {
+        etaResult = await computeEta(etaArgs);
+      }
+    } else {
       etaResult = await computeEta(etaArgs);
     }
-  } else {
-    // legacy mode — no targetStopId
-    etaResult = await computeEta(etaArgs);
   }
 
   // When includeLastKnown brought us here for a non-running route but the
@@ -376,9 +370,4 @@ export async function resolveRouteProgress(args: {
     shiftStartedAt: activeShift?.started_at ?? null,
     ...etaResult,
   };
-}
-
-function parseProgressSource(value: string | undefined): "legacy" | "shadow" | "persisted" {
-  if (value === "shadow" || value === "legacy") return value;
-  return "persisted";
 }

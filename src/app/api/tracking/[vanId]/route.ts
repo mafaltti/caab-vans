@@ -5,7 +5,6 @@ import { apiError, validationError } from "@/lib/api/errors";
 import { createRateLimiter } from "@/lib/api/rate-limit";
 import { createServiceClient } from "@/lib/supabase/server";
 import { enforceCanonicalPrefix } from "@/lib/tracking/enforce-canonical-prefix";
-import { inferStopProgress } from "@/lib/tracking/infer-stop-progress";
 import { processDeviceGeofenceEvents } from "@/lib/tracking/process-device-geofence-events";
 import { snapToRoad } from "@/lib/tracking/osrm";
 import { trackingSchema } from "@/lib/validators/tracking";
@@ -92,11 +91,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   // Process device geofence events BEFORE ping upsert
   const hasGeofenceEvents = geofenceEvents && geofenceEvents.length > 0;
   let submittedEventIds: string[] = [];
-  let tentativeMatchIds: string[] = [];
   if (hasGeofenceEvents) {
     submittedEventIds = geofenceEvents.map((e) => e.eventId);
     try {
-      tentativeMatchIds = await processDeviceGeofenceEvents({ supabase, vanId, geofenceEvents });
+      await processDeviceGeofenceEvents({ supabase, vanId, geofenceEvents });
     } catch (error) {
       console.error("Device geofence event processing failed:", error);
     }
@@ -207,39 +205,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       console.error("Failed to persist snapped coords:", {
         pingId: upsertedPing.id, error: snapWriteError.message,
       });
-    }
-  }
-
-  // Always run inference after a successful upsert, even when RPC returns false
-  try {
-    await inferStopProgress({
-      supabase,
-      vanId,
-      rawLat: lat,
-      rawLng: lng,
-      snappedLat,
-      snappedLng,
-      eventTs: deviceTs,
-    });
-  } catch (error) {
-    console.error("Stop inference failed:", error);
-  }
-
-  // Re-process deferred geofence events after inference may have advanced earlier stops
-  if (hasGeofenceEvents && tentativeMatchIds.length < geofenceEvents.length) {
-    const deferredEvents = geofenceEvents.filter(
-      (e) => !tentativeMatchIds.includes(e.eventId),
-    );
-    if (deferredEvents.length > 0) {
-      try {
-        await processDeviceGeofenceEvents({
-          supabase,
-          vanId,
-          geofenceEvents: deferredEvents,
-        });
-      } catch (error) {
-        console.error("Deferred geofence event retry failed:", error);
-      }
     }
   }
 

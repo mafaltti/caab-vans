@@ -5,6 +5,7 @@ import {
   getGeofenceConfigVersion,
 } from "@/storage/tracking-state";
 import { fetchTrackerConfig } from "@/api/config";
+import { registerGeofencesFromCache } from "@/location/tracking";
 
 export type SendResult =
   | {
@@ -107,7 +108,9 @@ export async function sendLocationPing(
         try {
           const cached = await getGeofenceConfigVersion();
           if (cached !== configVersion) {
-            fetchTrackerConfig(settings).catch(() => {});
+            fetchTrackerConfig(settings)
+              .then(() => registerGeofencesFromCache())
+              .catch(() => {});
           }
         } catch {
           // Non-fatal

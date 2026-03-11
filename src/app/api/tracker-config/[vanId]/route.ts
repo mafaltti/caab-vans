@@ -58,7 +58,22 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     return apiError("INTERNAL_ERROR", "Failed to load schedule entries", 500);
   }
 
-  const seen = new Set<string>();
+  // Group entries by place key and aggregate radii
+  const groups = new Map<string, { lat: number; lng: number; radii: number[] }>();
+
+  for (const entry of entries ?? []) {
+    const lat = entry.stop_lat as number;
+    const lng = entry.stop_lng as number;
+    const key = entry.stop_group_id ?? `${lat.toFixed(6)},${lng.toFixed(6)}`;
+
+    if (!groups.has(key)) {
+      groups.set(key, { lat, lng, radii: [] });
+    }
+    if (entry.device_geofence_radius_m != null) {
+      groups.get(key)!.radii.push(entry.device_geofence_radius_m);
+    }
+  }
+
   const geofenceRegions: {
     placeId: string;
     lat: number;
@@ -66,20 +81,28 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     radius: number;
   }[] = [];
 
-  for (const entry of entries ?? []) {
-    const lat = entry.stop_lat as number;
-    const lng = entry.stop_lng as number;
-    const key =
-      entry.stop_group_id ?? `${lat.toFixed(6)},${lng.toFixed(6)}`;
-
-    if (seen.has(key)) continue;
-    seen.add(key);
+  for (const [placeId, group] of groups) {
+    let effectiveRadius: number;
+    if (group.radii.length > 0) {
+      effectiveRadius = Math.max(100, Math.min(...group.radii, 150));
+      const allEqual = group.radii.every((r) => r === group.radii[0]);
+      if (!allEqual) {
+        console.warn(JSON.stringify({
+          event: "geofence_radius_disagreement",
+          placeId,
+          radii: group.radii,
+          effectiveRadius,
+        }));
+      }
+    } else {
+      effectiveRadius = 150;
+    }
 
     geofenceRegions.push({
-      placeId: key,
-      lat,
-      lng,
-      radius: entry.device_geofence_radius_m ?? 150,
+      placeId,
+      lat: group.lat,
+      lng: group.lng,
+      radius: effectiveRadius,
     });
   }
 

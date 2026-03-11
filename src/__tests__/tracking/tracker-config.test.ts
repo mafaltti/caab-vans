@@ -179,10 +179,10 @@ describe("tracker-config GET", () => {
     expect(json.geofenceRegions[1].placeId).toBe("grp-b");
   });
 
-  it("uses device_geofence_radius_m when present", async () => {
+  it("uses device_geofence_radius_m when within clamp range", async () => {
     setupMocks({
       entries: [
-        makeEntry({ device_geofence_radius_m: 300 }),
+        makeEntry({ device_geofence_radius_m: 120 }),
       ],
     });
 
@@ -190,7 +190,7 @@ describe("tracker-config GET", () => {
     const json = await res.json();
 
     expect(res.status).toBe(200);
-    expect(json.geofenceRegions[0].radius).toBe(300);
+    expect(json.geofenceRegions[0].radius).toBe(120);
   });
 
   it("falls back to 150m when device_geofence_radius_m is null", async () => {
@@ -246,5 +246,77 @@ describe("tracker-config GET", () => {
     expect(res.status).toBe(200);
     expect(json.geofenceRegions).toHaveLength(1);
     expect(json.configVersion).toBe(ungeocodedTs);
+  });
+
+  it("clamps radius below 100m up to 100", async () => {
+    setupMocks({
+      entries: [
+        makeEntry({ device_geofence_radius_m: 50 }),
+      ],
+    });
+
+    const res = await GET(createRequest(TOKEN), routeParams);
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.geofenceRegions[0].radius).toBe(100);
+  });
+
+  it("clamps radius above 150m down to 150", async () => {
+    setupMocks({
+      entries: [
+        makeEntry({ device_geofence_radius_m: 300 }),
+      ],
+    });
+
+    const res = await GET(createRequest(TOKEN), routeParams);
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.geofenceRegions[0].radius).toBe(150);
+  });
+
+  it("defaults to 150 when all radii are null", async () => {
+    setupMocks({
+      entries: [
+        makeEntry({ stop_group_id: "grp-a", device_geofence_radius_m: null }),
+        makeEntry({ id: "e2", stop_group_id: "grp-a", device_geofence_radius_m: null }),
+      ],
+    });
+
+    const res = await GET(createRequest(TOKEN), routeParams);
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.geofenceRegions).toHaveLength(1);
+    expect(json.geofenceRegions[0].radius).toBe(150);
+  });
+
+  it("produces clamped minimum and warns on disagreeing radii", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    setupMocks({
+      entries: [
+        makeEntry({ id: "e1", stop_group_id: "grp-a", device_geofence_radius_m: 120 }),
+        makeEntry({ id: "e2", stop_group_id: "grp-a", device_geofence_radius_m: 140 }),
+      ],
+    });
+
+    const res = await GET(createRequest(TOKEN), routeParams);
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.geofenceRegions).toHaveLength(1);
+    // min(120, 140, 150) = 120, max(100, 120) = 120
+    expect(json.geofenceRegions[0].radius).toBe(120);
+
+    expect(warnSpy).toHaveBeenCalledOnce();
+    const logged = JSON.parse(warnSpy.mock.calls[0][0] as string);
+    expect(logged.event).toBe("geofence_radius_disagreement");
+    expect(logged.placeId).toBe("grp-a");
+    expect(logged.radii).toEqual([120, 140]);
+    expect(logged.effectiveRadius).toBe(120);
+
+    warnSpy.mockRestore();
   });
 });

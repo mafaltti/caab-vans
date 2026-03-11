@@ -403,3 +403,165 @@ describe("nextStopMode field", () => {
     expect(result.isRunning).toBe(false);
   });
 });
+
+// ---------- Shift Start: Stop Seeding & Pointer Init (T012) ----------
+
+import { seedRouteRunStops } from "@/lib/tracking/seed-route-run-stops";
+import { persistCanonicalProgress } from "@/lib/tracking/persist-canonical-progress";
+
+/**
+ * Build a mock Supabase client that tracks seeded rows and pointer updates,
+ * simulating the shift-start pipeline (seed then persist).
+ */
+function createShiftStartMockSupabase(opts: {
+  scheduleEntries: Array<{ id: string; stop_sequence: number }>;
+  existingStopCount?: number;
+}) {
+  const { scheduleEntries, existingStopCount = 0 } = opts;
+
+  const seededRows: Array<{ run_id: string; schedule_entry_id: string; status: string }> = [];
+  const pointerUpdates: Array<{ runId: string; payload: Record<string, unknown> }> = [];
+
+  const supabase = {
+    from: (table: string) => {
+      if (table === "route_run_stops") {
+        return {
+          // select path — used by both seedRouteRunStops (count) and persistCanonicalProgress (fetch)
+          select: (_cols: string, selectOpts?: { count?: string; head?: boolean }) => {
+            if (selectOpts?.count === "exact") {
+              // seedRouteRunStops count query
+              return {
+                eq: () =>
+                  Promise.resolve({
+                    count: seededRows.length > 0 ? seededRows.length : existingStopCount,
+                    error: null,
+                  }),
+              };
+            }
+            // persistCanonicalProgress fetch query
+            return {
+              eq: () => ({
+                order: () =>
+                  Promise.resolve({
+                    data: seededRows.map((r) => ({
+                      schedule_entry_id: r.schedule_entry_id,
+                      status: r.status,
+                      schedule_entries: {
+                        stop_sequence:
+                          scheduleEntries.find((e) => e.id === r.schedule_entry_id)
+                            ?.stop_sequence ?? 0,
+                      },
+                    })),
+                    error: null,
+                  }),
+              }),
+            };
+          },
+          // insert path — used by seedRouteRunStops
+          insert: (
+            rows: Array<{ run_id: string; schedule_entry_id: string; status: string }>,
+          ) => {
+            seededRows.push(...rows);
+            return Promise.resolve({ error: null });
+          },
+          // update path — used by persistCanonicalProgress heal
+          update: () => ({
+            eq: () => ({
+              in: () => Promise.resolve({ error: null }),
+            }),
+          }),
+        };
+      }
+      if (table === "schedule_entries") {
+        return {
+          select: () => ({
+            eq: () =>
+              Promise.resolve({
+                data: scheduleEntries.map((e) => ({ id: e.id })),
+                error: null,
+              }),
+          }),
+        };
+      }
+      if (table === "route_runs") {
+        return {
+          update: (payload: Record<string, unknown>) => ({
+            eq: (_col: string, runId: string) => {
+              pointerUpdates.push({ runId, payload });
+              return Promise.resolve({ error: null });
+            },
+          }),
+        };
+      }
+      return { select: () => ({ eq: () => Promise.resolve({ data: null, error: null }) }) };
+    },
+  };
+
+  return { supabase: supabase as never, seededRows, pointerUpdates };
+}
+
+describe("shift start: stop seeding and pointer initialization", () => {
+  it("seeds pending route_run_stops for all schedule entries", async () => {
+    const entries = [
+      { id: "entry-a", stop_sequence: 1 },
+      { id: "entry-b", stop_sequence: 2 },
+      { id: "entry-c", stop_sequence: 3 },
+    ];
+
+    const { supabase, seededRows } = createShiftStartMockSupabase({
+      scheduleEntries: entries,
+    });
+
+    const seeded = await seedRouteRunStops(supabase, "run-1", "route-1");
+
+    expect(seeded).toBe(true);
+    expect(seededRows).toHaveLength(3);
+    expect(seededRows.every((r) => r.status === "pending")).toBe(true);
+    expect(seededRows.map((r) => r.schedule_entry_id)).toEqual([
+      "entry-a",
+      "entry-b",
+      "entry-c",
+    ]);
+  });
+
+  it("sets next_stop_id to the first stop by stop_sequence after seeding", async () => {
+    const entries = [
+      { id: "entry-a", stop_sequence: 1 },
+      { id: "entry-b", stop_sequence: 2 },
+      { id: "entry-c", stop_sequence: 3 },
+    ];
+
+    const { supabase, pointerUpdates } = createShiftStartMockSupabase({
+      scheduleEntries: entries,
+    });
+
+    // Replicate the shift-start pipeline: seed then persist
+    await seedRouteRunStops(supabase, "run-1", "route-1");
+    const result = await persistCanonicalProgress(supabase, "run-1");
+
+    expect(result.nextStopId).toBe("entry-a");
+    expect(result.lastPassedStopId).toBeNull();
+    expect(pointerUpdates).toHaveLength(1);
+    expect(pointerUpdates[0].payload).toMatchObject({
+      next_stop_id: "entry-a",
+      last_passed_stop_id: null,
+    });
+  });
+
+  it("skips seeding when stops already exist for the run", async () => {
+    const entries = [
+      { id: "entry-a", stop_sequence: 1 },
+      { id: "entry-b", stop_sequence: 2 },
+    ];
+
+    const { supabase, seededRows } = createShiftStartMockSupabase({
+      scheduleEntries: entries,
+      existingStopCount: 2,
+    });
+
+    const seeded = await seedRouteRunStops(supabase, "run-1", "route-1");
+
+    expect(seeded).toBe(false);
+    expect(seededRows).toHaveLength(0);
+  });
+});

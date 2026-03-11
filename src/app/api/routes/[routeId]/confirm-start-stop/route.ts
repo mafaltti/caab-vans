@@ -4,6 +4,7 @@ import { apiError } from "@/lib/api/errors";
 import { createServiceClient } from "@/lib/supabase/server";
 import { todayBahiaDate } from "@/lib/time";
 import { enforceCanonicalPrefix } from "@/lib/tracking/enforce-canonical-prefix";
+import { persistCanonicalProgress } from "@/lib/tracking/persist-canonical-progress";
 import { seedRouteRunStops } from "@/lib/tracking/seed-route-run-stops";
 import { ConfirmStartStopBodySchema } from "@/lib/validators/route";
 
@@ -188,50 +189,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
   }
 
-  // Re-fetch stops after update for canonical enforcement
-  const { data: updatedStops } = await supabase
-    .from("route_run_stops")
-    .select("schedule_entry_id, status, schedule_entries!inner(stop_sequence)")
-    .eq("run_id", run.id);
-
-  if (updatedStops) {
-    updatedStops.sort((a, b) => {
-      const sa = (a.schedule_entries as unknown as { stop_sequence: number }).stop_sequence;
-      const sb = (b.schedule_entries as unknown as { stop_sequence: number }).stop_sequence;
-      return sa - sb;
-    });
-  }
-
-  const canonical = enforceCanonicalPrefix(
-    (updatedStops ?? []).map((s) => ({
-      schedule_entry_id: s.schedule_entry_id,
-      status: s.status as "pending" | "passed",
-    })),
-  );
-
-  // Heal non-contiguous passed rows if needed
-  if (canonical.healIds.length > 0) {
-    await supabase
-      .from("route_run_stops")
-      .update({
-        status: "pending",
-        passed_at: null,
-        pass_source: null,
-        pass_confidence: null,
-      })
-      .eq("run_id", run.id)
-      .in("schedule_entry_id", canonical.healIds);
-  }
-
-  // Persist pointers on route_run
-  await supabase
-    .from("route_runs")
-    .update({
-      last_passed_stop_id: canonical.lastPassedStopId,
-      next_stop_id: canonical.nextStopId,
-      progress_updated_at: nowIso,
-    })
-    .eq("id", run.id);
+  // Enforce canonical prefix and persist pointers via shared helper
+  const canonical = await persistCanonicalProgress(supabase, run.id);
 
   return NextResponse.json({
     confirmed: true,

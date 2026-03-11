@@ -4,7 +4,6 @@ import { DateTime } from "luxon";
 import { apiError, validationError } from "@/lib/api/errors";
 import { createRateLimiter } from "@/lib/api/rate-limit";
 import { createServiceClient } from "@/lib/supabase/server";
-import { inferStopProgress } from "@/lib/tracking/infer-stop-progress";
 import { matchTrajectory, snapToRoad } from "@/lib/tracking/osrm";
 import { batchTrackingSchema } from "@/lib/validators/tracking";
 
@@ -217,24 +216,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return apiError("INTERNAL_ERROR", "Failed to update van position", 500);
     }
 
-    // Replay inference sequentially for each accepted ping with its own eventTs
-    for (let i = 0; i < accepted.length; i++) {
-      const ping = accepted[i];
-      const snapped = perPointSnapped?.[i] ?? null;
-      try {
-        await inferStopProgress({
-          supabase,
-          vanId,
-          rawLat: ping.lat,
-          rawLng: ping.lng,
-          snappedLat: snapped?.lat ?? null,
-          snappedLng: snapped?.lng ?? null,
-          eventTs: ping.deviceTs,
-        });
-      } catch (error) {
-        console.error("Stop inference failed for batch ping:", error);
-      }
-    }
   }
 
   return NextResponse.json({

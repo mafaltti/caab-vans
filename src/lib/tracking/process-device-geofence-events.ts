@@ -4,6 +4,7 @@ import { DateTime } from "luxon";
 import { EARLY_ARRIVAL_WINDOW_MINUTES } from "@/lib/time";
 
 import { haversineDistanceMeters } from "./haversine";
+import { persistCanonicalProgress } from "./persist-canonical-progress";
 import { seedRouteRunStops } from "./seed-route-run-stops";
 
 const TZ = "America/Bahia";
@@ -303,6 +304,9 @@ async function processOneEvent(
     await updateEventStatus(supabase, vanId, eventId, "no_match");
     return;
   }
+
+  // Persist progress pointers via shared canonical-prefix helper
+  await persistCanonicalProgress(supabase, run.id);
 
   // 9. Update ledger
   await supabase

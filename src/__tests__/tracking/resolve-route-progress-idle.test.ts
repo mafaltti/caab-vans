@@ -24,6 +24,7 @@ function mockSupabase(overrides: {
     const builder: Record<string, unknown> = {};
     const self = () => builder;
     builder.select = vi.fn().mockReturnValue(builder);
+    builder.update = vi.fn().mockReturnValue(builder);
     builder.eq = vi.fn().mockReturnValue(builder);
     builder.not = vi.fn().mockReturnValue(builder);
     builder.order = vi.fn().mockReturnValue(builder);
@@ -55,15 +56,6 @@ const SORTED_ENTRIES = [
 ];
 
 describe("resolveRouteProgress – idle suppression (FR-011)", () => {
-  const originalEnv = process.env.TRACKING_PROGRESS_SOURCE;
-
-  afterEach(() => {
-    if (originalEnv === undefined) {
-      delete process.env.TRACKING_PROGRESS_SOURCE;
-    } else {
-      process.env.TRACKING_PROGRESS_SOURCE = originalEnv;
-    }
-  });
 
   it("idle run with persisted pointer returns null nextStopId and null ETA", async () => {
     // The pointer exists in route_runs (next_stop_id = "entry-2") but should NOT be surfaced
@@ -115,8 +107,6 @@ describe("resolveRouteProgress – idle suppression (FR-011)", () => {
   });
 
   it("idle run transitions to in_progress when new shift starts — pointer re-activates", async () => {
-    process.env.TRACKING_PROGRESS_SOURCE = "persisted";
-
     const shiftStartedAt = NOW.minus({ minutes: 10 }).toISO()!;
 
     const supabase = mockSupabase({
@@ -164,8 +154,6 @@ describe("resolveRouteProgress – idle suppression (FR-011)", () => {
   });
 
   it("includeLastKnown with invalid pointer does not advertise schedule guess as last_known", async () => {
-    process.env.TRACKING_PROGRESS_SOURCE = "persisted";
-
     const supabase = mockSupabase({
       routeRun: {
         id: "run-1",
