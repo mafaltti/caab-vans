@@ -1,5 +1,7 @@
 import { DateTime } from "luxon";
 
+import { formatTimeString } from "@/lib/time";
+
 import { haversineDistanceMeters } from "./haversine";
 
 const TZ = "America/Bahia";
@@ -48,7 +50,7 @@ export function suggestStartStop(args: {
   const toStopSuggestion = (e: ScheduleEntryForSuggestion): StopSuggestion => ({
     id: e.id,
     name: e.stop_name,
-    arrivalTime: e.arrival_time,
+    arrivalTime: formatTimeString(e.arrival_time),
   });
 
   const timeDiff = (e: ScheduleEntryForSuggestion): number => {
