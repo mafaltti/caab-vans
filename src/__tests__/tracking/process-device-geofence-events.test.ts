@@ -44,8 +44,8 @@ function createMockSupabase(opts: {
   pendingStops?: Array<{
     schedule_entry_id: string;
     schedule_entries: {
-      stop_lat: number;
-      stop_lng: number;
+      stop_lat: number | null;
+      stop_lng: number | null;
       stop_group_id: string | null;
       geofence_radius_m: number;
       stop_sequence: number;
@@ -569,6 +569,39 @@ describe("processDeviceGeofenceEvents", () => {
       matched_run_id: "run-1",
       matched_schedule_entry_id: "entry-1350",
     });
+  });
+
+  it("defers when ungeocoded stop precedes matched geocoded stop", async () => {
+    const mock = createMockSupabase({
+      activeShift: { id: "shift-1" },
+      pendingStops: [
+        {
+          schedule_entry_id: "entry-no-coords",
+          schedule_entries: {
+            arrival_time: "13:30",
+            departure_time: "13:30",
+            stop_lat: null,
+            stop_lng: null,
+            stop_group_id: null,
+            geofence_radius_m: 50,
+            stop_sequence: 1,
+          },
+        },
+        pendingStop("entry-1350", "13:50", placeId, 50, 2),
+      ],
+      recentPings: [],
+    });
+
+    const result = await processDeviceGeofenceEvents({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase: mock as any,
+      vanId,
+      geofenceEvents: [{ placeId, enteredAt, eventId: "ev-ungeocoded" }],
+    });
+
+    expect(result).toHaveLength(0);
+    expect(mock._stopUpdates).toHaveLength(0);
+    expect(mock._eventUpdates).toHaveLength(0);
   });
 
   it("deferred event remains deferred across multiple retries", async () => {

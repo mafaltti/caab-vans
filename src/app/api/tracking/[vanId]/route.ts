@@ -92,10 +92,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   // Process device geofence events BEFORE ping upsert
   const hasGeofenceEvents = geofenceEvents && geofenceEvents.length > 0;
   let submittedEventIds: string[] = [];
+  let tentativeMatchIds: string[] = [];
   if (hasGeofenceEvents) {
     submittedEventIds = geofenceEvents.map((e) => e.eventId);
     try {
-      await processDeviceGeofenceEvents({ supabase, vanId, geofenceEvents });
+      tentativeMatchIds = await processDeviceGeofenceEvents({ supabase, vanId, geofenceEvents });
     } catch (error) {
       console.error("Device geofence event processing failed:", error);
     }
@@ -222,6 +223,24 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     });
   } catch (error) {
     console.error("Stop inference failed:", error);
+  }
+
+  // Re-process deferred geofence events after inference may have advanced earlier stops
+  if (hasGeofenceEvents && tentativeMatchIds.length < geofenceEvents.length) {
+    const deferredEvents = geofenceEvents.filter(
+      (e) => !tentativeMatchIds.includes(e.eventId),
+    );
+    if (deferredEvents.length > 0) {
+      try {
+        await processDeviceGeofenceEvents({
+          supabase,
+          vanId,
+          geofenceEvents: deferredEvents,
+        });
+      } catch (error) {
+        console.error("Deferred geofence event retry failed:", error);
+      }
+    }
   }
 
   const response: Record<string, unknown> = { received: true, ts: Date.now() };
