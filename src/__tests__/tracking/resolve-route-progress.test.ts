@@ -186,7 +186,6 @@ function standardRunStops() {
 describe("resolveRouteProgress", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    delete process.env.TRACKING_PROGRESS_SOURCE;
     mockComputeEta.mockImplementation(() => Promise.resolve(defaultEtaResult()));
   });
 
@@ -225,7 +224,9 @@ describe("resolveRouteProgress", () => {
     expect(callArgs.targetStopId).toBe("entry-b");
   });
 
-  it("falls back to legacy ETA when pointer is null (persisted mode, no pointer)", async () => {
+  it("self-heals when pointer is null — derives next stop from contiguous prefix", async () => {
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
     const supabase = buildSupabase({
       runData: {
         id: RUN_ID,
@@ -241,10 +242,18 @@ describe("resolveRouteProgress", () => {
 
     expect(result).not.toBeNull();
     expect(result!.runStatus).toBe("in_progress");
-    // Persisted mode (default) with null pointer → falls back to legacy computeEta
+    // Null pointer triggers self-heal → derives entry-b from contiguous prefix
     expect(mockComputeEta).toHaveBeenCalledTimes(1);
     const callArgs = mockComputeEta.mock.calls[0][0];
-    expect(callArgs.targetStopId).toBeUndefined();
+    expect(callArgs.targetStopId).toBe("entry-b");
+
+    // Self-heal log emitted
+    const healLog = consoleSpy.mock.calls.find((c) => {
+      try { return JSON.parse(c[0] as string).event === "progress_pointer_healed"; } catch { return false; }
+    });
+    expect(healLog).toBeDefined();
+
+    consoleSpy.mockRestore();
   });
 
   it("pointer at 45 min is stale but valid under 120 min ceiling", async () => {
@@ -273,7 +282,8 @@ describe("resolveRouteProgress", () => {
     expect(callArgs.targetStopId).toBe("entry-b");
   });
 
-  it("falls back when pointer is expired (> 120 min ago)", async () => {
+  it("self-heals when pointer is expired (> 120 min ago)", async () => {
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const expiredTimestamp = makeNow()
       .minus({ minutes: 125 })
       .toISO()!;
@@ -293,13 +303,15 @@ describe("resolveRouteProgress", () => {
 
     expect(result).not.toBeNull();
     expect(result!.runStatus).toBe("in_progress");
-    // Pointer expired (> 120 min) → falls back to legacy (no targetStopId)
+    // Pointer expired (> 120 min) → self-heal derives entry-b from contiguous prefix
     expect(mockComputeEta).toHaveBeenCalledTimes(1);
     const callArgs = mockComputeEta.mock.calls[0][0];
-    expect(callArgs.targetStopId).toBeUndefined();
+    expect(callArgs.targetStopId).toBe("entry-b");
+
+    consoleSpy.mockRestore();
   });
 
-  it("falls back when pointer references an ID not in schedule entries", async () => {
+  it("self-heals when pointer references an ID not in schedule entries", async () => {
     const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const freshTimestamp = makeNow()
       .minus({ minutes: 2 })
@@ -320,10 +332,10 @@ describe("resolveRouteProgress", () => {
 
     expect(result).not.toBeNull();
     expect(result!.runStatus).toBe("in_progress");
-    // Persisted mode (default) with invalid pointer → falls back
+    // Invalid pointer → self-heal derives entry-b from contiguous prefix
     expect(mockComputeEta).toHaveBeenCalledTimes(1);
     const callArgs = mockComputeEta.mock.calls[0][0];
-    expect(callArgs.targetStopId).toBeUndefined();
+    expect(callArgs.targetStopId).toBe("entry-b");
     consoleSpy.mockRestore();
   });
 
@@ -413,7 +425,7 @@ describe("resolveRouteProgress", () => {
     expect(mockComputeEta).not.toHaveBeenCalled();
   });
 
-  it("pointer references deleted entry (not in entries array) falls back to legacy", async () => {
+  it("pointer references deleted entry (not in entries array) triggers self-heal", async () => {
     const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const freshTimestamp = makeNow()
       .minus({ minutes: 1 })
@@ -446,14 +458,14 @@ describe("resolveRouteProgress", () => {
 
     expect(result).not.toBeNull();
     expect(result!.runStatus).toBe("in_progress");
-    // entry-x is NOT in sortedEntries (entryIds set), so pointer is invalid → legacy fallback
+    // entry-x is NOT in sortedEntries → pointer invalid → self-heal derives entry-b
     expect(mockComputeEta).toHaveBeenCalledTimes(1);
     const callArgs = mockComputeEta.mock.calls[0][0];
-    expect(callArgs.targetStopId).toBeUndefined();
+    expect(callArgs.targetStopId).toBe("entry-b");
     consoleSpy.mockRestore();
   });
 
-  it("pointer that is valid but stop already passed is treated as invalid", async () => {
+  it("pointer that is valid but stop already passed triggers self-heal", async () => {
     const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const freshTimestamp = makeNow()
       .minus({ minutes: 2 })
@@ -474,10 +486,10 @@ describe("resolveRouteProgress", () => {
     const result = await resolveRouteProgress(makeArgs(supabase));
 
     expect(result).not.toBeNull();
-    // entry-a exists in entries but is NOT pending → pointer invalid → no targetStopId
+    // entry-a exists in entries but is NOT pending → pointer invalid → self-heal derives entry-b
     expect(mockComputeEta).toHaveBeenCalledTimes(1);
     const callArgs = mockComputeEta.mock.calls[0][0];
-    expect(callArgs.targetStopId).toBeUndefined();
+    expect(callArgs.targetStopId).toBe("entry-b");
     consoleSpy.mockRestore();
   });
 
@@ -583,13 +595,14 @@ describe("resolveRouteProgress", () => {
     expect(mockComputeEta).toHaveBeenCalled();
   });
 
-  it("rejects non-adjacent pointer (pending stops between last_passed and next_stop)", async () => {
+  it("rejects non-adjacent pointer and self-heals to correct next stop", async () => {
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const freshTimestamp = makeNow()
       .minus({ minutes: 2 })
       .toISO()!;
 
     // last_passed_stop_id = entry-a, next_stop_id = entry-c
-    // But entry-b is pending between them → non-adjacent → reject pointer
+    // But entry-b is pending between them → non-adjacent → reject pointer → self-heal
     const supabase = buildSupabase({
       runData: {
         id: RUN_ID,
@@ -624,10 +637,11 @@ describe("resolveRouteProgress", () => {
 
     expect(result).not.toBeNull();
     expect(result!.runStatus).toBe("in_progress");
-    // Pointer entry-c is non-adjacent to entry-a (entry-b is pending between) → rejected
+    // Pointer entry-c is non-adjacent → rejected → self-heal derives entry-b
     expect(mockComputeEta).toHaveBeenCalledTimes(1);
     const callArgs = mockComputeEta.mock.calls[0][0];
-    expect(callArgs.targetStopId).toBeUndefined();
+    expect(callArgs.targetStopId).toBe("entry-b");
+    consoleSpy.mockRestore();
   });
 
   it("accepts adjacent pointer (next_stop_id is immediate successor of last_passed_stop_id)", async () => {
@@ -734,13 +748,12 @@ describe("resolveRouteProgress", () => {
     expect(mockComputeEta).not.toHaveBeenCalled();
   });
 
-  // --- T015: stale pointer targeting already-passed stop falls back to next pending by route order ---
-  it("stale pointer targeting already-passed stop falls back to next pending by route order", async () => {
+  // --- T015: stale pointer targeting already-passed stop triggers self-heal ---
+  it("stale pointer targeting already-passed stop self-heals to next pending by route order", async () => {
     const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
     // Pointer points to entry-a which is already passed
-    // Even though pointer is fresh, the stop is not pending → invalid
-    // Default persisted mode should fall back to legacy (next pending by route order)
+    // Even though pointer is fresh, the stop is not pending → invalid → self-heal
     mockComputeEta.mockImplementation(() =>
       Promise.resolve(defaultEtaResult("entry-b")),
     );
@@ -760,20 +773,83 @@ describe("resolveRouteProgress", () => {
 
     expect(result).not.toBeNull();
     expect(result!.runStatus).toBe("in_progress");
-    // Pointer to passed stop is invalid → falls back to legacy ETA
+    // Pointer to passed stop is invalid → self-heal derives entry-b
     expect(mockComputeEta).toHaveBeenCalledTimes(1);
     const callArgs = mockComputeEta.mock.calls[0][0];
-    expect(callArgs.targetStopId).toBeUndefined();
-    // Legacy ETA picks next pending by route order → entry-b
+    expect(callArgs.targetStopId).toBe("entry-b");
     expect(result!.nextStopId).toBe("entry-b");
 
-    // Fallback log emitted
-    expect(consoleSpy).toHaveBeenCalledTimes(1);
-    const logPayload = JSON.parse(consoleSpy.mock.calls[0][0] as string);
-    expect(logPayload).toMatchObject({
-      event: "progress_source_fallback",
-      reason: "pointer_stale_or_not_pending",
+    // Self-heal log emitted
+    const healLog = consoleSpy.mock.calls.find((c) => {
+      try { return JSON.parse(c[0] as string).event === "progress_pointer_healed"; } catch { return false; }
     });
+    expect(healLog).toBeDefined();
+    const logPayload = JSON.parse(healLog![0] as string);
+    expect(logPayload).toMatchObject({
+      event: "progress_pointer_healed",
+      routeId: ROUTE_ID,
+      runId: RUN_ID,
+      healedNextStopId: "entry-b",
+      healedLastPassedStopId: "entry-a",
+    });
+    consoleSpy.mockRestore();
+  });
+
+  // --- T015: self-heal persists repaired pointer and logs progress_pointer_healed ---
+  it("self-heal: invalid next_stop_id is repaired from contiguous stops, persisted, and logged", async () => {
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    // entry-a passed, entry-b pending, entry-c pending
+    // Pointer points to "entry-deleted" (not in schedule) → invalid
+    // Self-heal should derive entry-b as healedNextStopId, entry-a as healedLastPassedStopId,
+    // persist the repair via supabase.from("route_runs").update(), and log progress_pointer_healed.
+    mockComputeEta.mockImplementation((args: { targetStopId?: string }) =>
+      Promise.resolve(defaultEtaResult(args.targetStopId ?? null)),
+    );
+
+    const freshTimestamp = makeNow().minus({ minutes: 2 }).toISO()!;
+
+    const supabase = buildSupabase({
+      runData: {
+        id: RUN_ID,
+        last_passed_stop_id: "entry-a",
+        next_stop_id: "entry-deleted", // invalid — not in schedule entries
+        progress_updated_at: freshTimestamp,
+      },
+      shifts: [{ id: "shift-1", started_at: "2026-03-07T08:00:00-03:00", ended_at: null }],
+      runStops: standardRunStops(),
+    });
+
+    const result = await resolveRouteProgress(makeArgs(supabase));
+
+    expect(result).not.toBeNull();
+    expect(result!.runStatus).toBe("in_progress");
+
+    // computeEta called with healed targetStopId
+    expect(mockComputeEta).toHaveBeenCalledTimes(1);
+    const callArgs = mockComputeEta.mock.calls[0][0];
+    expect(callArgs.targetStopId).toBe("entry-b");
+
+    // Self-heal persisted: supabase.from("route_runs") called for the update
+    const routeRunsCalls = (supabase.from as ReturnType<typeof vi.fn>).mock.calls
+      .filter((c: string[]) => c[0] === "route_runs");
+    // At least 2 calls: one for the initial select, one for the update
+    expect(routeRunsCalls.length).toBeGreaterThanOrEqual(2);
+
+    // Self-heal log emitted with correct payload
+    const healLog = consoleSpy.mock.calls.find((c) => {
+      try { return JSON.parse(c[0] as string).event === "progress_pointer_healed"; } catch { return false; }
+    });
+    expect(healLog).toBeDefined();
+    const logPayload = JSON.parse(healLog![0] as string);
+    expect(logPayload).toMatchObject({
+      event: "progress_pointer_healed",
+      routeId: ROUTE_ID,
+      runId: RUN_ID,
+      healedNextStopId: "entry-b",
+      healedLastPassedStopId: "entry-a",
+    });
+
     consoleSpy.mockRestore();
   });
 

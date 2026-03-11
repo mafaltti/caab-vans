@@ -32,6 +32,11 @@ type EventUpdate = {
   filters: Record<string, unknown>;
 };
 
+type RunUpdate = {
+  payload: Record<string, unknown>;
+  filters: Record<string, unknown>;
+};
+
 function createMockSupabase(opts: {
   insertReturns?: unknown[] | null; // null = duplicate (empty array)
   existingEvent?: {
@@ -66,6 +71,7 @@ function createMockSupabase(opts: {
 
   const stopUpdates: StopUpdate[] = [];
   const eventUpdates: EventUpdate[] = [];
+  const runUpdates: RunUpdate[] = [];
 
   function chain(result: unknown) {
     const proxy: unknown = new Proxy(
@@ -137,6 +143,15 @@ function createMockSupabase(opts: {
               })),
             })),
           })),
+          update: vi.fn((payload: Record<string, unknown>) => {
+            const filters: Record<string, unknown> = {};
+            const eqFn = vi.fn((field: string, value: unknown) => {
+              filters[field] = value;
+              runUpdates.push({ payload: { ...payload }, filters: { ...filters } });
+              return { eq: eqFn, error: null };
+            });
+            return { eq: eqFn };
+          }),
         };
       }
 
@@ -191,22 +206,32 @@ function createMockSupabase(opts: {
           update: vi.fn((payload: Record<string, unknown>) => {
             let captured = false;
             const filters: Record<string, unknown> = {};
-            // Recursive eq chain — captures the update once, supports N .eq() calls
-            function makeEq(): (field: string, value: unknown) => { eq: ReturnType<typeof makeEq>; error: null } {
-              return (field: string, value: unknown) => {
-                filters[field] = value;
-                if (!captured) {
-                  captured = true;
-                  stopUpdates.push({
-                    table: "route_run_stops",
-                    payload: { ...payload },
-                    filters, // shared ref — final snapshot after all eq calls
-                  });
-                }
-                return { eq: makeEq(), error: null };
+            function capture() {
+              if (!captured) {
+                captured = true;
+                stopUpdates.push({
+                  table: "route_run_stops",
+                  payload: { ...payload },
+                  filters,
+                });
+              }
+            }
+            function makeChain(): { eq: (f: string, v: unknown) => ReturnType<typeof makeChain>; in: (f: string, v: unknown[]) => { error: null }; error: null } {
+              return {
+                eq: (field: string, value: unknown) => {
+                  filters[field] = value;
+                  capture();
+                  return makeChain();
+                },
+                in: (field: string, value: unknown[]) => {
+                  filters[field] = value;
+                  capture();
+                  return { error: null };
+                },
+                error: null,
               };
             }
-            return { eq: makeEq() };
+            return makeChain();
           }),
         };
       }
@@ -231,6 +256,7 @@ function createMockSupabase(opts: {
     }),
     _stopUpdates: stopUpdates,
     _eventUpdates: eventUpdates,
+    _runUpdates: runUpdates,
   };
 
   return mock;
@@ -287,6 +313,10 @@ describe("processDeviceGeofenceEvents", () => {
     expect(mock._stopUpdates[0].filters).toMatchObject({
       schedule_entry_id: "entry-1350",
     });
+    // Canonical progress pointers persisted on route_runs
+    expect(mock._runUpdates).toHaveLength(1);
+    expect(mock._runUpdates[0].filters).toMatchObject({ id: "run-1" });
+    expect(mock._runUpdates[0].payload).toHaveProperty("progress_updated_at");
     // Event ledger updated to matched
     expect(mock._eventUpdates).toHaveLength(1);
     expect(mock._eventUpdates[0].payload).toMatchObject({
@@ -446,6 +476,8 @@ describe("processDeviceGeofenceEvents", () => {
     // Deferred because matched stop is not head-of-line
     expect(result).toHaveLength(0);
     expect(mock._stopUpdates).toHaveLength(0);
+    // No pointer update on deferred events
+    expect(mock._runUpdates).toHaveLength(0);
   });
 
   it("returns no_match when event is outside the early arrival window", async () => {
@@ -530,6 +562,8 @@ describe("processDeviceGeofenceEvents", () => {
     expect(result).toHaveLength(0);
     expect(mock._stopUpdates).toHaveLength(0);
     expect(mock._eventUpdates).toHaveLength(0);
+    // No pointer update on deferred events
+    expect(mock._runUpdates).toHaveLength(0);
   });
 
   it("retries deferred event after earlier stop is passed", async () => {

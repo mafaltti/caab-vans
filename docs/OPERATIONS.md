@@ -43,7 +43,6 @@ The supported deployment shape for this repo is:
 | `OSRM_MATCH_TIMEOUT_MS` | No | Server | Match timeout override |
 | `NEXT_PUBLIC_TILE_URL` | No | Client | Optional tile source |
 | `DEBUG_ETA` | No | Server | Verbose ETA comparison logging |
-| `TRACKING_PROGRESS_SOURCE` | No | Server | `legacy`, `shadow`, or `persisted` |
 | `APP_URL` | No | Scripts | Used by `simulate-tracking.ts` |
 | `BOOTSTRAP_SUPERUSER_EMAIL` | No | Scripts | Required only by `npm run auth:bootstrap` |
 | `BOOTSTRAP_SUPERUSER_PASSWORD` | No | Scripts | Required only by `npm run auth:bootstrap` |
@@ -287,7 +286,6 @@ Important constants and behavior:
 
 - Canonical timezone: `America/Bahia`
 - Location freshness threshold: `10` minutes
-- Progress source flag: `TRACKING_PROGRESS_SOURCE`
 - Time factors load from `data/time-factors.json` if present, otherwise built-in defaults
 - OSRM failures degrade gracefully to haversine-based distance
 
@@ -428,9 +426,6 @@ Important current behaviors from `apps/van-tracker/`:
 
 ### ETA Operations
 
-- `TRACKING_PROGRESS_SOURCE=legacy` is the current safe default.
-- `TRACKING_PROGRESS_SOURCE=shadow` computes both legacy and persisted stop pointers and logs mismatches.
-- `TRACKING_PROGRESS_SOURCE=persisted` uses stored stop pointers when valid and falls back to legacy when they are stale or invalid.
 - `data/time-factors.json` is environment-specific generated data. It is read on each API request, so replacing the file does not require an app restart.
 
 ### Logs and Debugging

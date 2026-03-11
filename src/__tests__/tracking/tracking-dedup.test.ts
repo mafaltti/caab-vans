@@ -8,15 +8,6 @@ vi.mock("@/lib/supabase/server", () => ({
   createServiceClient: () => ({ from: mockFrom, rpc: mockRpc }),
 }));
 
-// Mock inferStopProgress
-const mockInferStopProgress = vi.fn().mockResolvedValue({
-  passedStopIds: [],
-  nextStopId: null,
-});
-vi.mock("@/lib/tracking/infer-stop-progress", () => ({
-  inferStopProgress: (args: unknown) => mockInferStopProgress(args),
-}));
-
 // Mock processDeviceGeofenceEvents
 vi.mock("@/lib/tracking/process-device-geofence-events", () => ({
   processDeviceGeofenceEvents: vi.fn().mockResolvedValue([]),
@@ -200,27 +191,26 @@ describe("tracking dedup — upsert returns duplicate indicator", () => {
   });
 });
 
-describe("tracking dedup — inference always runs after successful upsert", () => {
+describe("tracking dedup — GPS pings do not mutate stop progress", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("calls inferStopProgress even when RPC returns false (not newest)", async () => {
+  it("does not touch route_run_stops or route_runs after successful upsert", async () => {
     const now = Date.now();
 
     setupMocks({
       upsertData: { id: "ping-1" },
-
     });
-    // RPC returns false — ping was not newer than stored position
-    mockRpc.mockResolvedValueOnce({ data: false, error: null });
+    mockRpc.mockResolvedValueOnce({ data: true, error: null });
 
     const body = validBody({ ts: now });
     const req = createRequest(body);
     await POST(req as never, routeParams);
 
-    // Inference now always runs after successful upsert
-    expect(mockInferStopProgress).toHaveBeenCalledTimes(1);
+    const fromCalls = mockFrom.mock.calls.map((c: unknown[]) => c[0]);
+    expect(fromCalls).not.toContain("route_run_stops");
+    expect(fromCalls).not.toContain("route_runs");
   });
 });
 
@@ -263,7 +253,7 @@ describe("tracking dedup — downstream only triggers when isNewest", () => {
     vi.clearAllMocks();
   });
 
-  it("does not call inferStopProgress for duplicate ping", async () => {
+  it("does not touch stop progress for duplicate ping", async () => {
     setupMocks({
       upsertData: null,
       upsertError: { code: "PGRST116", message: "No rows returned" },
@@ -273,28 +263,30 @@ describe("tracking dedup — downstream only triggers when isNewest", () => {
     const req = createRequest(body);
     await POST(req as never, routeParams);
 
-    expect(mockInferStopProgress).not.toHaveBeenCalled();
+    const fromCalls = mockFrom.mock.calls.map((c: unknown[]) => c[0]);
+    expect(fromCalls).not.toContain("route_run_stops");
+    expect(fromCalls).not.toContain("route_runs");
   });
 
-  it("calls inferStopProgress for newest ping with object arg", async () => {
+  it("stores ping and updates van position without stop inference", async () => {
     const now = Date.now();
-    // Return an older latest so this ping is newest (strict >)
-    const olderTs = DateTime.fromMillis(now - 10_000).toISO()!;
     setupMocks({
       upsertData: { id: "ping-1" },
-
     });
 
     const body = validBody({ ts: now });
     const req = createRequest(body);
-    await POST(req as never, routeParams);
+    const res = await POST(req as never, routeParams);
+    const json = await res.json();
 
-    expect(mockInferStopProgress).toHaveBeenCalledTimes(1);
-    // Verify object arg shape
-    const callArg = mockInferStopProgress.mock.calls[0][0];
-    expect(callArg).toHaveProperty("rawLat");
-    expect(callArg).toHaveProperty("rawLng");
-    expect(callArg).toHaveProperty("eventTs");
-    expect(callArg).toHaveProperty("vanId", VAN_ID);
+    expect(json.received).toBe(true);
+    expect(mockRpc).toHaveBeenCalledWith(
+      "update_van_position",
+      expect.objectContaining({ p_van_id: VAN_ID }),
+    );
+
+    const fromCalls = mockFrom.mock.calls.map((c: unknown[]) => c[0]);
+    expect(fromCalls).not.toContain("route_run_stops");
+    expect(fromCalls).not.toContain("route_runs");
   });
 });

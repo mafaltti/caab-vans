@@ -138,6 +138,46 @@ describe("confirm-start-stop logic", () => {
       expect(stopCount === 0).toBe(true);
     });
   });
+
+  describe("persistCanonicalProgress integration", () => {
+    it("enforceCanonicalPrefix after bulk mark produces correct pointers for persistCanonicalProgress", () => {
+      // Simulate state after bulk mark: stops before confirmed stop-3 are passed,
+      // confirmed stop and later remain pending — this is what persistCanonicalProgress sees.
+      const stopsAfterBulkMark = [
+        { schedule_entry_id: "s1", status: "passed" as const },
+        { schedule_entry_id: "s2", status: "passed" as const },
+        { schedule_entry_id: "s3", status: "pending" as const },
+        { schedule_entry_id: "s4", status: "pending" as const },
+      ];
+
+      // persistCanonicalProgress internally calls enforceCanonicalPrefix
+      // with the same shape — verify the output matches expected pointers.
+      const result = enforceCanonicalPrefix(stopsAfterBulkMark);
+
+      expect(result.lastPassedStopId).toBe("s2");
+      expect(result.nextStopId).toBe("s3");
+      expect(result.healIds).toEqual([]);
+      expect(result.contiguousPassedIds).toEqual(new Set(["s1", "s2"]));
+    });
+
+    it("detects and heals non-contiguous passed rows after bulk mark", () => {
+      // Edge case: a gap in the passed prefix (should not happen normally,
+      // but persistCanonicalProgress heals it).
+      const stopsWithGap = [
+        { schedule_entry_id: "s1", status: "passed" as const },
+        { schedule_entry_id: "s2", status: "pending" as const },
+        { schedule_entry_id: "s3", status: "passed" as const },
+        { schedule_entry_id: "s4", status: "pending" as const },
+      ];
+
+      const result = enforceCanonicalPrefix(stopsWithGap);
+
+      expect(result.contiguousPassedIds).toEqual(new Set(["s1"]));
+      expect(result.healIds).toEqual(["s3"]);
+      expect(result.lastPassedStopId).toBe("s1");
+      expect(result.nextStopId).toBe("s2");
+    });
+  });
 });
 
 describe("start endpoint cold-start detection", () => {
