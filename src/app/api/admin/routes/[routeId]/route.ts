@@ -68,24 +68,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     return apiError("NOT_FOUND", "Route not found", 404);
   }
 
-  // Full-replacement semantics: delete all, then insert new set
-  const { error: delError } = await supabase
-    .from("route_drivers")
-    .delete()
-    .eq("route_id", routeId);
+  // Atomic full-replacement via RPC (single transaction)
+  const { error: rpcError } = await supabase.rpc("replace_route_drivers", {
+    p_route_id: routeId,
+    p_driver_ids: driverIds,
+  });
 
-  if (delError) {
+  if (rpcError) {
     return apiError("INTERNAL_ERROR", "Failed to update driver assignments", 500);
-  }
-
-  if (driverIds.length > 0) {
-    const { error: insError } = await supabase
-      .from("route_drivers")
-      .insert(driverIds.map((dId) => ({ route_id: routeId, driver_id: dId })));
-
-    if (insError) {
-      return apiError("INTERNAL_ERROR", "Failed to assign drivers", 500);
-    }
   }
 
   return NextResponse.json({
