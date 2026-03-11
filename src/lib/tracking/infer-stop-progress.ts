@@ -101,7 +101,7 @@ export async function inferStopProgress(args: {
   const { data: pendingStops, error: pendingError } = await supabase
     .from("route_run_stops")
     .select(
-      "schedule_entry_id, status, passed_at, schedule_entries!inner(time, stop_lat, stop_lng, geofence_radius_m, stop_group_id, stop_sequence, arrival_time, departure_time)",
+      "schedule_entry_id, status, passed_at, schedule_entries!inner(stop_lat, stop_lng, geofence_radius_m, stop_group_id, stop_sequence, arrival_time, departure_time)",
     )
     .eq("run_id", run.id)
     .eq("status", "pending")
@@ -372,7 +372,7 @@ export async function inferStopProgress(args: {
   // 7. Build final result from current state
   const { data: allStops, error: allStopsError } = await supabase
     .from("route_run_stops")
-    .select("schedule_entry_id, status, schedule_entries!inner(time, stop_sequence)")
+    .select("schedule_entry_id, status, schedule_entries!inner(stop_sequence)")
     .eq("run_id", run.id)
     .order("stop_sequence", { referencedTable: "schedule_entries", ascending: true });
 

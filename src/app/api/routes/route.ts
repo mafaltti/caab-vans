@@ -157,13 +157,13 @@ export async function GET(request: NextRequest) {
 
     let currentStopIndex = nextStop
       ? sortedEntries.findIndex(
-          (e) => formatTimeString(e.arrival_time) === nextStop!.time,
+          (e) => e.stop_sequence === nextStop!.stopSequence,
         )
       : null;
 
     let nextStopEntry: (typeof sortedEntries)[number] | undefined | null = nextStop
       ? sortedEntries.find(
-          (e) => formatTimeString(e.arrival_time) === nextStop!.time,
+          (e) => e.stop_sequence === nextStop!.stopSequence,
         )
       : null;
 

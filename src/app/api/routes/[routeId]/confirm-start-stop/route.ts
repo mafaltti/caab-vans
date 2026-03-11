@@ -42,7 +42,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   // Validate stopId belongs to this route's schedule entries
   const { data: entryCheck } = await supabase
     .from("schedule_entries")
-    .select("id, time")
+    .select("id")
     .eq("id", stopId)
     .eq("route_id", routeId)
     .single();
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const { data: allStops } = await supabase
     .from("route_run_stops")
     .select(
-      "schedule_entry_id, status, pass_source, schedule_entries!inner(time, stop_sequence)",
+      "schedule_entry_id, status, pass_source, schedule_entries!inner(stop_sequence)",
     )
     .eq("run_id", run.id);
 
@@ -191,7 +191,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   // Re-fetch stops after update for canonical enforcement
   const { data: updatedStops } = await supabase
     .from("route_run_stops")
-    .select("schedule_entry_id, status, schedule_entries!inner(time, stop_sequence)")
+    .select("schedule_entry_id, status, schedule_entries!inner(stop_sequence)")
     .eq("run_id", run.id);
 
   if (updatedStops) {

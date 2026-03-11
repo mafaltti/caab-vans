@@ -90,20 +90,19 @@ function createMockSupabase(opts: {
   pendingStops: Array<{
     schedule_entry_id: string;
     schedule_entries: {
-      time: string;
       stop_lat: number;
       stop_lng: number;
       geofence_radius_m: number;
       stop_group_id?: string | null;
       stop_sequence?: number;
-      arrival_time?: string;
-      departure_time?: string;
+      arrival_time: string;
+      departure_time: string;
     };
   }>;
   allStops: Array<{
     schedule_entry_id: string;
     status: string;
-    schedule_entries: { time: string; stop_sequence?: number };
+    schedule_entries: { stop_sequence?: number };
   }>;
   stopCount?: number;
   shifts?: Array<{ id: string; ended_at: string | null; started_at?: string }>;
@@ -117,13 +116,11 @@ function createMockSupabase(opts: {
   const routeRunUpserts: Array<{ route_id: string; service_date: string }> = [];
   let pingsLimitSpy: ReturnType<typeof vi.fn> | null = null;
   const { allStops: rawAllStops, stopCount = 10, shifts = [], activeShiftOverride, pings = [] } = opts;
-  // Auto-populate arrival_time, departure_time, and stop_sequence from time if not provided
+  // Auto-populate stop_sequence if not provided
   const pendingStops = opts.pendingStops.map((s, i) => ({
     ...s,
     schedule_entries: {
       ...s.schedule_entries,
-      arrival_time: s.schedule_entries.arrival_time ?? s.schedule_entries.time,
-      departure_time: s.schedule_entries.departure_time ?? s.schedule_entries.time,
       stop_sequence: s.schedule_entries.stop_sequence ?? i + 1,
     },
   }));
@@ -234,7 +231,7 @@ function createMockSupabase(opts: {
                 eq: () => ({ data: null, error: null, count: stopCount }),
               };
             }
-            if (selectStr.includes("schedule_entries!inner(time, stop_lat") && selectStr.includes("stop_group_id")) {
+            if (selectStr.includes("schedule_entries!inner(stop_lat") && selectStr.includes("stop_group_id")) {
               // Step 5: pending stops query
               return {
                 eq: vi.fn().mockReturnValue({
