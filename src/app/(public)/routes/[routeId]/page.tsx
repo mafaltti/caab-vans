@@ -233,6 +233,28 @@ export default function RouteDetailPage() {
             />
           </MapErrorBoundary>
 
+          {/* Exception warnings overlaid on the map */}
+          {isDetourActive && (
+            <div className="absolute top-[calc(env(safe-area-inset-top,0px)+4rem)] left-4 right-4 z-50 rounded-2xl bg-amber-50 border border-amber-200 px-4 py-3 flex items-start gap-2 shadow-md">
+              <AlertTriangle className="size-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-amber-800">Rota em desvio</p>
+                {detourReasonCode && (
+                  <p className="text-xs text-amber-600">{DETOUR_PUBLIC_LABELS[detourReasonCode] ?? detourReasonCode}</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {hasExceptions && !isDetourActive && (
+            <div className="absolute top-[calc(env(safe-area-inset-top,0px)+4rem)] left-4 right-4 z-50 rounded-2xl bg-amber-50 border border-amber-200 px-4 py-3 flex items-start gap-2 shadow-md">
+              <AlertTriangle className="size-5 text-amber-500 shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-700">
+                Tempo estimado pode variar — parada(s) com alteração
+              </p>
+            </div>
+          )}
+
           <RouteDetailSheet
             activeSnapPoint={activeSnapPoint}
             setActiveSnapPoint={setActiveSnapPoint}
@@ -323,6 +345,7 @@ export default function RouteDetailPage() {
             nextStopId={nextStopId}
             isRunning={route!.isRunning}
             passedStopIds={route!.progress?.passedStopIds}
+            skippedStopIds={skippedStopIds}
             inferredNextStopId={route!.progress?.nextStopId}
             etaMinutes={route!.progress?.etaNextStopMinutes}
             etaStatus={route!.progress?.etaStatus}

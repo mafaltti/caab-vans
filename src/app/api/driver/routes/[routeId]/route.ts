@@ -40,6 +40,27 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     return apiError("FORBIDDEN", "Not assigned to this route", 403);
   }
 
+  // Verify requesting driver owns the active shift
+  const { data: activeRun } = await supabase
+    .from("route_runs")
+    .select("id")
+    .eq("route_id", routeId)
+    .eq("service_date", serviceDate)
+    .maybeSingle();
+
+  if (activeRun) {
+    const { data: activeShift } = await supabase
+      .from("route_shifts")
+      .select("driver_id")
+      .eq("run_id", activeRun.id)
+      .is("ended_at", null)
+      .maybeSingle();
+
+    if (activeShift && activeShift.driver_id !== auth.user.id) {
+      return apiError("FORBIDDEN", "Another driver owns the active shift", 403);
+    }
+  }
+
   // Fetch route with van and schedule
   const { data: route, error: routeError } = await supabase
     .from("routes")
