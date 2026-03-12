@@ -235,6 +235,8 @@ export default function ActiveRoutePage() {
         <ExceptionDrawer
           nextStopId={nextStopId}
           nextStopName={nextStopEntry?.stopName ?? null}
+          nextStopLat={nextStopEntry?.stopLat ?? null}
+          nextStopLng={nextStopEntry?.stopLng ?? null}
           isDetourActive={route.progress?.isDetourActive ?? false}
           onSkipStop={async (data) => { await skipMutation.mutateAsync(data); }}
           onDetourToggle={async (data) => { await detourMutation.mutateAsync(data); }}
@@ -265,8 +267,6 @@ export default function ActiveRoutePage() {
         arrivalTime={nextStopEntry?.arrivalTime ?? null}
         etaMinutes={route.progress?.etaNextStopMinutes ?? null}
         delayMinutes={route.progress?.delayMinutes ?? null}
-        stopLat={nextStopEntry?.stopLat ?? null}
-        stopLng={nextStopEntry?.stopLng ?? null}
         etaStatus={route.progress?.etaStatus ?? "none"}
       />
 

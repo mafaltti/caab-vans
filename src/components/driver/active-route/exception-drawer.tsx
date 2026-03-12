@@ -14,7 +14,7 @@ import {
   DrawerTrigger,
 } from "@/components/ui/drawer";
 import { Textarea } from "@/components/ui/textarea";
-import { AlertTriangle, SkipForward, Route } from "lucide-react";
+import { MoreVertical, Navigation, SkipForward, Route } from "lucide-react";
 import { SKIP_REASON_CODES, DETOUR_REASON_CODES } from "@/types";
 import type { SkipReasonCode, DetourReasonCode } from "@/types";
 
@@ -38,15 +38,23 @@ const DETOUR_LABELS: Record<DetourReasonCode, string> = {
 type ExceptionDrawerProps = {
   nextStopId: string | null;
   nextStopName: string | null;
+  nextStopLat: number | null;
+  nextStopLng: number | null;
   isDetourActive: boolean;
   onSkipStop: (data: { stopId: string; reasonCode: string; note?: string }) => Promise<void>;
   onDetourToggle: (data: { action: "start" | "end"; reasonCode?: string; note?: string }) => Promise<void>;
   loading?: boolean;
 };
 
+function buildNavigationUrl(lat: number, lng: number): string {
+  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+}
+
 export function ExceptionDrawer({
   nextStopId,
   nextStopName,
+  nextStopLat,
+  nextStopLng,
   isDetourActive,
   onSkipStop,
   onDetourToggle,
@@ -142,8 +150,8 @@ export function ExceptionDrawer({
           className="gap-1.5"
           disabled={loading}
         >
-          <AlertTriangle className="size-4" />
-          Exceções
+          <MoreVertical className="size-4" />
+          Ações
         </Button>
       </DrawerTrigger>
 
@@ -151,13 +159,30 @@ export function ExceptionDrawer({
         {mode === "menu" && (
           <>
             <DrawerHeader>
-              <DrawerTitle>Ações de exceção</DrawerTitle>
+              <DrawerTitle>Ações</DrawerTitle>
               <DrawerDescription>
                 Escolha uma ação para a rota em andamento
               </DrawerDescription>
             </DrawerHeader>
 
             <div className="space-y-2 px-4">
+              {nextStopLat != null && nextStopLng != null && (
+                <a
+                  href={buildNavigationUrl(nextStopLat, nextStopLng)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex w-full items-center gap-3 rounded-lg border border-zinc-200 p-3 text-left transition-colors hover:bg-zinc-50"
+                >
+                  <Navigation className="size-5 text-zinc-600" />
+                  <div>
+                    <p className="text-sm font-medium">Navegar até a parada</p>
+                    {nextStopName && (
+                      <p className="text-xs text-zinc-500">{nextStopName}</p>
+                    )}
+                  </div>
+                </a>
+              )}
+
               {nextStopId && (
                 <button
                   type="button"

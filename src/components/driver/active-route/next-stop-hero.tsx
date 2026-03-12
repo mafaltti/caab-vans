@@ -3,15 +3,12 @@
 import { Navigation, Clock, CheckCircle2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 
 type NextStopHeroProps = {
   stopName: string | null;
   arrivalTime: string | null;
   etaMinutes: number | null;
   delayMinutes: number | null;
-  stopLat: number | null;
-  stopLng: number | null;
   etaStatus: "estimated" | "overdue" | "none";
 };
 
@@ -33,17 +30,11 @@ function DelayBadge({ delayMinutes }: { delayMinutes: number }) {
   return null;
 }
 
-function buildNavigationUrl(lat: number, lng: number): string {
-  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
-}
-
 export function NextStopHero({
   stopName,
   arrivalTime,
   etaMinutes,
   delayMinutes,
-  stopLat,
-  stopLng,
   etaStatus,
 }: NextStopHeroProps) {
   if (!stopName) {
@@ -58,8 +49,6 @@ export function NextStopHero({
       </Card>
     );
   }
-
-  const canNavigate = stopLat != null && stopLng != null;
 
   return (
     <Card>
@@ -95,19 +84,6 @@ export function NextStopHero({
             <DelayBadge delayMinutes={delayMinutes} />
           )}
         </div>
-
-        {canNavigate && (
-          <Button asChild className="w-full">
-            <a
-              href={buildNavigationUrl(stopLat!, stopLng!)}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <Navigation className="mr-2 size-4" />
-              Navegar
-            </a>
-          </Button>
-        )}
       </CardContent>
     </Card>
   );
