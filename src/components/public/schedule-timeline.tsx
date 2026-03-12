@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, ChevronDown } from "lucide-react";
+import { CheckCircle2, ChevronDown, SkipForward } from "lucide-react";
 import { useReducedMotion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import type { RunStatus, TimelineStop, TimelineStopStatus } from "@/types";
@@ -11,6 +11,7 @@ type ScheduleTimelineProps = {
   nextStopId: string | null;
   isRunning: boolean;
   passedStopIds?: string[];
+  skippedStopIds?: string[];
   inferredNextStopId?: string | null;
   etaMinutes?: number | null;
   etaStatus?: "estimated" | "overdue" | "none";
@@ -98,7 +99,14 @@ export function deriveTimelineStops(
   }));
 }
 
-function TimelineNode({ status, reducedMotion, isLastKnown }: { status: TimelineStopStatus; reducedMotion: boolean; isLastKnown?: boolean }) {
+function TimelineNode({ status, reducedMotion, isLastKnown, isSkipped }: { status: TimelineStopStatus; reducedMotion: boolean; isLastKnown?: boolean; isSkipped?: boolean }) {
+  if (isSkipped) {
+    return (
+      <div className="flex size-6 items-center justify-center rounded-full bg-orange-100 border-2 border-orange-300">
+        <SkipForward className="size-3.5 text-orange-500" />
+      </div>
+    );
+  }
   if (status === "past") {
     return (
       <div className="flex size-6 items-center justify-center rounded-full bg-zinc-100 border-2 border-white">
@@ -130,6 +138,7 @@ export function ScheduleTimeline({
   nextStopId,
   isRunning,
   passedStopIds,
+  skippedStopIds,
   inferredNextStopId,
   etaMinutes,
   etaStatus,
@@ -141,6 +150,7 @@ export function ScheduleTimeline({
   const prefersReducedMotion = useReducedMotion();
   const [showPast, setShowPast] = useState(false);
   const stops = deriveTimelineStops(schedule, nextStopId, isRunning, passedStopIds, inferredNextStopId, serverTime, runStatus);
+  const skippedSet = new Set(skippedStopIds ?? []);
 
   if (stops.length === 0) {
     return (
@@ -192,31 +202,38 @@ export function ScheduleTimeline({
               }`}
             >
               <div className="relative z-10 shrink-0">
-                <TimelineNode status={stop.status} reducedMotion={!!prefersReducedMotion} isLastKnown={nextStopMode === "last_known"} />
+                <TimelineNode status={stop.status} reducedMotion={!!prefersReducedMotion} isLastKnown={nextStopMode === "last_known"} isSkipped={skippedSet.has(stop.id)} />
               </div>
               <div className="min-w-0 flex-1">
                 <p
                   className={`text-sm ${
-                    stop.status === "current"
-                      ? nextStopMode === "last_known" ? "font-semibold text-zinc-700" : "font-semibold text-blue-700"
-                      : stop.status === "past"
-                        ? "text-zinc-400"
-                        : "text-zinc-700 group-hover:text-zinc-900 transition-colors"
+                    skippedSet.has(stop.id)
+                      ? "text-orange-600"
+                      : stop.status === "current"
+                        ? nextStopMode === "last_known" ? "font-semibold text-zinc-700" : "font-semibold text-blue-700"
+                        : stop.status === "past"
+                          ? "text-zinc-400"
+                          : "text-zinc-700 group-hover:text-zinc-900 transition-colors"
                   }`}
                 >
                   {stop.stopName}
                 </p>
-                {stop.status === "current" && (
+                {skippedSet.has(stop.id) && (
+                  <p className="text-xs text-orange-500">
+                    Pulada — parada pulada pelo motorista
+                  </p>
+                )}
+                {stop.status === "current" && !skippedSet.has(stop.id) && (
                   <p className={`text-xs ${nextStopMode === "last_known" ? "text-zinc-500" : "text-blue-500"}`}>
                     {nextStopMode === "last_known" ? "Última posição" : "Próxima parada"}
                   </p>
                 )}
-                {stop.status === "current" && nextStopMode !== "last_known" && etaMinutes != null && (
+                {stop.status === "current" && !skippedSet.has(stop.id) && nextStopMode !== "last_known" && etaMinutes != null && (
                   <p className="text-xs text-blue-400">
                     ~{etaMinutes} min
                   </p>
                 )}
-                {stop.status === "current" && nextStopMode !== "last_known" && etaStatus === "overdue" && etaMinutes == null && (
+                {stop.status === "current" && !skippedSet.has(stop.id) && nextStopMode !== "last_known" && etaStatus === "overdue" && etaMinutes == null && (
                   <p className="text-xs text-amber-600 font-medium">
                     Atrasado
                   </p>

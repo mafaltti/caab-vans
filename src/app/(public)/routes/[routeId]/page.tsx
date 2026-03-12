@@ -11,7 +11,7 @@ import { RouteDetailPeek } from "@/components/public/route-detail-peek";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, AlertCircle } from "lucide-react";
+import { ArrowLeft, AlertCircle, AlertTriangle } from "lucide-react";
 
 const VanTrackingMap = dynamic(
   () =>
@@ -124,6 +124,20 @@ export default function RouteDetailPage() {
 
   // Progress data for peek section
   const passedStopIds = route?.progress?.passedStopIds ?? [];
+  const skippedStopIds = (route?.progress as { skippedStopIds?: string[] } | null)?.skippedStopIds ?? [];
+  const hasExceptions = (route?.progress as { hasSkippedStops?: boolean; isDetourActive?: boolean } | null)?.hasSkippedStops ||
+    (route?.progress as { isDetourActive?: boolean } | null)?.isDetourActive;
+  const isDetourActive = (route?.progress as { isDetourActive?: boolean } | null)?.isDetourActive ?? false;
+  const detourReasonCode = (route?.progress as { detourReasonCode?: string | null } | null)?.detourReasonCode ?? null;
+
+  const DETOUR_PUBLIC_LABELS: Record<string, string> = {
+    road_closure: "Via interditada",
+    accident: "Acidente",
+    construction: "Obra na via",
+    flooding: "Alagamento",
+    police_checkpoint: "Blitz policial",
+    other: "Outro motivo",
+  };
   const passedCount = passedStopIds.length;
   const totalStops = route?.schedule.length ?? 0;
   const firstStop = route?.schedule[0];
@@ -242,6 +256,7 @@ export default function RouteDetailPage() {
               nextStopId={nextStopId}
               isRunning={route!.isRunning}
               passedStopIds={route!.progress?.passedStopIds}
+              skippedStopIds={skippedStopIds}
               inferredNextStopId={route!.progress?.nextStopId}
               etaMinutes={route!.progress?.etaNextStopMinutes}
               etaStatus={route!.progress?.etaStatus}
@@ -255,6 +270,27 @@ export default function RouteDetailPage() {
       ) : (
         /* ===== CARD LAYOUT: existing layout (non-running routes) ===== */
         <div className="space-y-6 pt-6">
+          {isDetourActive && (
+            <div className="rounded-2xl bg-amber-50 border border-amber-200 px-4 py-3 flex items-start gap-2">
+              <AlertTriangle className="size-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-amber-800">Rota em desvio</p>
+                {detourReasonCode && (
+                  <p className="text-xs text-amber-600">{DETOUR_PUBLIC_LABELS[detourReasonCode] ?? detourReasonCode}</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {hasExceptions && !isDetourActive && (
+            <div className="rounded-2xl bg-amber-50 border border-amber-200 px-4 py-3 flex items-start gap-2">
+              <AlertTriangle className="size-5 text-amber-500 shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-700">
+                Tempo estimado pode variar — parada(s) com alteração
+              </p>
+            </div>
+          )}
+
           <HeroCard
             nextStop={route!.nextStop}
             scheduleStatus={route!.scheduleStatus}
