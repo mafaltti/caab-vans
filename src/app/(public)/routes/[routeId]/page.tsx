@@ -233,14 +233,13 @@ export default function RouteDetailPage() {
 
           {/* Exception warnings overlaid on the map */}
           {isDetourActive && (
-            <div className="absolute top-[calc(env(safe-area-inset-top,0px)+4rem)] left-4 right-4 z-50 rounded-2xl bg-amber-50 border border-amber-200 px-4 py-3 flex items-start gap-2 shadow-md">
-              <AlertTriangle className="size-5 text-amber-600 shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-amber-800">Rota em desvio</p>
-                {detourReasonCode && (
-                  <p className="text-xs text-amber-600">{DETOUR_PUBLIC_LABELS[detourReasonCode] ?? detourReasonCode}</p>
+            <div className="absolute top-[calc(env(safe-area-inset-top,0px)+5.5rem)] left-1/2 -translate-x-1/2 z-50 rounded-2xl bg-amber-50/60 border border-amber-200 px-4 py-2.5 flex items-center gap-2 shadow-md">
+              <AlertTriangle className="size-4 text-amber-600 shrink-0" />
+              <p className="text-sm font-medium text-amber-800">
+                Rota em desvio{detourReasonCode && (
+                  <span className="text-xs text-amber-600 font-normal"> · {DETOUR_PUBLIC_LABELS[detourReasonCode] ?? detourReasonCode}</span>
                 )}
-              </div>
+              </p>
             </div>
           )}
 
