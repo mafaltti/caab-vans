@@ -80,7 +80,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     .single();
 
   if (runState?.is_detour_active) {
-    await supabase
+    const { error: detourErr } = await supabase
       .from("route_runs")
       .update({
         is_detour_active: false,
@@ -89,7 +89,11 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       })
       .eq("id", run.id);
 
-    await supabase
+    if (detourErr) {
+      return apiError("INTERNAL_ERROR", "Failed to deactivate detour", 500);
+    }
+
+    const { error: eventErr } = await supabase
       .from("route_run_events")
       .insert({
         run_id: run.id,
@@ -97,6 +101,10 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
         actor_id: auth.user.id,
         reason_code: "shift_ended",
       });
+
+    if (eventErr) {
+      return apiError("INTERNAL_ERROR", "Failed to record detour_ended event", 500);
+    }
   }
 
   return NextResponse.json({

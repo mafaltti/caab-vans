@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -158,9 +158,15 @@ export default function ActiveRoutePage() {
     },
   });
 
-  // Redirect to route list if no active shift (after all hooks)
-  if (!isLoading && route && !route.isRunning) {
-    router.replace("/driver");
+  // Redirect to route list if no active shift
+  const shouldRedirect = !isLoading && route != null && !route.isRunning;
+  useEffect(() => {
+    if (shouldRedirect) {
+      router.replace("/driver");
+    }
+  }, [shouldRedirect, router]);
+
+  if (shouldRedirect) {
     return null;
   }
 

@@ -213,20 +213,20 @@ export async function GET(
   }));
 
   if (progress) {
-    const { data: runData } = await supabase
+    const { data: runData, error: runErr } = await supabase
       .from("route_runs")
       .select("id")
       .eq("route_id", route.id)
       .eq("service_date", serviceDate)
       .single();
 
-    if (runData) {
-      const { data: runStops } = await supabase
+    if (!runErr && runData) {
+      const { data: runStops, error: stopsErr } = await supabase
         .from("route_run_stops")
         .select("schedule_entry_id, status, reason_code, note")
         .eq("run_id", runData.id);
 
-      if (runStops) {
+      if (!stopsErr && runStops) {
         const stopStatusMap = new Map(
           runStops.map((rs) => [rs.schedule_entry_id, rs]),
         );

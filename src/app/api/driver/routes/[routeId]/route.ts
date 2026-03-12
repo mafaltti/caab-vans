@@ -180,17 +180,11 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 
   // Fetch route_run_stops for per-stop status
   const stopStatusMap = new Map<string, { status: string; reasonCode: string | null; note: string | null; passedAt: string | null }>();
-  if (progress) {
+  if (progress && activeRun) {
     const { data: runStops } = await supabase
       .from("route_run_stops")
       .select("schedule_entry_id, status, passed_at, reason_code, note")
-      .eq("run_id", (await supabase
-        .from("route_runs")
-        .select("id")
-        .eq("route_id", routeId)
-        .eq("service_date", serviceDate)
-        .single()
-      ).data?.id ?? "");
+      .eq("run_id", activeRun.id);
 
     if (runStops) {
       for (const rs of runStops) {
