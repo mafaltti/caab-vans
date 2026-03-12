@@ -15,11 +15,16 @@ export interface RouteProgress {
   shiftStartedAt: string | null;
   nextStopId: string | null;
   passedStopIds: string[];
+  skippedStopIds: string[];
   etaNextStopISO: string | null;
   etaNextStopMinutes: number | null;
   delayMinutes: number | null;
   etaSource: "gps" | "gps_osrm" | "segment" | "schedule" | null;
   etaStatus: "estimated" | "overdue" | "none";
+  hasSkippedStops: boolean;
+  isDetourActive: boolean;
+  detourReasonCode: string | null;
+  detourNote: string | null;
 }
 
 interface ScheduleEntry {
@@ -48,7 +53,7 @@ export async function resolveRouteProgress(args: {
   // 1. Fetch route_run for today
   const { data: runData, error: runError } = await supabase
     .from("route_runs")
-    .select("id, last_passed_stop_id, next_stop_id, progress_updated_at")
+    .select("id, last_passed_stop_id, next_stop_id, progress_updated_at, is_detour_active, detour_reason_code, detour_note, has_skipped_stops")
     .eq("route_id", routeId)
     .eq("service_date", serviceDate)
     .single();
@@ -89,11 +94,16 @@ export async function resolveRouteProgress(args: {
       shiftStartedAt: null,
       nextStopId: null,
       passedStopIds: [],
+      skippedStopIds: [],
       etaNextStopISO: null,
       etaNextStopMinutes: null,
       delayMinutes: null,
       etaSource: null,
       etaStatus: "none",
+      hasSkippedStops: runData.has_skipped_stops ?? false,
+      isDetourActive: runData.is_detour_active ?? false,
+      detourReasonCode: runData.detour_reason_code ?? null,
+      detourNote: runData.detour_note ?? null,
     };
   }
 
@@ -106,11 +116,16 @@ export async function resolveRouteProgress(args: {
       shiftStartedAt: null,
       nextStopId: null,
       passedStopIds: [],
+      skippedStopIds: [],
       etaNextStopISO: null,
       etaNextStopMinutes: null,
       delayMinutes: null,
       etaSource: null,
       etaStatus: "none",
+      hasSkippedStops: runData.has_skipped_stops ?? false,
+      isDetourActive: runData.is_detour_active ?? false,
+      detourReasonCode: runData.detour_reason_code ?? null,
+      detourNote: runData.detour_note ?? null,
     };
   }
 
@@ -133,25 +148,39 @@ export async function resolveRouteProgress(args: {
       shiftStartedAt: activeShift?.started_at ?? null,
       nextStopId: null,
       passedStopIds: [],
+      skippedStopIds: [],
       etaNextStopISO: null,
       etaNextStopMinutes: null,
       delayMinutes: null,
       etaSource: null,
       etaStatus: "none",
+      hasSkippedStops: runData.has_skipped_stops ?? false,
+      isDetourActive: runData.is_detour_active ?? false,
+      detourReasonCode: runData.detour_reason_code ?? null,
+      detourNote: runData.detour_note ?? null,
     };
   }
 
-  // 4b. Compute contiguous passed prefix: only stops before the first
-  // pending gap count as "passed" for ETA math, recentRuns, and delay.
-  // Non-contiguous passed rows (from low-confidence geofence matches where
-  // backfill was skipped) are demoted to "pending" for downstream consumers.
+  // 4b. Compute contiguous resolved prefix: stops that are "passed" or "skipped"
+  // before the first pending gap count as resolved for ETA math and delay.
+  // Non-contiguous passed rows are demoted to "pending" for downstream consumers.
   const contiguousPassedIds = new Set<string>();
+  const skippedStopIds: string[] = [];
   for (const entry of sortedEntries) {
     const rs = runStops.find((r) => r.schedule_entry_id === entry.id);
-    if (rs && rs.status === "passed") {
+    if (rs && (rs.status === "passed" || rs.status === "skipped")) {
       contiguousPassedIds.add(entry.id);
+      if (rs.status === "skipped") {
+        skippedStopIds.push(entry.id);
+      }
     } else {
-      break; // first non-passed entry ends the contiguous chain
+      break; // first pending entry ends the contiguous chain
+    }
+  }
+  // Also collect skipped stops outside the contiguous prefix
+  for (const rs of runStops) {
+    if (rs.status === "skipped" && !skippedStopIds.includes(rs.schedule_entry_id)) {
+      skippedStopIds.push(rs.schedule_entry_id);
     }
   }
   const effectiveRunStops = runStops.map((rs) =>
@@ -229,7 +258,7 @@ export async function resolveRouteProgress(args: {
       if (lastPassedIdx >= 0 && nextStopIdx >= 0 && lastPassedIdx + 1 !== nextStopIdx) {
         pointerIsAdjacent = false;
       }
-      // Also check runStops: no pending stops between them
+      // Also check runStops: no pending stops between them (skipped stops are OK)
       if (pointerIsAdjacent && lastPassedIdx >= 0 && nextStopIdx >= 0) {
         for (let i = lastPassedIdx + 1; i < nextStopIdx; i++) {
           const entryId = sortedEntries[i].id;
@@ -240,6 +269,19 @@ export async function resolveRouteProgress(args: {
           }
         }
       }
+      // Allow adjacency when skipped stops exist between lastPassed and next
+      if (!pointerIsAdjacent && lastPassedIdx >= 0 && nextStopIdx >= 0) {
+        let allBetweenResolved = true;
+        for (let i = lastPassedIdx + 1; i < nextStopIdx; i++) {
+          const entryId = sortedEntries[i].id;
+          const rs = runStops.find((r) => r.schedule_entry_id === entryId);
+          if (!rs || rs.status === "pending") {
+            allBetweenResolved = false;
+            break;
+          }
+        }
+        if (allBetweenResolved) pointerIsAdjacent = true;
+      }
     }
 
     if (pointerExists && pointerIsPending && pointerWithinCeiling && pointerIsAdjacent) {
@@ -247,26 +289,28 @@ export async function resolveRouteProgress(args: {
     }
   }
 
-  // 8. Compute ETA
-  const stops = effectiveRunStops.map((rs) => {
-    const coords = stopCoordsMap.get(rs.schedule_entry_id);
-    const entry = rs.schedule_entries as unknown as {
-      arrival_time: string;
-      departure_time: string;
-      stop_sequence: number;
-    };
-    return {
-      scheduleEntryId: rs.schedule_entry_id,
-      stopSequence: entry.stop_sequence,
-      arrivalTime: entry.arrival_time,
-      departureTime: entry.departure_time,
-      status: rs.status as "pending" | "passed",
-      passedAt: rs.passed_at,
-      stopLat: coords?.stopLat ?? null,
-      stopLng: coords?.stopLng ?? null,
-      osrmDistanceM: osrmDistances.get(rs.schedule_entry_id) ?? null,
-    };
-  });
+  // 8. Compute ETA — exclude skipped stops from ETA computation
+  const stops = effectiveRunStops
+    .filter((rs) => rs.status !== "skipped")
+    .map((rs) => {
+      const coords = stopCoordsMap.get(rs.schedule_entry_id);
+      const entry = rs.schedule_entries as unknown as {
+        arrival_time: string;
+        departure_time: string;
+        stop_sequence: number;
+      };
+      return {
+        scheduleEntryId: rs.schedule_entry_id,
+        stopSequence: entry.stop_sequence,
+        arrivalTime: entry.arrival_time,
+        departureTime: entry.departure_time,
+        status: rs.status as "pending" | "passed",
+        passedAt: rs.passed_at,
+        stopLat: coords?.stopLat ?? null,
+        stopLng: coords?.stopLng ?? null,
+        osrmDistanceM: osrmDistances.get(rs.schedule_entry_id) ?? null,
+      };
+    });
 
   const etaArgs = {
     stops,
@@ -369,5 +413,10 @@ export async function resolveRouteProgress(args: {
     runHealth,
     shiftStartedAt: activeShift?.started_at ?? null,
     ...etaResult,
+    skippedStopIds,
+    hasSkippedStops: runData.has_skipped_stops ?? false,
+    isDetourActive: runData.is_detour_active ?? false,
+    detourReasonCode: runData.detour_reason_code ?? null,
+    detourNote: runData.detour_note ?? null,
   };
 }
