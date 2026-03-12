@@ -48,7 +48,7 @@ export function StopList({ schedule, nextStopId }: StopListProps) {
   }
 
   return (
-    <div className="overflow-y-auto">
+    <div className="overflow-x-hidden">
       <ul className="relative space-y-0">
         {schedule.map((stop, index) => {
           const isNext = stop.id === nextStopId;
