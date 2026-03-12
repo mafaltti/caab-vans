@@ -1,6 +1,6 @@
 export interface SortedStop {
   schedule_entry_id: string;
-  status: "pending" | "passed";
+  status: "pending" | "passed" | "skipped";
 }
 
 export interface CanonicalPrefixResult {
@@ -19,9 +19,9 @@ export function enforceCanonicalPrefix(
 ): CanonicalPrefixResult {
   const contiguousPassedIds = new Set<string>();
 
-  // Build contiguous passed prefix
+  // Build contiguous resolved prefix (passed or skipped)
   for (const stop of sortedStops) {
-    if (stop.status === "passed") {
+    if (stop.status === "passed" || stop.status === "skipped") {
       contiguousPassedIds.add(stop.schedule_entry_id);
     } else {
       break;

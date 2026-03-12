@@ -72,7 +72,7 @@ export async function GET() {
   const fetchedRouteIds = routes.map((r) => r.id);
   const { data: runs } = await supabase
     .from("route_runs")
-    .select("id, route_id, service_date")
+    .select("id, route_id, service_date, has_skipped_stops, is_detour_active")
     .in("route_id", fetchedRouteIds)
     .eq("service_date", serviceDate);
 
@@ -155,6 +155,8 @@ export async function GET() {
         startedAt: s.started_at,
         endedAt: s.ended_at,
       })),
+      hasSkippedStops: run?.has_skipped_stops ?? false,
+      isDetourActive: run?.is_detour_active ?? false,
     };
   });
 

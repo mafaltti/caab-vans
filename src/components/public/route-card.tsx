@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { RouteStatusBadge } from "./route-status-badge";
-import { Bus, ChevronRight, Clock, MapPin } from "lucide-react";
+import { AlertTriangle, Bus, ChevronRight, Clock, MapPin } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { motion, useReducedMotion } from "motion/react";
 import type { RouteWithStatus } from "@/types";
@@ -13,6 +13,7 @@ type RouteCardProps = {
 
 export function RouteCard({ route }: RouteCardProps) {
   const prefersReducedMotion = useReducedMotion();
+  const hasExceptions = route.progress?.hasSkippedStops || route.progress?.isDetourActive;
   const progressText =
     route.currentStopIndex !== null && route.totalStops > 0
       ? `Parada ${route.currentStopIndex + 1} de ${route.totalStops}`
@@ -52,6 +53,15 @@ export function RouteCard({ route }: RouteCardProps) {
 
               <RouteStatusBadge isRunning={route.isRunning} runStatus={route.progress?.runStatus} scheduleStatus={route.scheduleStatus} />
             </div>
+
+            {hasExceptions && (
+              <div className="mt-2 flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5">
+                <AlertTriangle className="size-3.5 shrink-0 text-amber-500" />
+                <span className="text-xs text-amber-700">
+                  {route.progress?.isDetourActive ? "Rota em desvio" : "Parada(s) com alteração"}
+                </span>
+              </div>
+            )}
 
             {route.nextStop && (
               <div className="mt-3 rounded-xl bg-zinc-50 px-3 py-2.5 group-hover:bg-blue-50/50 transition-colors">

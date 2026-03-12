@@ -55,11 +55,16 @@ function makeRoute(overrides: Partial<{
           runStatus: "in_progress",
           nextStopId: overrides.progressNextStopId ?? null,
           passedStopIds: [],
+          skippedStopIds: [],
           etaNextStopISO: null,
           etaNextStopMinutes: overrides.etaNextStopMinutes ?? null,
           delayMinutes: null,
           etaSource: "gps",
           etaStatus: "estimated",
+          hasSkippedStops: false,
+          isDetourActive: false,
+          detourReasonCode: null,
+          detourNote: null,
         }
       : null,
   };

@@ -401,7 +401,7 @@ export async function inferStopProgress(args: {
     const canonical = enforceCanonicalPrefix(
       allStops.map((s) => ({
         schedule_entry_id: s.schedule_entry_id,
-        status: s.status as "pending" | "passed",
+        status: s.status as "pending" | "passed" | "skipped",
       })),
     );
 
