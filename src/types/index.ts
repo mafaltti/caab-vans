@@ -87,6 +87,10 @@ export type RouteRun = {
   last_passed_stop_id: string | null;
   next_stop_id: string | null;
   progress_updated_at: string | null;
+  is_detour_active: boolean;
+  detour_reason_code: string | null;
+  detour_note: string | null;
+  has_skipped_stops: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -94,10 +98,14 @@ export type RouteRun = {
 export type RouteRunStop = {
   run_id: string;
   schedule_entry_id: string;
-  status: "pending" | "passed";
+  status: "pending" | "passed" | "skipped";
   passed_at: string | null;
   pass_source: PassSource | null;
   pass_confidence: number | null;
+  reason_code: string | null;
+  note: string | null;
+  acted_by: string | null;
+  acted_at: string | null;
 };
 
 // Computed types (BFF response shapes)
@@ -120,11 +128,16 @@ export type RouteProgress = {
   shiftStartedAt?: string | null;
   nextStopId: string | null;
   passedStopIds: string[];
+  skippedStopIds: string[];
   etaNextStopISO: string | null;
   etaNextStopMinutes: number | null;
   delayMinutes: number | null;
   etaSource: "gps" | "gps_osrm" | "segment" | "schedule" | null;
   etaStatus: "estimated" | "overdue" | "none";
+  hasSkippedStops: boolean;
+  isDetourActive: boolean;
+  detourReasonCode: string | null;
+  detourNote: string | null;
 };
 
 export type RouteWithStatus = {
@@ -212,6 +225,37 @@ export type RouteDriver = {
   driver_id: string;
   created_at: string;
 };
+
+export type RouteRunEvent = {
+  id: string;
+  run_id: string;
+  event_type: "stop_skipped" | "detour_started" | "detour_ended";
+  schedule_entry_id: string | null;
+  actor_id: string;
+  reason_code: string | null;
+  note: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+};
+
+export const SKIP_REASON_CODES = [
+  "road_closure",
+  "no_passengers",
+  "facility_closed",
+  "vehicle_issue",
+  "other",
+] as const;
+export type SkipReasonCode = (typeof SKIP_REASON_CODES)[number];
+
+export const DETOUR_REASON_CODES = [
+  "road_closure",
+  "accident",
+  "construction",
+  "flooding",
+  "police_checkpoint",
+  "other",
+] as const;
+export type DetourReasonCode = (typeof DETOUR_REASON_CODES)[number];
 
 export type RouteShift = {
   id: string;
