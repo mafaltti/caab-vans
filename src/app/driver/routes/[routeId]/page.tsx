@@ -16,9 +16,9 @@ import {
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { NextStopHero } from "@/components/driver/active-route/next-stop-hero";
-import { StopList } from "@/components/driver/active-route/stop-list";
 import { TrackerHealth } from "@/components/driver/active-route/tracker-health";
 import { ExceptionDrawer } from "@/components/driver/active-route/exception-drawer";
+import { ScheduleTimeline } from "@/components/public/schedule-timeline";
 import { fetchWithAuth } from "@/lib/api/fetch-with-auth";
 
 type DriverRouteResponse = {
@@ -268,12 +268,18 @@ export default function ActiveRoutePage() {
       <TrackerHealth trackerHealth={route.trackerHealth} />
 
       {/* Stop list */}
-      <div className="rounded-xl bg-white p-4 shadow-sm">
-        <h3 className="mb-3 text-sm font-semibold text-zinc-500 uppercase tracking-wider">
-          Paradas
-        </h3>
-        <StopList schedule={route.schedule} nextStopId={nextStopId} />
-      </div>
+      <ScheduleTimeline
+        schedule={route.schedule}
+        nextStopId={nextStopId}
+        isRunning={route.isRunning}
+        passedStopIds={route.progress?.passedStopIds}
+        skippedStopIds={route.progress?.skippedStopIds}
+        inferredNextStopId={route.progress?.nextStopId}
+        etaMinutes={route.progress?.etaNextStopMinutes}
+        etaStatus={route.progress?.etaStatus}
+        serverTime={data?.serverTime}
+        runStatus={route.progress?.runStatus}
+      />
 
       {/* End shift button */}
       <Button
