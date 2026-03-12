@@ -158,7 +158,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     : false;
 
   // Fetch route_run_stops for per-stop status
-  let stopStatusMap = new Map<string, { status: string; reasonCode: string | null; note: string | null; passedAt: string | null }>();
+  const stopStatusMap = new Map<string, { status: string; reasonCode: string | null; note: string | null; passedAt: string | null }>();
   if (progress) {
     const { data: runStops } = await supabase
       .from("route_run_stops")

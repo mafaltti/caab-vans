@@ -120,12 +120,6 @@ export default function ActiveRoutePage() {
 
   const route = data?.route;
 
-  // Redirect to route list if no active shift
-  if (!isLoading && route && !route.isRunning) {
-    router.replace("/driver");
-    return null;
-  }
-
   // Skip-stop mutation
   const skipMutation = useMutation({
     mutationFn: async (data: { stopId: string; reasonCode: string; note?: string }) => {
@@ -163,6 +157,12 @@ export default function ActiveRoutePage() {
       queryClient.invalidateQueries({ queryKey: ["driver-route", params.routeId] });
     },
   });
+
+  // Redirect to route list if no active shift (after all hooks)
+  if (!isLoading && route && !route.isRunning) {
+    router.replace("/driver");
+    return null;
+  }
 
   async function handleEndShift() {
     setEndLoading(true);

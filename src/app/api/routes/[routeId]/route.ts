@@ -117,49 +117,15 @@ export async function GET(
   const sortedEntries = entries.sort((a, b) => a.stop_sequence - b.stop_sequence);
   const totalStops = sortedEntries.length;
 
-  // Fetch per-stop status when a run exists
-  let stopStatusMap = new Map<string, { status: string; reasonCode: string | null; note: string | null }>();
-  if (progress) {
-    const { data: runData } = await supabase
-      .from("route_runs")
-      .select("id")
-      .eq("route_id", route.id)
-      .eq("service_date", serviceDate)
-      .single();
-
-    if (runData) {
-      const { data: runStops } = await supabase
-        .from("route_run_stops")
-        .select("schedule_entry_id, status, reason_code, note")
-        .eq("run_id", runData.id);
-
-      if (runStops) {
-        for (const rs of runStops) {
-          stopStatusMap.set(rs.schedule_entry_id, {
-            status: rs.status,
-            reasonCode: rs.reason_code,
-            note: rs.note,
-          });
-        }
-      }
-    }
-  }
-
-  const schedule = sortedEntries.map((e) => {
-    const stopStatus = stopStatusMap.get(e.id);
-    return {
-      id: e.id,
-      stopName: e.stop_name,
-      arrivalTime: formatTimeString(e.arrival_time),
-      departureTime: formatTimeString(e.departure_time),
-      stopSequence: e.stop_sequence,
-      stopLat: e.stop_lat,
-      stopLng: e.stop_lng,
-      status: (stopStatus?.status as "pending" | "passed" | "skipped") ?? null,
-      reasonCode: stopStatus?.reasonCode ?? null,
-      note: stopStatus?.note ?? null,
-    };
-  });
+  const schedule = sortedEntries.map((e) => ({
+    id: e.id,
+    stopName: e.stop_name,
+    arrivalTime: formatTimeString(e.arrival_time),
+    departureTime: formatTimeString(e.departure_time),
+    stopSequence: e.stop_sequence,
+    stopLat: e.stop_lat,
+    stopLng: e.stop_lng,
+  }));
 
   const serviceDate = todayBahiaDate();
   const includeLastKnown = request.nextUrl.searchParams.get("includeLastKnown") === "true";
@@ -238,6 +204,42 @@ export async function GET(
     ? "live"
     : (nextStop ? "last_known" : null);
 
+  // Enrich schedule with per-stop status when a run exists
+  let enrichedSchedule = schedule.map((s) => ({
+    ...s,
+    status: null as "pending" | "passed" | "skipped" | null,
+    reasonCode: null as string | null,
+    note: null as string | null,
+  }));
+
+  if (progress) {
+    const { data: runData } = await supabase
+      .from("route_runs")
+      .select("id")
+      .eq("route_id", route.id)
+      .eq("service_date", serviceDate)
+      .single();
+
+    if (runData) {
+      const { data: runStops } = await supabase
+        .from("route_run_stops")
+        .select("schedule_entry_id, status, reason_code, note")
+        .eq("run_id", runData.id);
+
+      if (runStops) {
+        const stopStatusMap = new Map(
+          runStops.map((rs) => [rs.schedule_entry_id, rs]),
+        );
+        enrichedSchedule = enrichedSchedule.map((s) => {
+          const rs = stopStatusMap.get(s.id);
+          return rs
+            ? { ...s, status: rs.status as "pending" | "passed" | "skipped", reasonCode: rs.reason_code, note: rs.note }
+            : s;
+        });
+      }
+    }
+  }
+
   return NextResponse.json({
     route: {
       id: route.id,
@@ -268,7 +270,7 @@ export async function GET(
         lastLat: hasSnapped ? van.snapped_lat : van.last_lat,
         lastLng: hasSnapped ? van.snapped_lng : van.last_lng,
       },
-      schedule,
+      schedule: enrichedSchedule,
       progress,
     },
     serverTime: currentTime,
