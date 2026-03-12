@@ -54,7 +54,7 @@
 - [X] T013 [P] [US1] Create `next-stop-hero.tsx` component in `src/components/driver/active-route/next-stop-hero.tsx` — display stop name, scheduled time, ETA, delay badge (minutes late/early), and "Navegar" button
 - [X] T014 [P] [US1] ~~Create `stop-list.tsx`~~ — Reused `ScheduleTimeline` from `src/components/public/schedule-timeline.tsx` instead (same collapsible past stops, timeline nodes, skipped indicators)
 - [X] T015 [P] [US1] Create `tracker-health.tsx` component in `src/components/driver/active-route/tracker-health.tsx` — display last ping age, battery level, network type with warning states for stale (>5min) and low battery (<20%)
-- [X] T016 [US1] Create active-route page in `src/app/driver/routes/[routeId]/page.tsx` — compose next-stop-hero, stop-list, tracker-health components, use TanStack Query with `refetchInterval: 5_000` (same pattern as `src/lib/queries/use-route-detail.ts`), add shift end button with confirmation dialog, redirect to route list if no active shift
+- [X] T016 [US1] Create active-route page in `src/app/driver/routes/[routeId]/page.tsx` — compose next-stop-hero, ScheduleTimeline (from public), tracker-health components, use TanStack Query with `refetchInterval: 5_000` (same pattern as `src/lib/queries/use-route-detail.ts`), add shift end button with confirmation dialog, redirect to route list if no active shift
 - [X] T017 [US1] Implement navigation handoff in `src/components/driver/active-route/next-stop-hero.tsx` — "Navegar" button opens Google Maps URL (`https://www.google.com/maps/dir/?api=1&destination={lat},{lng}&travelmode=driving`) with next stop coordinates
 - [X] T018 [US1] Modify `route-card.tsx` in `src/components/driver/route-card.tsx` to link to `/driver/routes/[routeId]` when shift is running instead of only showing start/end controls
 
@@ -72,7 +72,7 @@
 
 - [X] T019 [US2] Create `POST /api/routes/[routeId]/skip-stop` endpoint in `src/app/api/routes/[routeId]/skip-stop/route.ts` — validate with `SkipStopBodySchema`, enforce driver role + active shift ownership, verify `stopId` matches current `next_stop_id` (409 if mismatch), update `route_run_stops` (status=skipped, reason_code, note, acted_by, acted_at), insert `route_run_events` (stop_skipped), set `route_runs.has_skipped_stops = true`, call `persistCanonicalProgress()` to advance `next_stop_id`, handle idempotency (200 if already skipped by same actor)
 - [X] T020 [US2] Create exception drawer component in `src/components/driver/active-route/exception-drawer.tsx` — "Pular proxima parada" action with reason picker (SKIP_REASON_CODES mapped to Portuguese labels), optional note field (required when reason is "other"), confirmation step before submit
-- [X] T021 [US2] Add "Pulada" badge and reason display to skipped stops in `src/components/driver/active-route/stop-list.tsx` — show reason label in Portuguese, note text if present
+- [X] T021 [US2] ~~Add "Pulada" badge to stop-list.tsx~~ — Handled by `ScheduleTimeline` in `src/components/public/schedule-timeline.tsx` which already shows skipped indicators
 - [X] T022 [US2] Wire exception drawer into active-route page in `src/app/driver/routes/[routeId]/page.tsx` — add exception menu trigger button, TanStack Query mutation for skip-stop, invalidate route query on success to refresh progress
 
 **Checkpoint**: Skip-stop works end-to-end. Skipped stops don't block progression. Audit trail records all skips.
@@ -165,7 +165,7 @@
 ```bash
 # Launch all US1 components in parallel (different files, no dependencies):
 Task T013: "Create next-stop-hero.tsx in src/components/driver/active-route/"
-Task T014: "Create stop-list.tsx in src/components/driver/active-route/"
+Task T014: "Reuse ScheduleTimeline from src/components/public/schedule-timeline.tsx"
 Task T015: "Create tracker-health.tsx in src/components/driver/active-route/"
 
 # Then compose into page (depends on T012-T015):

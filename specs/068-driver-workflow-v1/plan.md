@@ -89,7 +89,7 @@ src/
 │   │   │   ├── next-stop-hero.tsx
 │   │   │   ├── tracker-health.tsx
 │   │   │   └── exception-drawer.tsx          # NEW: Skip/detour actions (P2)
-│   │   └── route-map.tsx                     # NEW: Driver map (may share with public)
+│   │   └── (route-map.tsx)                    # NOT IMPLEMENTED — deferred beyond MVP
 │   └── public/
 │       └── schedule-timeline.tsx             # Existing (reused on driver page; modified: skipped stop styling P4)
 ├── lib/
