@@ -2,8 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Component, type ReactNode, useState } from "react";
-import dynamic from "next/dynamic";
+import { useState } from "react";
 import { ArrowLeft, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,38 +20,6 @@ import { TrackerHealth } from "@/components/driver/active-route/tracker-health";
 import { ExceptionDrawer } from "@/components/driver/active-route/exception-drawer";
 import { ScheduleTimeline } from "@/components/public/schedule-timeline";
 import { fetchWithAuth } from "@/lib/api/fetch-with-auth";
-
-const VanTrackingMap = dynamic(
-  () =>
-    import("@/components/public/van-tracking-map").then(
-      (mod) => mod.VanTrackingMap,
-    ),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="h-[250px] w-full rounded-2xl bg-slate-100 animate-pulse" />
-    ),
-  },
-);
-
-class MapErrorBoundary extends Component<
-  { children: ReactNode },
-  { hasError: boolean }
-> {
-  constructor(props: { children: ReactNode }) {
-    super(props);
-    this.state = { hasError: false };
-  }
-
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-
-  render() {
-    if (this.state.hasError) return null;
-    return this.props.children;
-  }
-}
 
 type DriverRouteResponse = {
   route: {
@@ -291,30 +258,11 @@ export default function ActiveRoutePage() {
         stopName={nextStopEntry?.stopName ?? null}
         arrivalTime={nextStopEntry?.arrivalTime ?? null}
         etaMinutes={route.progress?.etaNextStopMinutes ?? null}
+        delayMinutes={route.progress?.delayMinutes ?? null}
+        stopLat={nextStopEntry?.stopLat ?? null}
+        stopLng={nextStopEntry?.stopLng ?? null}
         etaStatus={route.progress?.etaStatus ?? "none"}
       />
-
-      {/* Map */}
-      {route.van.lastLat != null && route.van.lastLng != null && (
-        <MapErrorBoundary>
-          <VanTrackingMap
-            vanLat={route.van.lastLat}
-            vanLng={route.van.lastLng}
-            isLocationOutdated={route.van.isLocationOutdated}
-            lastGpsFixAt={route.van.lastGpsFixAt}
-            stops={route.schedule
-              .filter((s) => s.stopLat != null && s.stopLng != null)
-              .map((s) => ({
-                id: s.id,
-                stopName: s.stopName,
-                stopLat: s.stopLat!,
-                stopLng: s.stopLng!,
-              }))}
-            nextStopId={route.progress?.nextStopId ?? null}
-            passedStopIds={route.progress?.passedStopIds ?? []}
-          />
-        </MapErrorBoundary>
-      )}
 
       {/* Tracker health */}
       <TrackerHealth trackerHealth={route.trackerHealth} />
