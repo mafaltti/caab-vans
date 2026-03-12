@@ -72,6 +72,33 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     return apiError("INTERNAL_ERROR", "Failed to end shift", 500);
   }
 
+  // Auto-deactivate detour if active
+  const { data: runState } = await supabase
+    .from("route_runs")
+    .select("is_detour_active")
+    .eq("id", run.id)
+    .single();
+
+  if (runState?.is_detour_active) {
+    await supabase
+      .from("route_runs")
+      .update({
+        is_detour_active: false,
+        detour_reason_code: null,
+        detour_note: null,
+      })
+      .eq("id", run.id);
+
+    await supabase
+      .from("route_run_events")
+      .insert({
+        run_id: run.id,
+        event_type: "detour_ended",
+        actor_id: auth.user.id,
+        reason_code: "shift_ended",
+      });
+  }
+
   return NextResponse.json({
     shift: {
       id: updated.id,
