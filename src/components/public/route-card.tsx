@@ -13,7 +13,6 @@ type RouteCardProps = {
 
 export function RouteCard({ route }: RouteCardProps) {
   const prefersReducedMotion = useReducedMotion();
-  const hasExceptions = route.progress?.hasSkippedStops || route.progress?.isDetourActive;
   const progressText =
     route.currentStopIndex !== null && route.totalStops > 0
       ? `Parada ${route.currentStopIndex + 1} de ${route.totalStops}`
@@ -54,12 +53,10 @@ export function RouteCard({ route }: RouteCardProps) {
               <RouteStatusBadge isRunning={route.isRunning} runStatus={route.progress?.runStatus} scheduleStatus={route.scheduleStatus} />
             </div>
 
-            {hasExceptions && (
+            {route.progress?.isDetourActive && (
               <div className="mt-2 flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5">
                 <AlertTriangle className="size-3.5 shrink-0 text-amber-500" />
-                <span className="text-xs text-amber-700">
-                  {route.progress?.isDetourActive ? "Rota em desvio" : "Parada(s) com alteração"}
-                </span>
+                <span className="text-xs text-amber-700">Rota em desvio</span>
               </div>
             )}
 
