@@ -63,7 +63,7 @@ export function NextStopHero({
 
   return (
     <Card>
-      <CardContent className="space-y-4 pt-6">
+      <CardContent className="space-y-4">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
           <Navigation className="size-4" />
           <span>Próxima parada</span>
