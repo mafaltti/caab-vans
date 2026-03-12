@@ -12,7 +12,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { MapPin, Clock, Play, Square } from "lucide-react";
+import { MapPin, Clock, Play, Square, ChevronRight } from "lucide-react";
+import Link from "next/link";
 import { fetchWithAuth } from "@/lib/api/fetch-with-auth";
 import type { DriverRoute, RunStatus } from "@/types";
 
@@ -265,15 +266,23 @@ export function RouteCard({ route, userId, onUpdate }: RouteCardProps) {
           )}
 
           {canEnd && (
-            <Button
-              variant="destructive"
-              className="w-full"
-              onClick={() => setShowEndDialog(true)}
-              disabled={loading}
-            >
-              <Square className="mr-2 size-4" />
-              Encerrar Turno
-            </Button>
+            <>
+              <Button asChild className="w-full">
+                <Link href={`/driver/routes/${route.id}`}>
+                  <ChevronRight className="mr-2 size-4" />
+                  Ver rota ativa
+                </Link>
+              </Button>
+              <Button
+                variant="destructive"
+                className="w-full"
+                onClick={() => setShowEndDialog(true)}
+                disabled={loading}
+              >
+                <Square className="mr-2 size-4" />
+                Encerrar Turno
+              </Button>
+            </>
           )}
 
           {route.todayShifts.length > 0 && (
