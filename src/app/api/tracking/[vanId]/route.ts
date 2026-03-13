@@ -226,17 +226,39 @@ export async function appendGeofenceResponse(
   submittedEventIds: string[],
   response: Record<string, unknown>,
 ): Promise<void> {
-  // Compute processedEventIds: only events whose matched stops survived canonical healing
+  // Compute processedEventIds:
+  // - 'matched' events whose stops survived canonical healing
+  // - 'deferred' events (server cascade re-evaluates them when earlier stops pass)
+  // NOT 'no_match' — those cover transient errors the client should retry.
   if (submittedEventIds.length > 0) {
-    const { data: confirmedEvents } = await supabase
-      .from("tracking_geofence_events")
-      .select("event_id, matched_schedule_entry_id, matched_run_id")
-      .eq("van_id", vanId)
-      .in("event_id", submittedEventIds)
-      .eq("status", "matched");
+    // Batch .in() queries to stay under Kong's 4KB header limit (~50 UUIDs per batch)
+    const BATCH_SIZE = 50;
+    const matchedEvents: { event_id: string; matched_schedule_entry_id: string | null; matched_run_id: string | null }[] = [];
+    const deferredEventIds: string[] = [];
 
-    if (confirmedEvents && confirmedEvents.length > 0) {
-      const runIds = [...new Set(confirmedEvents.map((e) => e.matched_run_id).filter(Boolean))] as string[];
+    for (let i = 0; i < submittedEventIds.length; i += BATCH_SIZE) {
+      const batch = submittedEventIds.slice(i, i + BATCH_SIZE);
+      const { data } = await supabase
+        .from("tracking_geofence_events")
+        .select("event_id, status, matched_schedule_entry_id, matched_run_id")
+        .eq("van_id", vanId)
+        .in("event_id", batch)
+        .in("status", ["matched", "deferred"]);
+      if (data) {
+        for (const row of data) {
+          if (row.status === "matched") {
+            matchedEvents.push(row);
+          } else {
+            deferredEventIds.push(row.event_id);
+          }
+        }
+      }
+    }
+
+    const confirmedMatchIds: string[] = [];
+
+    if (matchedEvents.length > 0) {
+      const runIds = [...new Set(matchedEvents.map((e) => e.matched_run_id).filter(Boolean))] as string[];
 
       if (runIds.length > 0) {
         // Build contiguous prefix per run using enforceCanonicalPrefix
@@ -261,15 +283,17 @@ export async function appendGeofenceResponse(
           }
         }
 
-        response.processedEventIds = confirmedEvents
-          .filter((e) => e.matched_schedule_entry_id && allContiguousIds.has(e.matched_schedule_entry_id))
-          .map((e) => e.event_id);
+        for (const e of matchedEvents) {
+          if (e.matched_schedule_entry_id && allContiguousIds.has(e.matched_schedule_entry_id)) {
+            confirmedMatchIds.push(e.event_id);
+          }
+        }
       }
     }
 
-    if (!response.processedEventIds) {
-      response.processedEventIds = [];
-    }
+    // Ack confirmed matches + deferred (server cascade retries deferred).
+    // no_match events are NOT acked — client retries those for transient errors.
+    response.processedEventIds = [...confirmedMatchIds, ...deferredEventIds];
   }
 
   await appendConfigVersion(supabase, vanId, response);

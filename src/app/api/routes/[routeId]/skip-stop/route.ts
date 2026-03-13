@@ -5,6 +5,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { todayBahiaDate } from "@/lib/time";
 import { SkipStopBodySchema } from "@/lib/validators/route-exceptions";
 import { persistCanonicalProgress } from "@/lib/tracking/persist-canonical-progress";
+import { replayDeferredEvents } from "@/lib/tracking/process-device-geofence-events";
 
 type RouteParams = { params: Promise<{ routeId: string }> };
 
@@ -41,7 +42,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   // Verify route exists
   const { data: route } = await supabase
     .from("routes")
-    .select("id")
+    .select("id, van_id")
     .eq("id", routeId)
     .single();
 
@@ -177,6 +178,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   // Advance next_stop_id via canonical progress
   const canonical = await persistCanonicalProgress(supabase, run.id);
+
+  // Replay deferred geofence events that may now be head-of-line
+  try {
+    await replayDeferredEvents({ supabase, vanId: route.van_id });
+  } catch (err) {
+    console.error("skip-stop: deferred replay failed", {
+      runId: run.id, vanId: route.van_id,
+      error: err instanceof Error ? err.message : err,
+    });
+  }
 
   // Get stop name for response
   const { data: stopEntry } = await supabase

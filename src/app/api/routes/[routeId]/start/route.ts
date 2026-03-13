@@ -5,6 +5,7 @@ import { apiError } from "@/lib/api/errors";
 import { createServiceClient } from "@/lib/supabase/server";
 import { nowBahia, todayBahiaDate } from "@/lib/time";
 import { persistCanonicalProgress } from "@/lib/tracking/persist-canonical-progress";
+import { processDeviceGeofenceEvents } from "@/lib/tracking/process-device-geofence-events";
 import { seedRouteRunStops } from "@/lib/tracking/seed-route-run-stops";
 import { suggestStartStop } from "@/lib/tracking/suggest-start-stop";
 import { StartShiftBodySchema } from "@/lib/validators/route";
@@ -125,6 +126,35 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   if (shiftError || !shift) {
     return apiError("INTERNAL_ERROR", "Failed to start shift", 500);
+  }
+
+  // Reprocess no_match events that arrived before shift was created (FR-008: failures must not block shift start)
+  try {
+    const dayStart = DateTime.fromISO(serviceDate, { zone: "America/Bahia" }).startOf("day").toISO()!;
+    const dayEnd = DateTime.fromISO(serviceDate, { zone: "America/Bahia" }).endOf("day").toISO()!;
+
+    const { data: staleEvents } = await supabase
+      .from("tracking_geofence_events")
+      .select("event_id, place_id, entered_at")
+      .eq("van_id", van.id)
+      .in("status", ["no_match", "deferred"])
+      .gte("entered_at", dayStart)
+      .lte("entered_at", dayEnd)
+      .order("entered_at", { ascending: true });
+
+    if (staleEvents && staleEvents.length > 0) {
+      await processDeviceGeofenceEvents({
+        supabase,
+        vanId: van.id,
+        geofenceEvents: staleEvents.map((e) => ({
+          placeId: e.place_id,
+          enteredAt: new Date(e.entered_at).getTime(),
+          eventId: e.event_id,
+        })),
+      });
+    }
+  } catch (error) {
+    console.error("Failed to reprocess no_match events after shift creation:", error);
   }
 
   const response: Record<string, unknown> = {

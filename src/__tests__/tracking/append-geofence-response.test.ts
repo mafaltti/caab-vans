@@ -5,6 +5,7 @@ import { appendGeofenceResponse } from "@/app/api/tracking/[vanId]/route";
 
 interface ConfirmedEvent {
   event_id: string;
+  status: "matched" | "deferred";
   matched_schedule_entry_id: string | null;
   matched_run_id: string | null;
 }
@@ -54,12 +55,12 @@ function createMockSupabase(opts: MockOptions) {
       // --- tracking_geofence_events ---
       if (table === "tracking_geofence_events") {
         // Build a chainable that resolves to confirmedEvents
-        // Chain: .select().eq("van_id", ...).in("event_id", ...).eq("status", ...)
+        // Chain: .select().eq("van_id", ...).in("event_id", ...).in("status", ...)
         return {
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
               in: vi.fn(() => ({
-                eq: vi.fn(() => ({
+                in: vi.fn(() => ({
                   data: confirmedEvents,
                   error: null,
                 })),
@@ -130,6 +131,7 @@ describe("appendGeofenceResponse", () => {
       confirmedEvents: [
         {
           event_id: "ev-b",
+          status: "matched",
           matched_schedule_entry_id: "stop-B",
           matched_run_id: "run-1",
         },
@@ -174,11 +176,13 @@ describe("appendGeofenceResponse", () => {
       confirmedEvents: [
         {
           event_id: "ev-a",
+          status: "matched",
           matched_schedule_entry_id: "stop-A",
           matched_run_id: "run-1",
         },
         {
           event_id: "ev-b",
+          status: "matched",
           matched_schedule_entry_id: "stop-B",
           matched_run_id: "run-1",
         },
@@ -226,6 +230,7 @@ describe("appendGeofenceResponse", () => {
       confirmedEvents: [
         {
           event_id: "ev-c",
+          status: "matched",
           matched_schedule_entry_id: "stop-C",
           matched_run_id: "run-1",
         },
@@ -261,5 +266,100 @@ describe("appendGeofenceResponse", () => {
     );
 
     expect(response.processedEventIds).toEqual([]);
+  });
+
+  it("deferred events acknowledged so client drains buffer (T012)", async () => {
+    // A deferred event (out-of-order, blocked by contiguous-prefix guard)
+    // should be acked — server cascade retries it when earlier stops pass.
+    const mock = createMockSupabase({
+      confirmedEvents: [
+        {
+          event_id: "ev-deferred",
+          status: "deferred",
+          matched_schedule_entry_id: null,
+          matched_run_id: null,
+        },
+      ],
+    });
+
+    const response: Record<string, unknown> = {};
+    await appendGeofenceResponse(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mock as any,
+      "van-1",
+      ["ev-deferred"],
+      response,
+    );
+
+    expect(response.processedEventIds).toEqual(["ev-deferred"]);
+  });
+
+  it("no_match events NOT acknowledged — client retries transient errors (T014)", async () => {
+    // no_match covers transient failures (DB error, no route, etc.).
+    // These must NOT be acked so the client resends on the next ping.
+    const mock = createMockSupabase({
+      // no_match events are not fetched by the query (it filters matched/deferred)
+      confirmedEvents: [],
+    });
+
+    const response: Record<string, unknown> = {};
+    await appendGeofenceResponse(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mock as any,
+      "van-1",
+      ["ev-error"],
+      response,
+    );
+
+    expect(response.processedEventIds).toEqual([]);
+  });
+
+  it("mixed matched and deferred events both acknowledged (T013)", async () => {
+    // Matched events go through contiguous prefix check, deferred events
+    // are acknowledged directly (server cascade handles retry).
+    const mock = createMockSupabase({
+      confirmedEvents: [
+        {
+          event_id: "ev-a",
+          status: "matched",
+          matched_schedule_entry_id: "stop-A",
+          matched_run_id: "run-1",
+        },
+        {
+          event_id: "ev-deferred",
+          status: "deferred",
+          matched_schedule_entry_id: null,
+          matched_run_id: null,
+        },
+      ],
+      runStops: {
+        "run-1": [
+          {
+            schedule_entry_id: "stop-A",
+            status: "passed",
+            schedule_entries: { stop_sequence: 1 },
+          },
+          {
+            schedule_entry_id: "stop-B",
+            status: "pending",
+            schedule_entries: { stop_sequence: 2 },
+          },
+        ],
+      },
+    });
+
+    const response: Record<string, unknown> = {};
+    await appendGeofenceResponse(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mock as any,
+      "van-1",
+      ["ev-a", "ev-deferred"],
+      response,
+    );
+
+    expect(response.processedEventIds).toEqual(
+      expect.arrayContaining(["ev-a", "ev-deferred"]),
+    );
+    expect(response.processedEventIds).toHaveLength(2);
   });
 });
