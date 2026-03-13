@@ -4,6 +4,7 @@ import { apiError } from "@/lib/api/errors";
 import { createServiceClient } from "@/lib/supabase/server";
 import { todayBahiaDate } from "@/lib/time";
 import { persistCanonicalProgress } from "@/lib/tracking/persist-canonical-progress";
+import { replayDeferredEvents } from "@/lib/tracking/process-device-geofence-events";
 import { seedRouteRunStops } from "@/lib/tracking/seed-route-run-stops";
 import { ConfirmStartStopBodySchema } from "@/lib/validators/route";
 
@@ -185,6 +186,24 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   // Enforce canonical prefix and persist pointers via shared helper
   const canonical = await persistCanonicalProgress(supabase, run.id);
+
+  // Replay deferred geofence events that may now be head-of-line
+  const { data: route } = await supabase
+    .from("routes")
+    .select("van_id")
+    .eq("id", routeId)
+    .single();
+
+  if (route) {
+    try {
+      await replayDeferredEvents({ supabase, vanId: route.van_id });
+    } catch (err) {
+      console.error("confirm-start-stop: deferred replay failed", {
+        runId: run.id, vanId: route.van_id,
+        error: err instanceof Error ? err.message : err,
+      });
+    }
+  }
 
   return NextResponse.json({
     confirmed: true,
