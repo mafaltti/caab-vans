@@ -561,7 +561,8 @@ describe("processDeviceGeofenceEvents", () => {
 
     expect(result).toHaveLength(0);
     expect(mock._stopUpdates).toHaveLength(0);
-    expect(mock._eventUpdates).toHaveLength(0);
+    expect(mock._eventUpdates).toHaveLength(1);
+    expect(mock._eventUpdates[0].payload).toMatchObject({ status: "no_match" });
     // No pointer update on deferred events
     expect(mock._runUpdates).toHaveLength(0);
   });
@@ -635,7 +636,8 @@ describe("processDeviceGeofenceEvents", () => {
 
     expect(result).toHaveLength(0);
     expect(mock._stopUpdates).toHaveLength(0);
-    expect(mock._eventUpdates).toHaveLength(0);
+    expect(mock._eventUpdates).toHaveLength(1);
+    expect(mock._eventUpdates[0].payload).toMatchObject({ status: "no_match" });
   });
 
   it("rejects event outside early arrival window based on arrival_time, not departure_time (T012a)", async () => {

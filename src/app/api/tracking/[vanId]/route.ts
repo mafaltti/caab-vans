@@ -228,12 +228,19 @@ export async function appendGeofenceResponse(
 ): Promise<void> {
   // Compute processedEventIds: only events whose matched stops survived canonical healing
   if (submittedEventIds.length > 0) {
-    const { data: confirmedEvents } = await supabase
-      .from("tracking_geofence_events")
-      .select("event_id, matched_schedule_entry_id, matched_run_id")
-      .eq("van_id", vanId)
-      .in("event_id", submittedEventIds)
-      .eq("status", "matched");
+    // Batch .in() queries to stay under Kong's 4KB header limit (~50 UUIDs per batch)
+    const BATCH_SIZE = 50;
+    const confirmedEvents: { event_id: string; matched_schedule_entry_id: string | null; matched_run_id: string | null }[] = [];
+    for (let i = 0; i < submittedEventIds.length; i += BATCH_SIZE) {
+      const batch = submittedEventIds.slice(i, i + BATCH_SIZE);
+      const { data } = await supabase
+        .from("tracking_geofence_events")
+        .select("event_id, matched_schedule_entry_id, matched_run_id")
+        .eq("van_id", vanId)
+        .in("event_id", batch)
+        .eq("status", "matched");
+      if (data) confirmedEvents.push(...data);
+    }
 
     if (confirmedEvents && confirmedEvents.length > 0) {
       const runIds = [...new Set(confirmedEvents.map((e) => e.matched_run_id).filter(Boolean))] as string[];

@@ -282,6 +282,7 @@ async function processOneEvent(
       matchedSequence: matchedEntry.stop_sequence,
       firstPendingSequence: firstPending.stop_sequence,
     });
+    await updateEventStatus(supabase, vanId, eventId, "no_match");
     return;
   }
 
