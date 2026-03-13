@@ -58,7 +58,10 @@
       "Bash(sed:*)",
       "Bash(npx supabase:*)",
       "Bash(curl:*)",
-      "Bash(npm test:*)"
+      "Bash(npm test:*)",
+      "Bash(find \"/c/Projetos/caab-vans/src\" -name \"*middleware*\" -type f 2>/dev/null | head -20)",
+      "Bash(git ls-remote:*)",
+      "Bash(ls \"C:/Projetos/caab-vans/specs/061-fix-rate-limit-cascade/checklists/\" 2>/dev/null; echo \"EXIT:$?\")"
     ]
   }
 }
