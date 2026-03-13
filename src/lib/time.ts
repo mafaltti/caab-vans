@@ -48,7 +48,7 @@ export function isWithinScheduleWindow(
     (a, b) => a.stop_sequence - b.stop_sequence,
   );
   const first = parseTime(sorted[0].departure_time);
-  const last = parseTime(sorted[sorted.length - 1].arrival_time);
+  const last = parseTime(sorted[sorted.length - 1].departure_time);
   return now >= first && now <= last;
 }
 
@@ -70,7 +70,7 @@ export function getNextStop(
     (a, b) => a.stopSequence - b.stopSequence,
   );
   for (const entry of sorted) {
-    const entryTime = parseTime(entry.departureTime);
+    const entryTime = parseTime(entry.time);
     if (entryTime >= now) {
       return entry;
     }

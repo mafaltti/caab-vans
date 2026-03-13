@@ -4035,4 +4035,141 @@ describe("inferStopProgress source-aligned confidence scoring", () => {
     // (3rd ping's snapped coords are inside geofence but should be ignored for raw match)
     expect(mock._updates[0].pass_confidence).toBe(0.9);
   });
+});
+
+describe("inferStopProgress early arrival window uses arrival_time (T011)", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("rejects geofence ping outside 30-min window before arrival_time (T011a)", async () => {
+    // Stop: arrival 10:00, departure 10:30
+    // Ping at 09:25 => 35 min before arrival => outside window
+    const pendingStops = [
+      {
+        schedule_entry_id: "entry-1000",
+        schedule_entries: {
+          time: "10:00",
+          stop_lat: CAAB_LAT,
+          stop_lng: CAAB_LNG,
+          geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "10:00",
+          departure_time: "10:30",
+        },
+      },
+    ];
+    const allStops = [
+      {
+        schedule_entry_id: "entry-1000",
+        status: "pending",
+        schedule_entries: { time: "10:00", stop_sequence: 1 },
+      },
+    ];
+
+    const mock = createMockSupabase({
+      pendingStops,
+      allStops,
+      shifts: [{ id: "shift-1", ended_at: null }],
+    });
+
+    await inferStopProgress({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase: mock as any,
+      vanId: "van-1",
+      rawLat: VAN_AT_CAAB_LAT,
+      rawLng: VAN_AT_CAAB_LNG,
+      eventTs: makeEventTs(9, 25),
+    });
+
+    expect(mock._updates).toHaveLength(0);
+  });
+
+  it("accepts geofence ping within 30-min window before arrival_time (T011b)", async () => {
+    // Stop: arrival 10:00, departure 10:30
+    // Ping at 09:35 => 25 min before arrival => within window
+    const pendingStops = [
+      {
+        schedule_entry_id: "entry-1000",
+        schedule_entries: {
+          time: "10:00",
+          stop_lat: CAAB_LAT,
+          stop_lng: CAAB_LNG,
+          geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "10:00",
+          departure_time: "10:30",
+        },
+      },
+    ];
+    const allStops = [
+      {
+        schedule_entry_id: "entry-1000",
+        status: "passed",
+        schedule_entries: { time: "10:00", stop_sequence: 1 },
+      },
+    ];
+
+    const mock = createMockSupabase({
+      pendingStops,
+      allStops,
+      shifts: [{ id: "shift-1", ended_at: null }],
+    });
+
+    await inferStopProgress({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase: mock as any,
+      vanId: "van-1",
+      rawLat: VAN_AT_CAAB_LAT,
+      rawLng: VAN_AT_CAAB_LNG,
+      eventTs: makeEventTs(9, 35),
+    });
+
+    expect(mock._updates).toHaveLength(1);
+    expect(mock._updates[0].schedule_entry_id).toBe("entry-1000");
+  });
+
+  it("accepts geofence ping at exact boundary of 30-min window (T011c)", async () => {
+    // Stop: arrival 10:00, departure 10:30
+    // Ping at 09:30 => exactly 30 min before arrival => boundary (>= inclusive)
+    const pendingStops = [
+      {
+        schedule_entry_id: "entry-1000",
+        schedule_entries: {
+          time: "10:00",
+          stop_lat: CAAB_LAT,
+          stop_lng: CAAB_LNG,
+          geofence_radius_m: 50,
+          stop_sequence: 1,
+          arrival_time: "10:00",
+          departure_time: "10:30",
+        },
+      },
+    ];
+    const allStops = [
+      {
+        schedule_entry_id: "entry-1000",
+        status: "passed",
+        schedule_entries: { time: "10:00", stop_sequence: 1 },
+      },
+    ];
+
+    const mock = createMockSupabase({
+      pendingStops,
+      allStops,
+      shifts: [{ id: "shift-1", ended_at: null }],
+    });
+
+    await inferStopProgress({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase: mock as any,
+      vanId: "van-1",
+      rawLat: VAN_AT_CAAB_LAT,
+      rawLng: VAN_AT_CAAB_LNG,
+      eventTs: makeEventTs(9, 30),
+    });
+
+    expect(mock._updates).toHaveLength(1);
+    expect(mock._updates[0].schedule_entry_id).toBe("entry-1000");
+  });
 });

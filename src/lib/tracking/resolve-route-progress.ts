@@ -79,7 +79,7 @@ export async function resolveRouteProgress(args: {
   }
 
   const shiftsArr = shifts ?? [];
-  const lastTime = sortedEntries.length > 0 ? sortedEntries[sortedEntries.length - 1].arrival_time : null;
+  const lastTime = sortedEntries.length > 0 ? sortedEntries[sortedEntries.length - 1].departure_time : null;
   const isPastScheduleWindow = lastTime
     ? now.toFormat("HH:mm") > lastTime
     : false;
@@ -387,7 +387,7 @@ export async function resolveRouteProgress(args: {
   // Compute run health for open shifts
   let runHealth: "normal" | "orphaned" = "normal";
   if (activeShift && sortedEntries.length > 0) {
-    const lastEntryTime = sortedEntries[sortedEntries.length - 1].arrival_time;
+    const lastEntryTime = sortedEntries[sortedEntries.length - 1].departure_time;
     const [h, m] = lastEntryTime.split(":").map(Number);
     const scheduledEnd = DateTime.fromISO(serviceDate, { zone: now.zone })
       .set({ hour: h, minute: m, second: 0, millisecond: 0 });

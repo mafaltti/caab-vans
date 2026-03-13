@@ -110,7 +110,7 @@ function buildSupabase(config: {
     schedule_entry_id: string;
     status: "pending" | "passed";
     passed_at: string | null;
-    schedule_entries: { time: string };
+    schedule_entries: { time: string; arrival_time?: string; departure_time?: string; stop_sequence?: number };
   }>;
   recentPings?: Array<{ speed_mps: number; device_ts: string }>;
 }) {
@@ -913,6 +913,155 @@ describe("resolveRouteProgress", () => {
 
     expect(result).not.toBeNull();
     expect(result!.runStatus).toBe("in_progress");
+    expect(result!.runHealth).toBe("normal");
+  });
+
+  // --- T004: isPastScheduleWindow uses departure_time, not arrival_time ---
+  it("route with dwell on last stop stays idle (not completed) between arrival and departure", async () => {
+    const ENTRIES_DWELL = [
+      { id: "entry-a", stop_name: "Stop A", arrival_time: "08:30", departure_time: "08:30", stop_lat: -12.97, stop_lng: -38.51, stop_sequence: 1 },
+      { id: "entry-b", stop_name: "Stop B", arrival_time: "08:45", departure_time: "08:45", stop_lat: -12.98, stop_lng: -38.52, stop_sequence: 2 },
+      { id: "entry-c", stop_name: "Stop C", arrival_time: "17:00", departure_time: "17:30", stop_lat: -12.99, stop_lng: -38.53, stop_sequence: 3 },
+    ];
+
+    const now = makeNow(17, 10);
+    const supabase = buildSupabase({
+      runData: {
+        id: RUN_ID,
+        last_passed_stop_id: "entry-c",
+        next_stop_id: null,
+        progress_updated_at: now.minus({ minutes: 5 }).toISO()!,
+      },
+      shifts: [{
+        id: "shift-1",
+        started_at: "2026-03-07T08:00:00-03:00",
+        ended_at: "2026-03-07T17:05:00-03:00",
+      }],
+    });
+
+    const result = await resolveRouteProgress({
+      ...makeArgs(supabase, now),
+      sortedEntries: ENTRIES_DWELL,
+    });
+
+    expect(result).not.toBeNull();
+    // With the fix: lastTime = "17:30" (departure), now "17:10" < "17:30" → NOT past window
+    // All shifts ended + NOT past window → idle (not completed)
+    expect(result!.runStatus).toBe("idle");
+  });
+
+  // --- T005: orphaned shift detection uses departure_time for scheduledEnd ---
+  it("orphaned shift detection uses departure_time, not arrival_time, for scheduledEnd", async () => {
+    const ENTRIES_DWELL = [
+      { id: "entry-a", stop_name: "Stop A", arrival_time: "08:30", departure_time: "08:30", stop_lat: -12.97, stop_lng: -38.51, stop_sequence: 1 },
+      { id: "entry-b", stop_name: "Stop B", arrival_time: "08:45", departure_time: "08:45", stop_lat: -12.98, stop_lng: -38.52, stop_sequence: 2 },
+      { id: "entry-c", stop_name: "Stop C", arrival_time: "17:00", departure_time: "17:30", stop_lat: -12.99, stop_lng: -38.53, stop_sequence: 3 },
+    ];
+
+    // 91 min past last departure (17:30) → 19:01
+    const now = makeNow(19, 1);
+    const lastGpsFixAt = now.minus({ minutes: 35 });
+
+    mockComputeEta.mockImplementation(() => Promise.resolve(defaultEtaResult("entry-c")));
+
+    const supabase = buildSupabase({
+      runData: {
+        id: RUN_ID,
+        last_passed_stop_id: "entry-b",
+        next_stop_id: "entry-c",
+        progress_updated_at: lastGpsFixAt.toISO()!,
+      },
+      shifts: [{ id: "shift-1", started_at: "2026-03-07T08:00:00-03:00", ended_at: null }],
+      runStops: [
+        {
+          schedule_entry_id: "entry-a",
+          status: "passed" as const,
+          passed_at: "2026-03-07T08:32:00-03:00",
+          schedule_entries: { time: "08:30", arrival_time: "08:30", departure_time: "08:30", stop_sequence: 1 },
+        },
+        {
+          schedule_entry_id: "entry-b",
+          status: "passed" as const,
+          passed_at: "2026-03-07T08:47:00-03:00",
+          schedule_entries: { time: "08:45", arrival_time: "08:45", departure_time: "08:45", stop_sequence: 2 },
+        },
+        {
+          schedule_entry_id: "entry-c",
+          status: "pending" as const,
+          passed_at: null,
+          schedule_entries: { time: "17:00", arrival_time: "17:00", departure_time: "17:30", stop_sequence: 3 },
+        },
+      ],
+    });
+
+    const vanPosition = { lat: -12.97, lng: -38.51, speedMps: 0, lastGpsFixAt };
+
+    const result = await resolveRouteProgress({
+      ...makeArgs(supabase, now),
+      sortedEntries: ENTRIES_DWELL,
+      vanPosition,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.runStatus).toBe("in_progress");
+    // scheduledEnd = 17:30 (departure), now = 19:01 → 91 min past → orphaned
+    expect(result!.runHealth).toBe("orphaned");
+  });
+
+  it("orphaned shift detection is normal when GPS is recent despite being past schedule end", async () => {
+    const ENTRIES_DWELL = [
+      { id: "entry-a", stop_name: "Stop A", arrival_time: "08:30", departure_time: "08:30", stop_lat: -12.97, stop_lng: -38.51, stop_sequence: 1 },
+      { id: "entry-b", stop_name: "Stop B", arrival_time: "08:45", departure_time: "08:45", stop_lat: -12.98, stop_lng: -38.52, stop_sequence: 2 },
+      { id: "entry-c", stop_name: "Stop C", arrival_time: "17:00", departure_time: "17:30", stop_lat: -12.99, stop_lng: -38.53, stop_sequence: 3 },
+    ];
+
+    // Well past last departure (17:30) but GPS is fresh (< 30 min old)
+    const now = makeNow(19, 1);
+    const lastGpsFixAt = now.minus({ minutes: 10 });
+
+    mockComputeEta.mockImplementation(() => Promise.resolve(defaultEtaResult("entry-c")));
+
+    const supabase = buildSupabase({
+      runData: {
+        id: RUN_ID,
+        last_passed_stop_id: "entry-b",
+        next_stop_id: "entry-c",
+        progress_updated_at: lastGpsFixAt.toISO()!,
+      },
+      shifts: [{ id: "shift-1", started_at: "2026-03-07T08:00:00-03:00", ended_at: null }],
+      runStops: [
+        {
+          schedule_entry_id: "entry-a",
+          status: "passed" as const,
+          passed_at: "2026-03-07T08:32:00-03:00",
+          schedule_entries: { time: "08:30", arrival_time: "08:30", departure_time: "08:30", stop_sequence: 1 },
+        },
+        {
+          schedule_entry_id: "entry-b",
+          status: "passed" as const,
+          passed_at: "2026-03-07T08:47:00-03:00",
+          schedule_entries: { time: "08:45", arrival_time: "08:45", departure_time: "08:45", stop_sequence: 2 },
+        },
+        {
+          schedule_entry_id: "entry-c",
+          status: "pending" as const,
+          passed_at: null,
+          schedule_entries: { time: "17:00", arrival_time: "17:00", departure_time: "17:30", stop_sequence: 3 },
+        },
+      ],
+    });
+
+    const vanPosition = { lat: -12.97, lng: -38.51, speedMps: 0, lastGpsFixAt };
+
+    const result = await resolveRouteProgress({
+      ...makeArgs(supabase, now),
+      sortedEntries: ENTRIES_DWELL,
+      vanPosition,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.runStatus).toBe("in_progress");
+    // GPS is only 10 min old → inactive = false → not orphaned → normal
     expect(result!.runHealth).toBe("normal");
   });
 });

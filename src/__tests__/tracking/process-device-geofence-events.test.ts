@@ -638,6 +638,130 @@ describe("processDeviceGeofenceEvents", () => {
     expect(mock._eventUpdates).toHaveLength(0);
   });
 
+  it("rejects event outside early arrival window based on arrival_time, not departure_time (T012a)", async () => {
+    // Stop: arrival 10:00, departure 10:30
+    // Event at 09:25 => 35 min before arrival => outside 30-min window => no_match
+    const earlyEventTime = DateTime.fromObject(
+      { hour: 9, minute: 25, second: 0 },
+      { zone: TZ },
+    );
+    const dwellStop = {
+      schedule_entry_id: "entry-1000",
+      schedule_entries: {
+        arrival_time: "10:00",
+        departure_time: "10:30",
+        stop_lat: stopLat,
+        stop_lng: stopLng,
+        stop_group_id: placeId,
+        geofence_radius_m: 50,
+        stop_sequence: 1,
+      },
+    };
+    const mock = createMockSupabase({
+      activeShift: { id: "shift-1" },
+      pendingStops: [dwellStop],
+      recentPings: [],
+    });
+
+    const result = await processDeviceGeofenceEvents({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase: mock as any,
+      vanId,
+      geofenceEvents: [
+        { placeId, enteredAt: earlyEventTime.toMillis(), eventId: "ev-early-arr" },
+      ],
+    });
+
+    expect(result).toHaveLength(0);
+    expect(mock._stopUpdates).toHaveLength(0);
+    expect(mock._eventUpdates).toHaveLength(1);
+    expect(mock._eventUpdates[0].payload).toMatchObject({ status: "no_match" });
+  });
+
+  it("accepts event within early arrival window based on arrival_time (T012b)", async () => {
+    // Stop: arrival 10:00, departure 10:30
+    // Event at 09:35 => 25 min before arrival => within 30-min window => matched
+    const earlyEventTime = DateTime.fromObject(
+      { hour: 9, minute: 35, second: 0 },
+      { zone: TZ },
+    );
+    const dwellStop = {
+      schedule_entry_id: "entry-1000",
+      schedule_entries: {
+        arrival_time: "10:00",
+        departure_time: "10:30",
+        stop_lat: stopLat,
+        stop_lng: stopLng,
+        stop_group_id: placeId,
+        geofence_radius_m: 50,
+        stop_sequence: 1,
+      },
+    };
+    const mock = createMockSupabase({
+      activeShift: { id: "shift-1" },
+      pendingStops: [dwellStop],
+      recentPings: [],
+    });
+
+    const result = await processDeviceGeofenceEvents({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase: mock as any,
+      vanId,
+      geofenceEvents: [
+        { placeId, enteredAt: earlyEventTime.toMillis(), eventId: "ev-within-arr" },
+      ],
+    });
+
+    expect(result).toContain("ev-within-arr");
+    expect(mock._stopUpdates).toHaveLength(1);
+    expect(mock._stopUpdates[0].payload).toMatchObject({
+      status: "passed",
+      pass_source: "device_geofence",
+    });
+  });
+
+  it("accepts event at exact boundary of early arrival window (T012c)", async () => {
+    // Stop: arrival 10:00, departure 10:30
+    // Event at 09:30 => exactly 30 min before arrival => boundary (>= inclusive) => matched
+    const boundaryEventTime = DateTime.fromObject(
+      { hour: 9, minute: 30, second: 0 },
+      { zone: TZ },
+    );
+    const dwellStop = {
+      schedule_entry_id: "entry-1000",
+      schedule_entries: {
+        arrival_time: "10:00",
+        departure_time: "10:30",
+        stop_lat: stopLat,
+        stop_lng: stopLng,
+        stop_group_id: placeId,
+        geofence_radius_m: 50,
+        stop_sequence: 1,
+      },
+    };
+    const mock = createMockSupabase({
+      activeShift: { id: "shift-1" },
+      pendingStops: [dwellStop],
+      recentPings: [],
+    });
+
+    const result = await processDeviceGeofenceEvents({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase: mock as any,
+      vanId,
+      geofenceEvents: [
+        { placeId, enteredAt: boundaryEventTime.toMillis(), eventId: "ev-boundary-arr" },
+      ],
+    });
+
+    expect(result).toContain("ev-boundary-arr");
+    expect(mock._stopUpdates).toHaveLength(1);
+    expect(mock._stopUpdates[0].payload).toMatchObject({
+      status: "passed",
+      pass_source: "device_geofence",
+    });
+  });
+
   it("deferred event remains deferred across multiple retries", async () => {
     // Call 1: new event, both seq 17 and 18 pending => deferred
     const mock1 = createMockSupabase({

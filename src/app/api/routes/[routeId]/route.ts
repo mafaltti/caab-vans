@@ -106,7 +106,7 @@ export async function GET(
   let scheduleStatus: ScheduleStatus = "not_started";
   if (scheduleWindowEntries.length > 0) {
     const sorted = [...scheduleWindowEntries].sort((a, b) => a.stop_sequence - b.stop_sequence);
-    const lastTime = sorted[sorted.length - 1].arrival_time;
+    const lastTime = sorted[sorted.length - 1].departure_time;
     if (now.toFormat("HH:mm") > formatTimeString(lastTime)) {
       scheduleStatus = "ended";
     } else if (withinWindow) {
