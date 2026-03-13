@@ -59,6 +59,7 @@ function createMockSupabase(opts: {
     };
   }>;
   recentPings?: Array<{ lat: number; lng: number }>;
+  deferredEvents?: Array<{ event_id: string; place_id: string; entered_at: string }>;
 }) {
   const {
     insertReturns = [{ id: "ge-1" }],
@@ -67,6 +68,7 @@ function createMockSupabase(opts: {
     activeShift = { id: "shift-1" },
     pendingStops = [],
     recentPings = [],
+    deferredEvents = [],
   } = opts;
 
   const stopUpdates: StopUpdate[] = [];
@@ -100,12 +102,16 @@ function createMockSupabase(opts: {
             })),
           })),
           select: vi.fn(() => {
-            // existing event lookup for dedup path
+            // Supports both dedup path (.eq.eq.single) and cascade path (.eq.eq.order)
             return {
               eq: vi.fn().mockReturnValue({
                 eq: vi.fn().mockReturnValue({
                   single: vi.fn().mockReturnValue({
                     data: existingEvent,
+                    error: null,
+                  }),
+                  order: vi.fn().mockReturnValue({
+                    data: deferredEvents,
                     error: null,
                   }),
                 }),
@@ -562,7 +568,7 @@ describe("processDeviceGeofenceEvents", () => {
     expect(result).toHaveLength(0);
     expect(mock._stopUpdates).toHaveLength(0);
     expect(mock._eventUpdates).toHaveLength(1);
-    expect(mock._eventUpdates[0].payload).toMatchObject({ status: "no_match" });
+    expect(mock._eventUpdates[0].payload).toMatchObject({ status: "deferred" });
     // No pointer update on deferred events
     expect(mock._runUpdates).toHaveLength(0);
   });
@@ -637,7 +643,7 @@ describe("processDeviceGeofenceEvents", () => {
     expect(result).toHaveLength(0);
     expect(mock._stopUpdates).toHaveLength(0);
     expect(mock._eventUpdates).toHaveLength(1);
-    expect(mock._eventUpdates[0].payload).toMatchObject({ status: "no_match" });
+    expect(mock._eventUpdates[0].payload).toMatchObject({ status: "deferred" });
   });
 
   it("rejects event outside early arrival window based on arrival_time, not departure_time (T012a)", async () => {

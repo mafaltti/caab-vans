@@ -137,7 +137,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       .from("tracking_geofence_events")
       .select("event_id, place_id, entered_at")
       .eq("van_id", van.id)
-      .eq("status", "no_match")
+      .in("status", ["no_match", "deferred"])
       .gte("entered_at", dayStart)
       .lte("entered_at", dayEnd)
       .order("entered_at", { ascending: true });

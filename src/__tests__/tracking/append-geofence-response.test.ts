@@ -5,7 +5,7 @@ import { appendGeofenceResponse } from "@/app/api/tracking/[vanId]/route";
 
 interface ConfirmedEvent {
   event_id: string;
-  status: "matched" | "no_match";
+  status: "matched" | "deferred";
   matched_schedule_entry_id: string | null;
   matched_run_id: string | null;
 }
@@ -268,14 +268,14 @@ describe("appendGeofenceResponse", () => {
     expect(response.processedEventIds).toEqual([]);
   });
 
-  it("no_match events acknowledged so client drains buffer (T012)", async () => {
-    // A no_match event should be included in processedEventIds so the client
-    // removes it from its buffer. Server-side shift-start replay handles retry.
+  it("deferred events acknowledged so client drains buffer (T012)", async () => {
+    // A deferred event (out-of-order, blocked by contiguous-prefix guard)
+    // should be acked — server cascade retries it when earlier stops pass.
     const mock = createMockSupabase({
       confirmedEvents: [
         {
           event_id: "ev-deferred",
-          status: "no_match",
+          status: "deferred",
           matched_schedule_entry_id: null,
           matched_run_id: null,
         },
@@ -294,9 +294,29 @@ describe("appendGeofenceResponse", () => {
     expect(response.processedEventIds).toEqual(["ev-deferred"]);
   });
 
-  it("mixed matched and no_match events both acknowledged (T013)", async () => {
-    // Matched events go through contiguous prefix check, no_match events
-    // are acknowledged directly.
+  it("no_match events NOT acknowledged — client retries transient errors (T014)", async () => {
+    // no_match covers transient failures (DB error, no route, etc.).
+    // These must NOT be acked so the client resends on the next ping.
+    const mock = createMockSupabase({
+      // no_match events are not fetched by the query (it filters matched/deferred)
+      confirmedEvents: [],
+    });
+
+    const response: Record<string, unknown> = {};
+    await appendGeofenceResponse(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mock as any,
+      "van-1",
+      ["ev-error"],
+      response,
+    );
+
+    expect(response.processedEventIds).toEqual([]);
+  });
+
+  it("mixed matched and deferred events both acknowledged (T013)", async () => {
+    // Matched events go through contiguous prefix check, deferred events
+    // are acknowledged directly (server cascade handles retry).
     const mock = createMockSupabase({
       confirmedEvents: [
         {
@@ -307,7 +327,7 @@ describe("appendGeofenceResponse", () => {
         },
         {
           event_id: "ev-deferred",
-          status: "no_match",
+          status: "deferred",
           matched_schedule_entry_id: null,
           matched_run_id: null,
         },

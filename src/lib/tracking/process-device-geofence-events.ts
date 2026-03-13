@@ -30,6 +30,40 @@ export async function processDeviceGeofenceEvents(args: {
     }
   }
 
+  // Cascade: when new stops pass, previously deferred events may now be
+  // head-of-line.  Re-evaluate until no more resolve (bounded to avoid loops).
+  if (tentativeMatchIds.length > 0) {
+    const MAX_CASCADE_ROUNDS = 5;
+    for (let round = 0; round < MAX_CASCADE_ROUNDS; round++) {
+      const { data: deferredEvents } = await supabase
+        .from("tracking_geofence_events")
+        .select("event_id, place_id, entered_at")
+        .eq("van_id", vanId)
+        .eq("status", "deferred")
+        .order("entered_at", { ascending: true });
+
+      if (!deferredEvents || deferredEvents.length === 0) break;
+
+      const prevCount = tentativeMatchIds.length;
+      for (const evt of deferredEvents) {
+        try {
+          await processOneEvent(supabase, vanId, {
+            placeId: evt.place_id,
+            enteredAt: new Date(evt.entered_at).getTime(),
+            eventId: evt.event_id,
+          }, tentativeMatchIds);
+        } catch (err) {
+          console.error("processDeviceGeofenceEvents: cascade error", {
+            vanId, eventId: evt.event_id,
+            error: err instanceof Error ? err.message : err,
+          });
+        }
+      }
+
+      if (tentativeMatchIds.length === prevCount) break;
+    }
+  }
+
   return tentativeMatchIds;
 }
 
@@ -73,9 +107,10 @@ async function processOneEvent(
 
     if (!existing) return;
 
-    // no_match events are re-processable: shift may have started, transient
-    // failures may have resolved. Reset to 'received' and fall through.
-    if (existing.status === "no_match") {
+    // no_match / deferred events are re-processable: shift may have started,
+    // transient failures may have resolved, or earlier stops may have passed.
+    // Reset to 'received' and fall through.
+    if (existing.status === "no_match" || existing.status === "deferred") {
       await supabase
         .from("tracking_geofence_events")
         .update({ status: "received" })
@@ -282,7 +317,7 @@ async function processOneEvent(
       matchedSequence: matchedEntry.stop_sequence,
       firstPendingSequence: firstPending.stop_sequence,
     });
-    await updateEventStatus(supabase, vanId, eventId, "no_match");
+    await updateEventStatus(supabase, vanId, eventId, "deferred");
     return;
   }
 
@@ -328,7 +363,7 @@ async function updateEventStatus(
   supabase: SupabaseClient,
   vanId: string,
   eventId: string,
-  status: "no_match",
+  status: "no_match" | "deferred",
 ) {
   const { error } = await supabase
     .from("tracking_geofence_events")
