@@ -12,7 +12,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { DateTime } from "luxon";
 
-import { isOrphanedShift, SCHEDULE_OVERDUE_MINUTES, INACTIVITY_MINUTES } from "@/lib/tracking/orphaned-shift-health";
+import { isOrphanedShift } from "@/lib/tracking/orphaned-shift-health";
 
 const TZ = "America/Bahia";
 

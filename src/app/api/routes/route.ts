@@ -29,7 +29,6 @@ export async function GET(request: NextRequest) {
       van:vans!inner (
         id,
         location_url,
-        location_updated_at,
         last_gps_fix_at,
         last_lat,
         last_lng,
@@ -66,7 +65,6 @@ export async function GET(request: NextRequest) {
     const van = route.van as unknown as {
       id: string;
       location_url: string | null;
-      location_updated_at: string | null;
       last_gps_fix_at: string | null;
       last_lat: number | null;
       last_lng: number | null;
