@@ -179,6 +179,7 @@ export async function inferStopProgress(args: {
           stop_lat: number;
           stop_lng: number;
           geofence_radius_m: number;
+          arrival_time: string;
           departure_time: string;
         };
         const effectivePos = chooseEffectivePosition({
@@ -196,7 +197,7 @@ export async function inferStopProgress(args: {
         perStopSnap.set(stop.schedule_entry_id, useSnappedForThisStop);
 
         if (distance > entry.geofence_radius_m) return false;
-        const stopTime = stopDateTime(entry.departure_time);
+        const stopTime = stopDateTime(entry.arrival_time);
         return eventTime >= stopTime.minus({ minutes: EARLY_ARRIVAL_WINDOW_MINUTES });
       });
       if (eligible.length === 0) continue;

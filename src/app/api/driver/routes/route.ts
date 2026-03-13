@@ -120,7 +120,7 @@ export async function GET() {
   const result = routes.map((route) => {
     const entries = (route.schedule_entries ?? []) as { id: string; arrival_time: string; departure_time: string; stop_sequence: number }[];
     const sorted = [...entries].sort((a, b) => a.stop_sequence - b.stop_sequence);
-    const sortedTimes = sorted.map((e) => e.arrival_time);
+    const sortedTimes = sorted.map((e) => e.departure_time);
     const run = runByRoute.get(route.id);
     const shifts = run ? (shiftsByRun.get(run.id) ?? []) : [];
 

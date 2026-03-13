@@ -222,7 +222,7 @@ async function processOneEvent(
     const stopPlaceId = entry.stop_group_id ?? `${entry.stop_lat.toFixed(6)},${entry.stop_lng.toFixed(6)}`;
     if (stopPlaceId !== placeId) continue;
 
-    const stopTime = stopDateTime(entry.departure_time);
+    const stopTime = stopDateTime(entry.arrival_time);
     if (eventTime < stopTime.minus({ minutes: EARLY_ARRIVAL_WINDOW_MINUTES })) continue;
 
     const arrivalTime = stopDateTime(entry.arrival_time);
