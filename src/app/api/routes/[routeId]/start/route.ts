@@ -139,7 +139,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       .eq("van_id", van.id)
       .eq("status", "no_match")
       .gte("entered_at", dayStart)
-      .lte("entered_at", dayEnd);
+      .lte("entered_at", dayEnd)
+      .order("entered_at", { ascending: true });
 
     if (staleEvents && staleEvents.length > 0) {
       await processDeviceGeofenceEvents({

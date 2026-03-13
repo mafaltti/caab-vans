@@ -51,6 +51,10 @@ export async function sendLocationPing(
   let geofenceEvents: { placeId: string; enteredAt: number; eventId: string }[] = [];
   try {
     geofenceEvents = await getGeofenceEventBuffer();
+    // Respect server-side max(100) validation to avoid 400s that block GPS storage
+    if (geofenceEvents.length > 100) {
+      geofenceEvents = geofenceEvents.slice(0, 100);
+    }
   } catch {
     // Non-fatal — send ping without events
   }

@@ -226,24 +226,38 @@ export async function appendGeofenceResponse(
   submittedEventIds: string[],
   response: Record<string, unknown>,
 ): Promise<void> {
-  // Compute processedEventIds: only events whose matched stops survived canonical healing
+  // Compute processedEventIds: matched events whose stops survived canonical
+  // healing PLUS no_match events (server-side replay on shift start handles
+  // those — acknowledging them prevents the client from resending every ping).
   if (submittedEventIds.length > 0) {
     // Batch .in() queries to stay under Kong's 4KB header limit (~50 UUIDs per batch)
     const BATCH_SIZE = 50;
-    const confirmedEvents: { event_id: string; matched_schedule_entry_id: string | null; matched_run_id: string | null }[] = [];
+    const matchedEvents: { event_id: string; matched_schedule_entry_id: string | null; matched_run_id: string | null }[] = [];
+    const noMatchEventIds: string[] = [];
+
     for (let i = 0; i < submittedEventIds.length; i += BATCH_SIZE) {
       const batch = submittedEventIds.slice(i, i + BATCH_SIZE);
       const { data } = await supabase
         .from("tracking_geofence_events")
-        .select("event_id, matched_schedule_entry_id, matched_run_id")
+        .select("event_id, status, matched_schedule_entry_id, matched_run_id")
         .eq("van_id", vanId)
         .in("event_id", batch)
-        .eq("status", "matched");
-      if (data) confirmedEvents.push(...data);
+        .in("status", ["matched", "no_match"]);
+      if (data) {
+        for (const row of data) {
+          if (row.status === "matched") {
+            matchedEvents.push(row);
+          } else {
+            noMatchEventIds.push(row.event_id);
+          }
+        }
+      }
     }
 
-    if (confirmedEvents && confirmedEvents.length > 0) {
-      const runIds = [...new Set(confirmedEvents.map((e) => e.matched_run_id).filter(Boolean))] as string[];
+    const confirmedMatchIds: string[] = [];
+
+    if (matchedEvents.length > 0) {
+      const runIds = [...new Set(matchedEvents.map((e) => e.matched_run_id).filter(Boolean))] as string[];
 
       if (runIds.length > 0) {
         // Build contiguous prefix per run using enforceCanonicalPrefix
@@ -268,15 +282,16 @@ export async function appendGeofenceResponse(
           }
         }
 
-        response.processedEventIds = confirmedEvents
-          .filter((e) => e.matched_schedule_entry_id && allContiguousIds.has(e.matched_schedule_entry_id))
-          .map((e) => e.event_id);
+        for (const e of matchedEvents) {
+          if (e.matched_schedule_entry_id && allContiguousIds.has(e.matched_schedule_entry_id)) {
+            confirmedMatchIds.push(e.event_id);
+          }
+        }
       }
     }
 
-    if (!response.processedEventIds) {
-      response.processedEventIds = [];
-    }
+    // Acknowledge both confirmed matches and no_match (server handles retry via shift-start replay)
+    response.processedEventIds = [...confirmedMatchIds, ...noMatchEventIds];
   }
 
   await appendConfigVersion(supabase, vanId, response);
