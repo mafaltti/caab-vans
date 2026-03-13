@@ -33,38 +33,56 @@ export async function processDeviceGeofenceEvents(args: {
   // Cascade: when new stops pass, previously deferred events may now be
   // head-of-line.  Re-evaluate until no more resolve (bounded to avoid loops).
   if (tentativeMatchIds.length > 0) {
-    const MAX_CASCADE_ROUNDS = 5;
-    for (let round = 0; round < MAX_CASCADE_ROUNDS; round++) {
-      const { data: deferredEvents } = await supabase
-        .from("tracking_geofence_events")
-        .select("event_id, place_id, entered_at")
-        .eq("van_id", vanId)
-        .eq("status", "deferred")
-        .order("entered_at", { ascending: true });
-
-      if (!deferredEvents || deferredEvents.length === 0) break;
-
-      const prevCount = tentativeMatchIds.length;
-      for (const evt of deferredEvents) {
-        try {
-          await processOneEvent(supabase, vanId, {
-            placeId: evt.place_id,
-            enteredAt: new Date(evt.entered_at).getTime(),
-            eventId: evt.event_id,
-          }, tentativeMatchIds);
-        } catch (err) {
-          console.error("processDeviceGeofenceEvents: cascade error", {
-            vanId, eventId: evt.event_id,
-            error: err instanceof Error ? err.message : err,
-          });
-        }
-      }
-
-      if (tentativeMatchIds.length === prevCount) break;
-    }
+    const cascadeIds = await replayDeferredEvents({ supabase, vanId });
+    tentativeMatchIds.push(...cascadeIds);
   }
 
   return tentativeMatchIds;
+}
+
+/**
+ * Re-evaluate all deferred geofence events for a van.  Call this whenever
+ * the head-of-line stop changes (geofence match, skip-stop, manual pass, etc.)
+ * so that previously out-of-order events get a chance to resolve.
+ */
+export async function replayDeferredEvents(args: {
+  supabase: SupabaseClient;
+  vanId: string;
+}): Promise<string[]> {
+  const { supabase, vanId } = args;
+  const matchedIds: string[] = [];
+  const MAX_CASCADE_ROUNDS = 5;
+
+  for (let round = 0; round < MAX_CASCADE_ROUNDS; round++) {
+    const { data: deferredEvents } = await supabase
+      .from("tracking_geofence_events")
+      .select("event_id, place_id, entered_at")
+      .eq("van_id", vanId)
+      .eq("status", "deferred")
+      .order("entered_at", { ascending: true });
+
+    if (!deferredEvents || deferredEvents.length === 0) break;
+
+    const prevCount = matchedIds.length;
+    for (const evt of deferredEvents) {
+      try {
+        await processOneEvent(supabase, vanId, {
+          placeId: evt.place_id,
+          enteredAt: new Date(evt.entered_at).getTime(),
+          eventId: evt.event_id,
+        }, matchedIds);
+      } catch (err) {
+        console.error("replayDeferredEvents: cascade error", {
+          vanId, eventId: evt.event_id,
+          error: err instanceof Error ? err.message : err,
+        });
+      }
+    }
+
+    if (matchedIds.length === prevCount) break;
+  }
+
+  return matchedIds;
 }
 
 async function processOneEvent(
