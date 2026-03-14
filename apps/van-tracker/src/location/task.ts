@@ -362,11 +362,12 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
       await persistError(null);
       logOk();
 
-      // US1: Then flush buffer (batch) — flush manages its own backoff state,
-      // so only reset on single-point success if flush didn't introduce failures
+      // US1: Then flush buffer (batch) — flush manages its own failure state,
+      // so only reset on single-point success if flush didn't escalate either counter
       const failuresBefore = consecutiveFailures;
+      const auth401sBefore = consecutive401s;
       await flushBuffer(settings, deviceId);
-      if (consecutiveFailures <= failuresBefore) {
+      if (consecutiveFailures <= failuresBefore && consecutive401s <= auth401sBefore) {
         await onSendSuccess();
       }
     } else {
