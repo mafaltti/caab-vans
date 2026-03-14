@@ -34,6 +34,7 @@ export type EventType =
   | "state_change"
   | "boot_restart"
   | "geofence_enter"
+  | "geofence_suppressed"
   | "geofence_register";
 
 export interface EventEntry {

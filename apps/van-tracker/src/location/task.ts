@@ -39,6 +39,9 @@ let lastSentTs = 0;
 let consecutiveFailures = 0;
 let backoffUntil = 0;
 
+// Flush guard — in-memory only, resets on process restart (FR-001/FR-003)
+let isFlushing = false;
+
 // Auth failure state (US2)
 let consecutive401s = 0;
 let authPaused = false;
@@ -105,45 +108,55 @@ async function flushBuffer(
   settings: NonNullable<Awaited<ReturnType<typeof getSettings>>>,
   deviceId: string,
 ): Promise<void> {
-  const buffer = await getBuffer();
-  if (buffer.length === 0) return;
+  // FR-001/FR-002: Skip if another flush is already in progress
+  if (isFlushing) return;
+  isFlushing = true;
 
-  // TTL filter — discard points older than 24h
-  const validPoints = filterExpiredPoints(buffer);
-  const expired = buffer.length - validPoints.length;
-
-  if (expired > 0) {
-    // Remove expired points from buffer
-    await removeFromBuffer(expired);
-  }
-
-  if (validPoints.length === 0) return;
-
-  // Batch flush — single request for all buffered points
   try {
-    logEvent("flush", "start n=" + validPoints.length);
-    const result = await sendBatchPing(settings, deviceId, validPoints);
-    if (result.success) {
-      await removeFromBuffer(validPoints.length);
-      await onSendSuccess();
-      logEvent("flush", "done sent=" + validPoints.length);
-    } else if (result.status === 429) {
-      // Rate limited — keep points in buffer, retry next cycle (no backoff)
-      logEvent("flush", "rate_limited");
-      await persistError("Rate limited — buffered points retained");
-    } else if (result.status && result.status >= 400 && result.status < 500) {
-      // Client error (400/401/404) — drop points, retries won't help
-      await removeFromBuffer(validPoints.length);
-      if (result.status === 401) {
-        await on401Failure();
+    const buffer = await getBuffer();
+    if (buffer.length === 0) return;
+
+    // TTL filter — discard points older than 24h
+    const validPoints = filterExpiredPoints(buffer);
+    const expired = buffer.length - validPoints.length;
+
+    if (expired > 0) {
+      // Remove expired points from buffer
+      await removeFromBuffer(expired);
+    }
+
+    if (validPoints.length === 0) return;
+
+    // Batch flush — single request for all buffered points
+    try {
+      logEvent("flush", "start n=" + validPoints.length);
+      const result = await sendBatchPing(settings, deviceId, validPoints);
+      if (result.success) {
+        await removeFromBuffer(validPoints.length);
+        await onSendSuccess();
+        logEvent("flush", "done sent=" + validPoints.length);
+      } else if (result.status === 429) {
+        // Rate limited — apply backoff, keep points in buffer (FR-005)
+        await onSendFailure();
+        const delay = computeBackoffDelay(consecutiveFailures);
+        logEvent("flush", `rate_limited backoff=${Math.ceil(delay / 1000)}s`);
+        await persistError("Rate limited — buffered points retained");
+      } else if (result.status && result.status >= 400 && result.status < 500) {
+        // Client error (400/401/404) — drop points, retries won't help
+        await removeFromBuffer(validPoints.length);
+        if (result.status === 401) {
+          await on401Failure();
+        }
+      } else {
+        // Server error — keep buffered, will retry later
+        await onSendFailure();
       }
-    } else {
-      // Server error — keep buffered, will retry later
+    } catch {
+      // Network error — keep buffered, will retry later
       await onSendFailure();
     }
-  } catch {
-    // Network error — keep buffered, will retry later
-    await onSendFailure();
+  } finally {
+    isFlushing = false;
   }
 }
 
@@ -355,10 +368,12 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
     } else {
       if (result.status === 429) {
         logBuffered();
-        logEvent("error", "429: rate_limited");
-        // Rate limited — buffer point instead of dropping
+        // Rate limited — apply backoff, buffer point (FR-004)
         await addToBuffer(point);
-        await persistError("Rate limited — point buffered");
+        await onSendFailure();
+        const delay = computeBackoffDelay(consecutiveFailures);
+        logEvent("error", `429: rate_limited backoff=${Math.ceil(delay / 1000)}s`);
+        await persistError(`Rate limited — retry in ${Math.ceil(delay / 1000)}s`);
       } else if (result.status === 400) {
         logEvent("error", "400: " + (result.message ?? "validation"));
         // Validation error — log, don't buffer
