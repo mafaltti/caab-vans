@@ -49,7 +49,6 @@ TaskManager.defineTask(GEOFENCE_TASK, async ({ data, error }) => {
   if (lastEnter !== undefined && now - lastEnter < DEDUP_WINDOW_MS) {
     return;
   }
-  recentEnters.set(placeId, now);
 
   // Persisted buffer dedup: skip if same placeId within last 60s
   const buffer = await getGeofenceEventBuffer();
@@ -58,6 +57,9 @@ TaskManager.defineTask(GEOFENCE_TASK, async ({ data, error }) => {
   );
 
   if (isDuplicate) return;
+
+  // Update in-memory map only after confirming event is accepted
+  recentEnters.set(placeId, now);
 
   const eventId = randomUUID();
   await addGeofenceEvent({ placeId, enteredAt: now, eventId });

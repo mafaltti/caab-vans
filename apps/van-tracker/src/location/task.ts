@@ -360,11 +360,15 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
       await AsyncStorage.setItem("@lastSentTs", String(point.ts));
       await persistCoords(point.lat, point.lng);
       await persistError(null);
-      await onSendSuccess();
       logOk();
 
-      // US1: Then flush buffer (batch)
+      // US1: Then flush buffer (batch) — flush manages its own backoff state,
+      // so only reset on single-point success if flush didn't introduce failures
+      const failuresBefore = consecutiveFailures;
       await flushBuffer(settings, deviceId);
+      if (consecutiveFailures <= failuresBefore) {
+        await onSendSuccess();
+      }
     } else {
       if (result.status === 429) {
         logBuffered();
