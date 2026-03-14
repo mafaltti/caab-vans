@@ -141,7 +141,7 @@ High-level tables:
 | `van_location_pings` | GPS ping history |
 | `route_runs` | Daily route instances |
 | `route_run_stops` | Stop progress for a run |
-| `van_drivers` | Driver assignments |
+| `route_drivers` | Driver-to-route assignments |
 | `route_shifts` | Driver shift windows |
 
 Notable columns and functions added after the initial schema:

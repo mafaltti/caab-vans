@@ -64,6 +64,3 @@ export function filterExpiredPoints(points: LocationPoint[]): LocationPoint[] {
   return points.filter((p) => p.ts >= cutoff);
 }
 
-export async function clearBuffer(): Promise<void> {
-  await AsyncStorage.removeItem(BUFFER_KEY);
-}
