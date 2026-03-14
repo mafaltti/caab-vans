@@ -104,17 +104,18 @@ async function on401Failure(): Promise<void> {
   }
 }
 
+// Returns true if flush actually ran, false if skipped due to concurrency
 async function flushBuffer(
   settings: NonNullable<Awaited<ReturnType<typeof getSettings>>>,
   deviceId: string,
-): Promise<void> {
+): Promise<boolean> {
   // FR-001/FR-002: Skip if another flush is already in progress
-  if (isFlushing) return;
+  if (isFlushing) return false;
   isFlushing = true;
 
   try {
     const buffer = await getBuffer();
-    if (buffer.length === 0) return;
+    if (buffer.length === 0) return true;
 
     // TTL filter — discard points older than 24h
     const validPoints = filterExpiredPoints(buffer);
@@ -125,7 +126,7 @@ async function flushBuffer(
       await removeFromBuffer(expired);
     }
 
-    if (validPoints.length === 0) return;
+    if (validPoints.length === 0) return true;
 
     // Batch flush — single request for all buffered points
     try {
@@ -155,6 +156,7 @@ async function flushBuffer(
       // Network error — keep buffered, will retry later
       await onSendFailure();
     }
+    return true;
   } finally {
     isFlushing = false;
   }
@@ -362,12 +364,12 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
       await persistError(null);
       logOk();
 
-      // US1: Then flush buffer (batch) — flush manages its own failure state,
-      // so only reset on single-point success if flush didn't escalate either counter
+      // US1: Then flush buffer (batch) — only reset shared state if flush
+      // actually ran and didn't escalate either failure counter
       const failuresBefore = consecutiveFailures;
       const auth401sBefore = consecutive401s;
-      await flushBuffer(settings, deviceId);
-      if (consecutiveFailures <= failuresBefore && consecutive401s <= auth401sBefore) {
+      const flushed = await flushBuffer(settings, deviceId);
+      if (flushed && consecutiveFailures <= failuresBefore && consecutive401s <= auth401sBefore) {
         await onSendSuccess();
       }
     } else {
