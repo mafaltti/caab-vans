@@ -2,15 +2,18 @@ import "@/location/task";
 import "@/location/geofence-task";
 import "@/location/health-check-task";
 import * as Sentry from "@sentry/react-native";
-import { useEffect } from "react";
-import { Stack } from "expo-router";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, View } from "react-native";
+import { Stack, Redirect } from "expo-router";
 import { isSettingsComplete } from "@/storage/settings";
 import { getTrackingEnabled } from "@/storage/tracking-state";
 import { startTracking, registerGeofencesFromCache } from "@/location/tracking";
 import {
   consumeBootTrigger,
   syncTrackingStateToDeviceProtected,
+  getShiftActiveDeviceProtected,
 } from "@/storage/device-protected-state";
+import { hasDriverSession } from "@/storage/driver-session";
 import { logEvent, flushLog } from "@/storage/diag-log";
 
 Sentry.init({
@@ -20,23 +23,28 @@ Sentry.init({
   enableNativeCrashHandling: true,
 });
 
+type BootState = "loading" | "device-setup" | "login" | "driver";
+
 function RootLayout() {
+  const [bootState, setBootState] = useState<BootState>("loading");
+
   useEffect(() => {
     (async () => {
       let bootTrigger: string | null = null;
       try {
         bootTrigger = await consumeBootTrigger();
         const wasTracking = await getTrackingEnabled();
-        // Migrate pre-existing tracking state to device-protected storage
         await syncTrackingStateToDeviceProtected(wasTracking);
         const settingsOk = await isSettingsComplete();
-        if (wasTracking && settingsOk) {
-          await startTracking();
-          // Re-register geofences from cache on boot (no network wait)
+
+        // T042: Shift-gated boot recovery
+        const shiftActive = await getShiftActiveDeviceProtected();
+        if (wasTracking && settingsOk && shiftActive) {
+          await startTracking({ skipPermissions: true });
           try {
             await registerGeofencesFromCache();
           } catch {
-            // Non-fatal — geofences will re-register on next config fetch
+            // Non-fatal
           }
           if (bootTrigger) {
             logEvent("boot_restart", bootTrigger);
@@ -45,9 +53,19 @@ function RootLayout() {
         } else if (bootTrigger) {
           const reason = !wasTracking
             ? "tracking_not_enabled"
-            : "settings_incomplete";
+            : !settingsOk
+              ? "settings_incomplete"
+              : "shift_not_active";
           logEvent("boot_restart", `error: ${reason}`);
           await flushLog();
+        }
+
+        // T019: Bootstrap gate
+        if (!settingsOk) {
+          setBootState("device-setup");
+        } else {
+          const hasSession = await hasDriverSession();
+          setBootState(hasSession ? "driver" : "login");
         }
       } catch (err) {
         if (bootTrigger) {
@@ -60,16 +78,58 @@ function RootLayout() {
             // Diagnostics should never block error handling
           }
         }
-        // Permission issues on resume are non-fatal — user can manually restart
+        // Fall through to check settings for navigation
+        const settingsOk = await isSettingsComplete().catch(() => false);
+        if (!settingsOk) {
+          setBootState("device-setup");
+        } else {
+          const hasSession = await hasDriverSession().catch(() => false);
+          setBootState(hasSession ? "driver" : "login");
+        }
       }
     })();
   }, []);
 
+  if (bootState === "loading") {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#f8fafc" }}>
+        <ActivityIndicator size="large" color="#2563eb" />
+      </View>
+    );
+  }
+
+  if (bootState === "device-setup") {
+    return (
+      <>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="device-setup" options={{ title: "Configuração" }} />
+        </Stack>
+        <Redirect href="/device-setup" />
+      </>
+    );
+  }
+
+  if (bootState === "login") {
+    return (
+      <>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="login" options={{ title: "Login" }} />
+          <Stack.Screen name="device-setup" options={{ title: "Configuração" }} />
+        </Stack>
+        <Redirect href="/login" />
+      </>
+    );
+  }
+
   return (
     <Stack>
-      <Stack.Screen name="index" options={{ title: "CAAB Tracker" }} />
+      <Stack.Screen name="(driver)" options={{ headerShown: false }} />
+      <Stack.Screen name="login" options={{ title: "Login", headerShown: false }} />
+      <Stack.Screen name="device-setup" options={{ title: "Configuração" }} />
+      <Stack.Screen name="support" options={{ title: "Suporte" }} />
+      <Stack.Screen name="diagnostics" options={{ title: "Diagnósticos" }} />
       <Stack.Screen name="settings" options={{ title: "Settings" }} />
-      <Stack.Screen name="diagnostics" options={{ title: "Diagnostics" }} />
+      <Stack.Screen name="index" options={{ title: "CAAB Tracker" }} />
     </Stack>
   );
 }

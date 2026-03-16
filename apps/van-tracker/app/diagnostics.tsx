@@ -6,6 +6,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { File, Paths } from "expo-file-system";
@@ -17,6 +18,7 @@ import {
   type MinuteSummary,
   type EventEntry,
 } from "@/storage/diag-log";
+import { startTracking, stopTracking, isTracking } from "@/location/tracking";
 
 function formatTime(ts: number): string {
   const d = new Date(ts);
@@ -123,6 +125,8 @@ function EventRow({ item }: { item: EventEntry }) {
 
 export default function DiagnosticsScreen() {
   const [entries, setEntries] = useState<LogEntry[]>([]);
+  const [trackingActive, setTrackingActive] = useState(false);
+  const [trackingLoading, setTrackingLoading] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -131,6 +135,8 @@ export default function DiagnosticsScreen() {
         try {
           const next = await getLog();
           if (active) setEntries(next);
+          const tracking = await isTracking();
+          if (active) setTrackingActive(tracking);
         } catch {
           // Non-critical — screen shows stale or empty data
         }
@@ -140,6 +146,26 @@ export default function DiagnosticsScreen() {
       };
     }, []),
   );
+
+  const handleToggleTracking = async () => {
+    setTrackingLoading(true);
+    try {
+      if (trackingActive) {
+        await stopTracking();
+        setTrackingActive(false);
+      } else {
+        await startTracking();
+        setTrackingActive(true);
+      }
+    } catch (err) {
+      Alert.alert(
+        "Erro",
+        err instanceof Error ? err.message : "Falha ao alterar rastreamento",
+      );
+    } finally {
+      setTrackingLoading(false);
+    }
+  };
 
   const reversed = [...entries].reverse();
 
@@ -190,6 +216,32 @@ export default function DiagnosticsScreen() {
 
   return (
     <View style={styles.container}>
+      {/* T048: Manual tracking toggle for support */}
+      <View style={styles.trackingControl}>
+        <View>
+          <Text style={styles.trackingLabel}>Controle de suporte — uso emergencial</Text>
+          <Text style={styles.trackingStatus}>
+            Rastreamento: {trackingActive ? "Ativo" : "Inativo"}
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={[
+            styles.trackingButton,
+            trackingActive ? styles.trackingStop : styles.trackingStart,
+          ]}
+          onPress={handleToggleTracking}
+          disabled={trackingLoading}
+        >
+          {trackingLoading ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Text style={styles.trackingButtonText}>
+              {trackingActive ? "Parar" : "Iniciar"}
+            </Text>
+          )}
+        </TouchableOpacity>
+      </View>
+
       <SummaryBar entries={entries} />
       <View style={styles.actions}>
         <TouchableOpacity style={styles.actionButton} onPress={handleShare}>
@@ -333,5 +385,43 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#6b7280",
     textAlign: "center",
+  },
+  trackingControl: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 12,
+    backgroundColor: "#fef3c7",
+    borderBottomWidth: 1,
+    borderBottomColor: "#fcd34d",
+  },
+  trackingLabel: {
+    fontSize: 11,
+    color: "#92400e",
+    fontWeight: "600",
+  },
+  trackingStatus: {
+    fontSize: 13,
+    color: "#78350f",
+    fontWeight: "500",
+    marginTop: 2,
+  },
+  trackingButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    minWidth: 72,
+    alignItems: "center",
+  },
+  trackingStart: {
+    backgroundColor: "#2563eb",
+  },
+  trackingStop: {
+    backgroundColor: "#dc2626",
+  },
+  trackingButtonText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "600",
   },
 });
