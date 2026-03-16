@@ -1,20 +1,27 @@
-import { NextResponse } from "next/server";
-import { requireAuth } from "@/lib/api/auth";
+import { NextResponse, type NextRequest } from "next/server";
+import { requireAuth, requireBoundVan } from "@/lib/api/auth";
 import { apiError } from "@/lib/api/errors";
 import { createServiceClient } from "@/lib/supabase/server";
 import { nowBahia, todayBahiaDate, formatTime, formatTimeString } from "@/lib/time";
 import { deriveRunStatus } from "@/lib/tracking/run-status";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   let auth;
   try {
-    auth = await requireAuth();
+    auth = await requireAuth(request);
   } catch (e) {
     return e as NextResponse;
   }
 
   if (auth.role !== "driver") {
     return apiError("FORBIDDEN", "Driver access required", 403);
+  }
+
+  let boundVanId: string | null = null;
+  try {
+    boundVanId = await requireBoundVan(request);
+  } catch (e) {
+    return e as NextResponse;
   }
 
   const supabase = createServiceClient();
@@ -160,8 +167,15 @@ export async function GET() {
     };
   });
 
+  const filteredResult = boundVanId
+    ? result.filter((r) => {
+        const route = routes.find((rt) => rt.id === r.id);
+        return route?.van_id === boundVanId;
+      })
+    : result;
+
   return NextResponse.json({
-    routes: result,
+    routes: filteredResult,
     serverTime: formatTime(now),
     userId: auth.user.id,
   });

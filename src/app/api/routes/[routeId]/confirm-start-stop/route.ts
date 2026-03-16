@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireAuth } from "@/lib/api/auth";
+import { requireAuth, requireBoundVan } from "@/lib/api/auth";
 import { apiError } from "@/lib/api/errors";
 import { createServiceClient } from "@/lib/supabase/server";
 import { todayBahiaDate } from "@/lib/time";
@@ -13,13 +13,20 @@ type RouteParams = { params: Promise<{ routeId: string }> };
 export async function POST(request: NextRequest, { params }: RouteParams) {
   let auth;
   try {
-    auth = await requireAuth();
+    auth = await requireAuth(request);
   } catch (e) {
     return e as NextResponse;
   }
 
   if (auth.role !== "driver") {
     return apiError("FORBIDDEN", "Driver access required", 403);
+  }
+
+  let boundVanId: string | null = null;
+  try {
+    boundVanId = await requireBoundVan(request);
+  } catch (e) {
+    return e as NextResponse;
   }
 
   // Parse and validate body
@@ -39,6 +46,17 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const { routeId } = await params;
   const supabase = createServiceClient();
   const serviceDate = todayBahiaDate();
+
+  if (boundVanId) {
+    const { data: routeVan } = await supabase
+      .from("routes")
+      .select("van_id")
+      .eq("id", routeId)
+      .single();
+    if (!routeVan || routeVan.van_id !== boundVanId) {
+      return apiError("FORBIDDEN", "Route not assigned to this van", 403);
+    }
+  }
 
   // Validate stopId belongs to this route's schedule entries
   const { data: entryCheck } = await supabase

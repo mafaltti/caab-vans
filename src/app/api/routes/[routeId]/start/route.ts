@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { DateTime } from "luxon";
-import { requireAuth } from "@/lib/api/auth";
+import { requireAuth, requireBoundVan } from "@/lib/api/auth";
 import { apiError } from "@/lib/api/errors";
 import { createServiceClient } from "@/lib/supabase/server";
 import { nowBahia, todayBahiaDate } from "@/lib/time";
@@ -17,13 +17,20 @@ type RouteParams = { params: Promise<{ routeId: string }> };
 export async function POST(request: NextRequest, { params }: RouteParams) {
   let auth;
   try {
-    auth = await requireAuth();
+    auth = await requireAuth(request);
   } catch (e) {
     return e as NextResponse;
   }
 
   if (auth.role !== "driver") {
     return apiError("FORBIDDEN", "Driver access required", 403);
+  }
+
+  let boundVanId: string | null = null;
+  try {
+    boundVanId = await requireBoundVan(request);
+  } catch (e) {
+    return e as NextResponse;
   }
 
   // Parse optional body (lat/lng for cold-start suggestion)
@@ -54,6 +61,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 
   const van = route.van as unknown as { id: string };
+
+  if (boundVanId && van.id !== boundVanId) {
+    return apiError("FORBIDDEN", "Route not assigned to this van", 403);
+  }
 
   const { data: assignment } = await supabase
     .from("route_drivers")

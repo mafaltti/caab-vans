@@ -1,15 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireAuth } from "@/lib/api/auth";
+import { requireAuth, requireBoundVan } from "@/lib/api/auth";
 import { apiError } from "@/lib/api/errors";
 import { createServiceClient } from "@/lib/supabase/server";
 import { todayBahiaDate } from "@/lib/time";
 
 type RouteParams = { params: Promise<{ routeId: string }> };
 
-export async function POST(_request: NextRequest, { params }: RouteParams) {
+export async function POST(request: NextRequest, { params }: RouteParams) {
   let auth;
   try {
-    auth = await requireAuth();
+    auth = await requireAuth(request);
   } catch (e) {
     return e as NextResponse;
   }
@@ -18,17 +18,28 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     return apiError("FORBIDDEN", "Driver access required", 403);
   }
 
+  let boundVanId: string | null = null;
+  try {
+    boundVanId = await requireBoundVan(request);
+  } catch (e) {
+    return e as NextResponse;
+  }
+
   const { routeId } = await params;
   const supabase = createServiceClient();
 
   const { data: route } = await supabase
     .from("routes")
-    .select("id")
+    .select("id, van_id")
     .eq("id", routeId)
     .single();
 
   if (!route) {
     return apiError("NOT_FOUND", "Route not found", 404);
+  }
+
+  if (boundVanId && route.van_id !== boundVanId) {
+    return apiError("FORBIDDEN", "Route not assigned to this van", 403);
   }
 
   const serviceDate = todayBahiaDate();

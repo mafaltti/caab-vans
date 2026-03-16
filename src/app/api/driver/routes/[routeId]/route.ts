@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { DateTime } from "luxon";
-import { requireAuth } from "@/lib/api/auth";
+import { requireAuth, requireBoundVan } from "@/lib/api/auth";
 import { apiError } from "@/lib/api/errors";
 import { createServiceClient } from "@/lib/supabase/server";
 import { nowBahia, todayBahiaDate, formatTime, formatTimeString, isLocationFresh } from "@/lib/time";
@@ -11,16 +11,23 @@ import type { ScheduleStatus } from "@/types";
 
 type RouteParams = { params: Promise<{ routeId: string }> };
 
-export async function GET(_request: NextRequest, { params }: RouteParams) {
+export async function GET(request: NextRequest, { params }: RouteParams) {
   let auth;
   try {
-    auth = await requireAuth();
+    auth = await requireAuth(request);
   } catch (e) {
     return e as NextResponse;
   }
 
   if (auth.role !== "driver") {
     return apiError("FORBIDDEN", "Driver access required", 403);
+  }
+
+  let boundVanId: string | null = null;
+  try {
+    boundVanId = await requireBoundVan(request);
+  } catch (e) {
+    return e as NextResponse;
   }
 
   const { routeId } = await params;
@@ -107,6 +114,10 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     snapped_lng: number | null;
     last_heading_deg: number | null;
   };
+
+  if (boundVanId && van.id !== boundVanId) {
+    return apiError("FORBIDDEN", "Route not assigned to this van", 403);
+  }
 
   const entries = (route.schedule_entries ?? []) as {
     id: string;
