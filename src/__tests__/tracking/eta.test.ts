@@ -1962,10 +1962,10 @@ describe("etaStatus field", () => {
   });
 
   describe("false overdue guard — schedule fallback", () => {
-    it("T005: negative delay (early van) returns 'estimated' when scheduled time is in the future", async () => {
+    it("T005: negative delay (early van) uses raw scheduled time when projection is in the past", async () => {
       // Van passed stop A 10 min early → delay = -10
       // ETA = parseTime("09:00") + (-10) = 08:50 < now (08:55)
-      // But scheduled time 09:00 > now → should NOT be overdue
+      // But scheduled time 09:00 > now → use scheduled time as best estimate
       const now = DateTime.fromObject({ hour: 8, minute: 55 }, { zone: TZ });
 
       const stops = [
@@ -1994,7 +1994,43 @@ describe("etaStatus field", () => {
       expect(result.etaSource).toBe("schedule");
       expect(result.nextStopId).toBe("b");
       expect(result.etaStatus).toBe("estimated");
-      expect(result.etaNextStopMinutes).toBeGreaterThanOrEqual(0);
+      // Should show ~5 min (scheduled 09:00 - now 08:55), not 0
+      expect(result.etaNextStopMinutes).toBe(5);
+    });
+
+    it("T005b: large negative delay (30 min early) still shows positive ETA from scheduled time", async () => {
+      // Codex review reproduction: van 30 min early, next stop 10 min away on schedule
+      // delay = -30, ETA = parseTime("09:00") + (-30) = 08:30 < now (08:50)
+      // scheduled time 09:00 > now → use scheduled time → 10 min
+      const now = DateTime.fromObject({ hour: 8, minute: 50 }, { zone: TZ });
+
+      const stops = [
+        {
+          scheduleEntryId: "a",
+          arrivalTime: "08:30", departureTime: "08:30",
+          stopSequence: 1,
+          status: "passed" as const,
+          passedAt: DateTime.fromObject(
+            { hour: 8, minute: 0 }, // 30 min early
+            { zone: TZ },
+          ).toISO()!,
+        },
+        {
+          scheduleEntryId: "b",
+          arrivalTime: "09:00", departureTime: "09:00", // 10 min in the future
+          stopSequence: 2,
+          status: "pending" as const,
+          passedAt: null,
+        },
+      ];
+
+      const result = await computeEta({ stops, now });
+
+      expect(result.etaSource).toBe("schedule");
+      expect(result.nextStopId).toBe("b");
+      expect(result.etaStatus).toBe("estimated");
+      // Must show 10 min (scheduled 09:00 - now 08:50), NOT 0
+      expect(result.etaNextStopMinutes).toBe(10);
     });
 
     it("T006: schedule fallback returns 'overdue' when both ETA and scheduled time have passed", async () => {

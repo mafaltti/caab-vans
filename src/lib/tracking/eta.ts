@@ -370,6 +370,19 @@ function scheduleDelayFallback(
       etaSource: "schedule",
       etaStatus: "overdue",
     };
+  } else if (etaDateTime <= now) {
+    // Delay projection is in the past but scheduled time is still future —
+    // use the raw scheduled time as the best estimate (negative delay is stale)
+    const etaNextStopMinutes = Math.max(0, Math.ceil(scheduledTime.diff(now, "minutes").minutes));
+    return {
+      etaNextStopISO: scheduledTime.toISO(),
+      etaNextStopMinutes,
+      delayMinutes: delay != null ? Math.round(delay) : null,
+      nextStopId,
+      passedStopIds,
+      etaSource: "schedule",
+      etaStatus: "estimated",
+    };
   }
 
   const etaNextStopMinutes = Math.max(0, Math.ceil(etaDateTime.diff(now, "minutes").minutes));
