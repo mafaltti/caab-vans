@@ -185,9 +185,10 @@ export function VanTrackingMap({
       }
     });
 
-    // Reset error state when a raster tile actually loads
-    gl.on("sourcedata", (e: { sourceId?: string; isSourceLoaded?: boolean; dataType?: string }) => {
-      if (e.sourceId === "osm" && e.dataType === "source" && e.isSourceLoaded) {
+    // Reset error state when an individual tile loads successfully
+    // (dataType "tile" only fires on successful loads, not errored ones)
+    gl.on("sourcedata", (e: { sourceId?: string; dataType?: string }) => {
+      if (e.sourceId === "osm" && e.dataType === "tile") {
         if (tileErrorCountRef.current > 0) {
           tileErrorCountRef.current = 0;
           setTileError(false);
