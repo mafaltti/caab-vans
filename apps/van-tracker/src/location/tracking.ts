@@ -44,27 +44,17 @@ async function updateLocationAccuracy(highAccuracy: boolean): Promise<void> {
   });
 }
 
-export async function startTracking(): Promise<void> {
-  // Clean up existing battery listener to prevent leaks on recovery restarts
-  if (batterySubscription) {
-    batterySubscription.remove();
-    batterySubscription = null;
-  }
-
+export async function requestLocationPermissions(): Promise<boolean> {
   const { status: fgStatus } =
     await Location.requestForegroundPermissionsAsync();
   if (fgStatus !== "granted") {
-    throw new Error(
-      "Foreground location permission denied. Please enable location access in Settings.",
-    );
+    return false;
   }
 
   const { status: bgStatus } =
     await Location.requestBackgroundPermissionsAsync();
   if (bgStatus !== "granted") {
-    throw new Error(
-      'Background location permission denied. Please select "Allow all the time" in Settings.',
-    );
+    return false;
   }
 
   if (Platform.OS === "android" && Platform.Version >= 33) {
@@ -73,6 +63,27 @@ export async function startTracking(): Promise<void> {
     if (notifStatus !== "granted") {
       console.warn(
         "[CAAB Tracker] Notification permission not granted; foreground service notification may not show.",
+      );
+    }
+  }
+
+  return true;
+}
+
+export async function startTracking(options?: {
+  skipPermissions?: boolean;
+}): Promise<void> {
+  // Clean up existing battery listener to prevent leaks on recovery restarts
+  if (batterySubscription) {
+    batterySubscription.remove();
+    batterySubscription = null;
+  }
+
+  if (!options?.skipPermissions) {
+    const granted = await requestLocationPermissions();
+    if (!granted) {
+      throw new Error(
+        "Location permissions denied. Please enable location access in Settings.",
       );
     }
   }

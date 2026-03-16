@@ -1,4 +1,4 @@
-import type { Settings, TrackerConfig } from "@/types";
+import type { DeviceProvisioning, TrackerConfig } from "@/types";
 import {
   setGeofenceRegions,
   setGeofenceConfigVersion,
@@ -7,7 +7,7 @@ import {
 const REQUEST_TIMEOUT = 10_000;
 
 export async function fetchTrackerConfig(
-  settings: Settings,
+  settings: DeviceProvisioning,
 ): Promise<TrackerConfig | null> {
   const url = `${settings.apiBaseUrl}/api/tracker-config/${settings.vanId}`;
 

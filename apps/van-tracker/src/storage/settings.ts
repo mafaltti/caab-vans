@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
-import type { Settings } from "@/types";
+import type { DeviceProvisioning } from "@/types";
 
 const SETTINGS_KEY = "@settings";
 const TOKEN_SECURE_KEY = "ingestionToken";
@@ -8,11 +8,11 @@ const TOKEN_SECURE_KEY = "ingestionToken";
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function getSettings(): Promise<Settings | null> {
+export async function getSettings(): Promise<DeviceProvisioning | null> {
   const json = await AsyncStorage.getItem(SETTINGS_KEY);
   if (!json) return null;
   try {
-    const stored = JSON.parse(json) as Partial<Settings>;
+    const stored = JSON.parse(json) as Partial<DeviceProvisioning>;
 
     // Read token from SecureStore
     let token = await SecureStore.getItemAsync(TOKEN_SECURE_KEY);
@@ -43,7 +43,7 @@ export async function getSettings(): Promise<Settings | null> {
   }
 }
 
-export async function saveSettings(settings: Settings): Promise<void> {
+export async function saveSettings(settings: DeviceProvisioning): Promise<void> {
   if (!UUID_REGEX.test(settings.vanId)) {
     throw new Error(`Invalid vanId: must be UUID format`);
   }

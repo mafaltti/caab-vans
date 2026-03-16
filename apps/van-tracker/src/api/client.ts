@@ -1,4 +1,4 @@
-import { LocationPoint, Settings } from "@/types";
+import { LocationPoint, DeviceProvisioning } from "@/types";
 import {
   getGeofenceEventBuffer,
   removeGeofenceEvents,
@@ -41,7 +41,7 @@ async function safeJsonParse(
 }
 
 export async function sendLocationPing(
-  settings: Settings,
+  settings: DeviceProvisioning,
   deviceId: string,
   point: LocationPoint,
 ): Promise<SendResult> {
@@ -162,7 +162,7 @@ export type BatchSendResult =
     };
 
 export async function sendBatchPing(
-  settings: Settings,
+  settings: DeviceProvisioning,
   deviceId: string,
   points: LocationPoint[],
 ): Promise<BatchSendResult> {

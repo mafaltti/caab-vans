@@ -11,11 +11,14 @@ export interface LocationPoint {
   networkType?: string | null;
 }
 
-export interface Settings {
+export interface DeviceProvisioning {
   apiBaseUrl: string;
   vanId: string;
   ingestionToken: string;
 }
+
+/** @deprecated Use DeviceProvisioning instead */
+export type Settings = DeviceProvisioning;
 
 export interface TrackingStatus {
   isTracking: boolean;
