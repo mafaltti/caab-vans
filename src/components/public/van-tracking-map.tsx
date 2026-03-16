@@ -37,9 +37,8 @@ function formatRelativeTime(isoString: string): string {
   return `há ${hours}h`;
 }
 
-const TILE_URL =
-  process.env.NEXT_PUBLIC_TILE_URL ||
-  "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+const DEFAULT_TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+const TILE_URL = process.env.NEXT_PUBLIC_TILE_URL || DEFAULT_TILE_URL;
 
 const MAP_STYLE = {
   version: 8 as const,
@@ -48,6 +47,8 @@ const MAP_STYLE = {
       type: "raster" as const,
       tiles: [TILE_URL],
       tileSize: 256,
+      // OSM tiles max out at zoom 19; only cap when using the default provider
+      ...(TILE_URL === DEFAULT_TILE_URL && { maxzoom: 19 }),
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     },
@@ -94,6 +95,7 @@ export function VanTrackingMap({
     lng: vanLng,
   });
   const [tileError, setTileError] = useState(false);
+  const tileErrorCountRef = useRef(0);
   const [showRecenter, setShowRecenter] = useState(false);
   const [tick, setTick] = useState(0);
 
@@ -171,10 +173,27 @@ export function VanTrackingMap({
     if (!map || initialFitDoneRef.current) return;
     initialFitDoneRef.current = true;
 
-    // Listen for tile errors
-    map.getMap().on("error", (e: { error?: { status?: number } }) => {
+    const gl = map.getMap();
+
+    // Show overlay only after multiple consecutive tile failures
+    gl.on("error", (e: { error?: { status?: number } }) => {
       if (e.error && typeof e.error.status === "number") {
-        setTileError(true);
+        tileErrorCountRef.current += 1;
+        if (tileErrorCountRef.current >= 5) {
+          setTileError(true);
+        }
+      }
+    });
+
+    // Reset error state when an individual tile loads successfully.
+    // tile_manager fires sourcedata with dataType "source" + a tile
+    // property on success; the error path fires ErrorEvent instead.
+    gl.on("sourcedata", (e: { sourceId?: string; dataType?: string; tile?: unknown }) => {
+      if (e.sourceId === "osm" && e.dataType === "source" && e.tile) {
+        if (tileErrorCountRef.current > 0) {
+          tileErrorCountRef.current = 0;
+          setTileError(false);
+        }
       }
     });
 
