@@ -11,7 +11,7 @@ interface Stop {
   stopSequence: number;
   arrivalTime: string; // HH:mm
   departureTime: string; // HH:mm
-  status: "pending" | "passed";
+  status: "pending" | "passed" | "skipped";
   passedAt: string | null;
   stopLat?: number | null;
   stopLng?: number | null;
@@ -309,6 +309,9 @@ export async function computeEta(args: {
             etaSource: "segment",
             etaStatus: "overdue",
           };
+        } else if (etaDateTime <= now) {
+          // Segment ETA in the past but scheduled time still future — fall back to schedule
+          return scheduleDelayFallback(stops, passed, nextStop, nextStopId, passedStopIds, now);
         }
 
         const etaNextStopMinutes = Math.max(0, Math.ceil(etaDateTime.diff(now, "minutes").minutes));
@@ -366,6 +369,19 @@ function scheduleDelayFallback(
       passedStopIds,
       etaSource: "schedule",
       etaStatus: "overdue",
+    };
+  } else if (etaDateTime <= now) {
+    // Delay projection is in the past but scheduled time is still future —
+    // use the raw scheduled time as the best estimate (negative delay is stale)
+    const etaNextStopMinutes = Math.max(0, Math.ceil(scheduledTime.diff(now, "minutes").minutes));
+    return {
+      etaNextStopISO: scheduledTime.toISO(),
+      etaNextStopMinutes,
+      delayMinutes: delay != null ? Math.round(delay) : null,
+      nextStopId,
+      passedStopIds,
+      etaSource: "schedule",
+      etaStatus: "estimated",
     };
   }
 

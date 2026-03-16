@@ -289,9 +289,8 @@ export async function resolveRouteProgress(args: {
     }
   }
 
-  // 8. Compute ETA — exclude skipped stops from ETA computation
+  // 8. Compute ETA — include skipped stops so segment distance accumulates correctly
   const stops = effectiveRunStops
-    .filter((rs) => rs.status !== "skipped")
     .map((rs) => {
       const coords = stopCoordsMap.get(rs.schedule_entry_id);
       const entry = rs.schedule_entries as unknown as {
@@ -304,7 +303,7 @@ export async function resolveRouteProgress(args: {
         stopSequence: entry.stop_sequence,
         arrivalTime: entry.arrival_time,
         departureTime: entry.departure_time,
-        status: rs.status as "pending" | "passed",
+        status: rs.status as "pending" | "passed" | "skipped",
         passedAt: rs.passed_at,
         stopLat: coords?.stopLat ?? null,
         stopLng: coords?.stopLng ?? null,
