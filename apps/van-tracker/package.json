@@ -16,6 +16,7 @@
     "@react-native-community/netinfo": "11.5.2",
     "@sentry/react-native": "~7.11.0",
     "expo": "~55.0.4",
+    "expo-background-fetch": "~55.0.9",
     "expo-battery": "~55.0.8",
     "expo-constants": "~55.0.7",
     "expo-crypto": "~55.0.8",

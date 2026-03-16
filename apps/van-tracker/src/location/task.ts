@@ -1,5 +1,7 @@
 import * as TaskManager from "expo-task-manager";
 import * as Battery from "expo-battery";
+import * as Location from "expo-location";
+import * as Notifications from "expo-notifications";
 import NetInfo from "@react-native-community/netinfo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getSettings } from "@/storage/settings";
@@ -46,12 +48,20 @@ let isFlushing = false;
 let consecutive401s = 0;
 let authPaused = false;
 
+// Network recovery listener state (US1)
+let netInfoUnsubscribe: (() => void) | null = null;
+let lastKnownConnected: boolean | null = null;
+
+// Failure notification state (US4)
+const FAILURE_NOTIFICATION_THRESHOLD = 10;
+let failureNotificationSent = false;
+
 const ACCURACY_THRESHOLD = 50; // meters
 const MIN_DISTANCE = 5; // meters
 const MIN_INTERVAL = 3000; // milliseconds
 const STATIONARY_MAX_INTERVAL = 20_000; // 3 pings/min when stationary
 
-const BACKOFF_DELAYS = [5000, 10000, 30000, 60000, 120000, 300000]; // 5s→5min
+const BACKOFF_DELAYS = [5000, 10000, 20000, 30000, 45000, 60000]; // 5s→60s
 
 async function persistError(message: string | null): Promise<void> {
   if (message) {
@@ -84,6 +94,7 @@ async function onSendSuccess(): Promise<void> {
   backoffUntil = 0;
   consecutive401s = 0;
   authPaused = false;
+  failureNotificationSent = false;
   await persistBackoffState();
   await AsyncStorage.removeItem("@authPaused");
 }
@@ -101,6 +112,75 @@ async function on401Failure(): Promise<void> {
     authPaused = true;
     await AsyncStorage.setItem("@authPaused", "true");
     await persistError("Auth failed — check token in Settings");
+  }
+}
+
+// US1: NetInfo listener — detect offline→online and trigger recovery
+function setupNetInfoListener(): void {
+  if (netInfoUnsubscribe) return; // already subscribed
+  netInfoUnsubscribe = NetInfo.addEventListener((state) => {
+    const connected = state.isConnected ?? false;
+    // First invocation — just record initial state, don't trigger flush
+    if (lastKnownConnected === null) {
+      lastKnownConnected = connected;
+      return;
+    }
+    // Only act on offline→online transitions
+    if (lastKnownConnected === false && connected === true) {
+      consecutiveFailures = 0;
+      backoffUntil = 0;
+      logEvent("net_recovery");
+      // Async recovery in fire-and-forget IIFE (listener expects sync callback)
+      (async () => {
+        try {
+          await persistBackoffState();
+          if (!authPaused && !isFlushing) {
+            const settings = await getSettings();
+            if (settings) {
+              const deviceId = await getOrCreateDeviceId();
+              await flushBuffer(settings, deviceId);
+            }
+          }
+          // US6: Check if location task was killed by OS and restart
+          const isRunning =
+            await Location.hasStartedLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
+          if (!isRunning) {
+            logEvent("net_recovery", "restarting_location_task");
+            const { startTracking } = await import("./tracking");
+            await startTracking();
+          }
+        } catch {
+          // Non-fatal — next task callback will retry
+        }
+      })();
+    }
+    lastKnownConnected = connected;
+  });
+}
+
+export function teardownNetInfoListener(): void {
+  if (netInfoUnsubscribe) {
+    netInfoUnsubscribe();
+    netInfoUnsubscribe = null;
+  }
+  lastKnownConnected = null;
+}
+
+// US4: Alert driver after prolonged delivery failure
+async function sendFailureNotification(): Promise<void> {
+  try {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "CAAB Tracker",
+        body: "Rastreamento com problemas de conexão. Toque para verificar.",
+        priority: Notifications.AndroidNotificationPriority.HIGH,
+      },
+      trigger: null,
+    });
+    failureNotificationSent = true;
+    logEvent("failure_notification_sent");
+  } catch {
+    // Non-fatal — notification failure shouldn't affect tracking
   }
 }
 
@@ -128,33 +208,44 @@ async function flushBuffer(
 
     if (validPoints.length === 0) return true;
 
-    // Batch flush — single request for all buffered points
-    try {
-      logEvent("flush", "start n=" + validPoints.length);
-      const result = await sendBatchPing(settings, deviceId, validPoints);
-      if (result.success) {
-        await removeFromBuffer(validPoints.length);
-        await onSendSuccess();
-        logEvent("flush", "done sent=" + validPoints.length);
-      } else if (result.status === 429) {
-        // Rate limited — apply backoff, keep points in buffer (FR-005)
-        await onSendFailure();
-        const delay = computeBackoffDelay(consecutiveFailures);
-        logEvent("flush", `rate_limited backoff=${Math.ceil(delay / 1000)}s`);
-        await persistError("Rate limited — buffered points retained");
-      } else if (result.status && result.status >= 400 && result.status < 500) {
-        // Client error (400/401/404) — drop points, retries won't help
-        await removeFromBuffer(validPoints.length);
-        if (result.status === 401) {
+    // US5: Chunked flush — send in batches of 100 to respect server limit
+    const CHUNK_SIZE = 100;
+    let totalSent = 0;
+    logEvent("flush", "start n=" + validPoints.length);
+
+    for (let i = 0; i < validPoints.length; i += CHUNK_SIZE) {
+      const chunk = validPoints.slice(i, i + CHUNK_SIZE);
+      try {
+        const result = await sendBatchPing(settings, deviceId, chunk);
+        if (result.success) {
+          totalSent += chunk.length;
+        } else if (result.status === 429) {
+          await onSendFailure();
+          const delay = computeBackoffDelay(consecutiveFailures);
+          logEvent("flush", `rate_limited backoff=${Math.ceil(delay / 1000)}s`);
+          await persistError("Rate limited — buffered points retained");
+          break;
+        } else if (result.status === 401) {
           await on401Failure();
+          break;
+        } else if (result.status && result.status >= 400 && result.status < 500) {
+          // Client error — drop this chunk, retries won't help
+          totalSent += chunk.length;
+        } else {
+          // Server error — stop sending, keep remaining in buffer
+          await onSendFailure();
+          break;
         }
-      } else {
-        // Server error — keep buffered, will retry later
+      } catch {
+        // Network error — stop sending, keep remaining in buffer
         await onSendFailure();
+        break;
       }
-    } catch {
-      // Network error — keep buffered, will retry later
-      await onSendFailure();
+    }
+
+    if (totalSent > 0) {
+      await removeFromBuffer(totalSent);
+      logEvent("flush", "done sent=" + totalSent);
     }
     return true;
   } finally {
@@ -252,6 +343,7 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
       consecutive401s = 3;
     }
     logEvent("cold_start");
+    setupNetInfoListener();
   }
 
   // Accuracy filter — drop inaccurate points
@@ -319,6 +411,10 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
     if (backoffUntil > 0 && now < backoffUntil) {
       logBuffered();
       await addToBuffer(point);
+      // US4: Notify driver after prolonged consecutive failures
+      if (consecutiveFailures >= FAILURE_NOTIFICATION_THRESHOLD && !failureNotificationSent) {
+        await sendFailureNotification();
+      }
       await persistError(
         `Backing off — retry in ${Math.ceil((backoffUntil - now) / 1000)}s`,
       );
@@ -381,6 +477,10 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
         const delay = computeBackoffDelay(consecutiveFailures);
         logEvent("error", `429: rate_limited backoff=${Math.ceil(delay / 1000)}s`);
         await persistError(`Rate limited — retry in ${Math.ceil(delay / 1000)}s`);
+        // US2: Attempt batch flush — batch endpoint uses separate rate-limit bucket
+        if (!isFlushing) {
+          try { await flushBuffer(settings, deviceId); } catch { /* non-fatal */ }
+        }
       } else if (result.status === 400) {
         logEvent("error", "400: " + (result.message ?? "validation"));
         // Validation error — log, don't buffer
@@ -401,6 +501,10 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
         await addToBuffer(point);
         await onSendFailure();
         await persistError(`Server error — point buffered (retry in ${Math.ceil(computeBackoffDelay(consecutiveFailures) / 1000)}s)`);
+        // US2: Attempt batch flush on 5xx — server may recover for batch requests
+        if (!isFlushing) {
+          try { await flushBuffer(settings, deviceId); } catch { /* non-fatal */ }
+        }
       }
     }
   } catch (err) {

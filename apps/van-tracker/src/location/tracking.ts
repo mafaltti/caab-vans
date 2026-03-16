@@ -11,8 +11,9 @@ import {
 import { logEvent, flushLog } from "@/storage/diag-log";
 import { getSettings } from "@/storage/settings";
 import { fetchTrackerConfig } from "@/api/config";
-import { BACKGROUND_LOCATION_TASK } from "./task";
+import { BACKGROUND_LOCATION_TASK, teardownNetInfoListener } from "./task";
 import { GEOFENCE_TASK } from "./geofence-task";
+import { registerHealthCheck, unregisterHealthCheck } from "./health-check-task";
 
 let batterySubscription: Battery.Subscription | null = null;
 let isLowBattery = false;
@@ -44,6 +45,12 @@ async function updateLocationAccuracy(highAccuracy: boolean): Promise<void> {
 }
 
 export async function startTracking(): Promise<void> {
+  // Clean up existing battery listener to prevent leaks on recovery restarts
+  if (batterySubscription) {
+    batterySubscription.remove();
+    batterySubscription = null;
+  }
+
   const { status: fgStatus } =
     await Location.requestForegroundPermissionsAsync();
   if (fgStatus !== "granted") {
@@ -120,6 +127,13 @@ export async function startTracking(): Promise<void> {
       }
     })();
   });
+
+  // US3: Register background health check to restart tracking if OS kills it
+  try {
+    await registerHealthCheck();
+  } catch {
+    // Health check registration failure is non-fatal
+  }
 }
 
 export async function stopTracking(): Promise<void> {
@@ -147,6 +161,12 @@ export async function stopTracking(): Promise<void> {
     // Geofence cleanup failure is non-fatal
   }
 
+  teardownNetInfoListener();
+  try {
+    await unregisterHealthCheck();
+  } catch {
+    // Health check unregistration failure is non-fatal
+  }
   await setTrackingEnabled(false);
   try {
     logEvent("tracking_stop");
