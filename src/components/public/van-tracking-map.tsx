@@ -185,10 +185,11 @@ export function VanTrackingMap({
       }
     });
 
-    // Reset error state when an individual tile loads successfully
-    // (dataType "tile" only fires on successful loads, not errored ones)
-    gl.on("sourcedata", (e: { sourceId?: string; dataType?: string }) => {
-      if (e.sourceId === "osm" && e.dataType === "tile") {
+    // Reset error state when an individual tile loads successfully.
+    // tile_manager fires sourcedata with dataType "source" + a tile
+    // property on success; the error path fires ErrorEvent instead.
+    gl.on("sourcedata", (e: { sourceId?: string; dataType?: string; tile?: unknown }) => {
+      if (e.sourceId === "osm" && e.dataType === "source" && e.tile) {
         if (tileErrorCountRef.current > 0) {
           tileErrorCountRef.current = 0;
           setTileError(false);
