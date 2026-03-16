@@ -1848,9 +1848,9 @@ describe("etaStatus field", () => {
   // --- False overdue regression tests (057-fix-false-atrasado) ---
 
   describe("false overdue guard — segment fallback", () => {
-    it("T001: early van with segment fallback returns 'estimated' when scheduled time is in the future", async () => {
+    it("T001: early van with segment ETA in past falls back to schedule when scheduled time is in the future", async () => {
       // Van passed stop A 5 min EARLY; small segment distance → ETA lands in the past
-      // But next stop's scheduled time (09:00) is still in the future → should NOT be overdue
+      // But next stop's scheduled time (09:00) is still in the future → falls back to schedule
       const now = DateTime.fromObject(
         { year: 2026, month: 3, day: 2, hour: 8, minute: 35 },
         { zone: TZ },
@@ -1879,15 +1879,16 @@ describe("etaStatus field", () => {
 
       const result = await computeEta({ stops, now });
 
-      expect(result.etaSource).toBe("segment");
+      // Segment ETA was in the past → falls back to schedule instead of clamping to 0
+      expect(result.etaSource).toBe("schedule");
       expect(result.nextStopId).toBe("b");
       expect(result.etaStatus).toBe("estimated");
-      expect(result.etaNextStopMinutes).toBeGreaterThanOrEqual(0);
+      expect(result.etaNextStopMinutes).toBeGreaterThan(0);
     });
 
-    it("T002: on-time van with segment fallback returns 'estimated' when scheduled time is in the future", async () => {
+    it("T002: on-time van with segment ETA in past falls back to schedule when scheduled time is in the future", async () => {
       // Van passed stop A on time; small segment distance → ETA lands in the past
-      // But next stop's scheduled time (09:00) is still in the future → should NOT be overdue
+      // But next stop's scheduled time (09:00) is still in the future → falls back to schedule
       const now = DateTime.fromObject(
         { year: 2026, month: 3, day: 2, hour: 8, minute: 40 },
         { zone: TZ },
@@ -1916,10 +1917,11 @@ describe("etaStatus field", () => {
 
       const result = await computeEta({ stops, now });
 
-      expect(result.etaSource).toBe("segment");
+      // Segment ETA was in the past → falls back to schedule instead of clamping to 0
+      expect(result.etaSource).toBe("schedule");
       expect(result.nextStopId).toBe("b");
       expect(result.etaStatus).toBe("estimated");
-      expect(result.etaNextStopMinutes).toBeGreaterThanOrEqual(0);
+      expect(result.etaNextStopMinutes).toBeGreaterThan(0);
     });
 
     it("T003: segment fallback returns 'overdue' when both ETA and scheduled time have passed", async () => {
@@ -2052,5 +2054,255 @@ describe("etaStatus field", () => {
     const result = await computeEta({ stops, now });
 
     expect(result.etaStatus).toBe("none");
+  });
+});
+
+describe("segment distance accumulation with skipped stops", () => {
+  it("single skipped stop: distance sums through skipped stop", async () => {
+    // stops: #13 (passed) → #14 (skipped) → #15 (pending, target)
+    // dist(#13→#14) = 1141m, dist(#14→#15) = 5000m
+    // Expected accumulated: 1141 + 5000 = 6141m (not just 1141m)
+    const stops = [
+      {
+        scheduleEntryId: "s13",
+        arrivalTime: "10:20", departureTime: "10:20",
+        stopSequence: 13,
+        status: "passed" as const,
+        passedAt: DateTime.fromObject(
+          { year: 2026, month: 3, day: 2, hour: 10, minute: 23 },
+          { zone: TZ },
+        ).toISO()!,
+        osrmDistanceM: 1141, // distance to #14 (original neighbor)
+      },
+      {
+        scheduleEntryId: "s14",
+        arrivalTime: "10:35", departureTime: "10:35",
+        stopSequence: 14,
+        status: "skipped" as const,
+        passedAt: null,
+        osrmDistanceM: 5000, // distance to #15
+      },
+      {
+        scheduleEntryId: "s15",
+        arrivalTime: "10:55", departureTime: "10:55",
+        stopSequence: 15,
+        status: "pending" as const,
+        passedAt: null,
+        osrmDistanceM: null,
+      },
+    ];
+    const now = DateTime.fromObject(
+      { year: 2026, month: 3, day: 2, hour: 10, minute: 31 },
+      { zone: TZ },
+    );
+
+    const result = await computeEta({ stops, now, targetStopId: "s15" });
+
+    expect(result.nextStopId).toBe("s15");
+    expect(result.etaSource).toBe("segment");
+    expect(result.etaStatus).toBe("estimated");
+    // With 6141m at ~8.3 m/s, travel ≈ 12.3 min — ETA should be in the future
+    expect(result.etaNextStopMinutes).toBeGreaterThan(0);
+  });
+
+  it("multiple consecutive skipped stops: distances accumulate correctly", async () => {
+    // stops: A (passed) → B (skipped) → C (skipped) → D (pending, target)
+    // dist(A→B) = 2000, dist(B→C) = 1500, dist(C→D) = 3000
+    // Expected accumulated: 2000 + 1500 + 3000 = 6500m
+    const stops = [
+      {
+        scheduleEntryId: "a",
+        arrivalTime: "08:30", departureTime: "08:30",
+        stopSequence: 1,
+        status: "passed" as const,
+        passedAt: DateTime.fromObject(
+          { year: 2026, month: 3, day: 2, hour: 8, minute: 35 },
+          { zone: TZ },
+        ).toISO()!,
+        osrmDistanceM: 2000,
+      },
+      {
+        scheduleEntryId: "b",
+        arrivalTime: "08:45", departureTime: "08:45",
+        stopSequence: 2,
+        status: "skipped" as const,
+        passedAt: null,
+        osrmDistanceM: 1500,
+      },
+      {
+        scheduleEntryId: "c",
+        arrivalTime: "09:00", departureTime: "09:00",
+        stopSequence: 3,
+        status: "skipped" as const,
+        passedAt: null,
+        osrmDistanceM: 3000,
+      },
+      {
+        scheduleEntryId: "d",
+        arrivalTime: "09:15", departureTime: "09:15",
+        stopSequence: 4,
+        status: "pending" as const,
+        passedAt: null,
+        osrmDistanceM: null,
+      },
+    ];
+    const now = DateTime.fromObject(
+      { year: 2026, month: 3, day: 2, hour: 8, minute: 36 },
+      { zone: TZ },
+    );
+
+    const result = await computeEta({ stops, now, targetStopId: "d" });
+
+    expect(result.nextStopId).toBe("d");
+    expect(result.etaSource).toBe("segment");
+    expect(result.etaStatus).toBe("estimated");
+    // 6500m at ~8.3 m/s ≈ 13 min travel — clearly in the future from 08:35 passedAt
+    expect(result.etaNextStopMinutes).toBeGreaterThan(0);
+  });
+
+  it("no skipped stops: behavior unchanged (regression guard)", async () => {
+    // Same as existing multi-segment T005: A (passed) → B (pending)
+    // No skips — result should be identical to pre-fix behavior
+    const stops = [
+      {
+        scheduleEntryId: "a",
+        arrivalTime: "08:30", departureTime: "08:30",
+        stopSequence: 1,
+        status: "passed" as const,
+        passedAt: DateTime.fromObject(
+          { year: 2026, month: 3, day: 2, hour: 8, minute: 35 },
+          { zone: TZ },
+        ).toISO()!,
+        osrmDistanceM: 5000,
+      },
+      {
+        scheduleEntryId: "b",
+        arrivalTime: "08:45", departureTime: "08:45",
+        stopSequence: 2,
+        status: "pending" as const,
+        passedAt: null,
+        osrmDistanceM: null,
+      },
+    ];
+    const now = DateTime.fromObject(
+      { year: 2026, month: 3, day: 2, hour: 8, minute: 36 },
+      { zone: TZ },
+    );
+
+    const result = await computeEta({ stops, now, targetStopId: "b" });
+
+    expect(result.nextStopId).toBe("b");
+    expect(result.etaSource).toBe("segment");
+    expect(result.etaStatus).toBe("estimated");
+    expect(result.etaNextStopMinutes).toBeGreaterThan(0);
+  });
+});
+
+describe("past-due segment ETA schedule fallback", () => {
+  it("segment ETA in past + scheduled time in future → falls back to schedule", async () => {
+    // Small segment distance → ETA lands in the past, but schedule time is future
+    const now = DateTime.fromObject(
+      { year: 2026, month: 3, day: 2, hour: 8, minute: 45 },
+      { zone: TZ },
+    );
+
+    const stops = [
+      {
+        scheduleEntryId: "a",
+        arrivalTime: "08:30", departureTime: "08:30",
+        stopSequence: 1,
+        status: "passed" as const,
+        passedAt: DateTime.fromObject(
+          { year: 2026, month: 3, day: 2, hour: 8, minute: 30 },
+          { zone: TZ },
+        ).toISO()!,
+        osrmDistanceM: 500, // ~1 min travel → ETA ≈ 08:31 < now (08:45)
+      },
+      {
+        scheduleEntryId: "b",
+        arrivalTime: "09:30", departureTime: "09:30", // scheduled time is well in the future
+        stopSequence: 2,
+        status: "pending" as const,
+        passedAt: null,
+      },
+    ];
+
+    const result = await computeEta({ stops, now });
+
+    expect(result.nextStopId).toBe("b");
+    // Should fall back to schedule, not return segment with 0 min
+    expect(result.etaSource).toBe("schedule");
+    expect(result.etaStatus).toBe("estimated");
+    expect(result.etaNextStopMinutes).toBeGreaterThan(0);
+  });
+
+  it("both segment ETA and scheduled time in past → returns overdue", async () => {
+    const now = DateTime.fromObject(
+      { year: 2026, month: 3, day: 2, hour: 14, minute: 0 },
+      { zone: TZ },
+    );
+
+    const stops = [
+      {
+        scheduleEntryId: "a",
+        arrivalTime: "08:00", departureTime: "08:00",
+        stopSequence: 1,
+        status: "passed" as const,
+        passedAt: DateTime.fromObject(
+          { year: 2026, month: 3, day: 2, hour: 8, minute: 5 },
+          { zone: TZ },
+        ).toISO()!,
+        osrmDistanceM: 5000,
+      },
+      {
+        scheduleEntryId: "b",
+        arrivalTime: "08:30", departureTime: "08:30", // scheduled time also in the past
+        stopSequence: 2,
+        status: "pending" as const,
+        passedAt: null,
+      },
+    ];
+
+    const result = await computeEta({ stops, now });
+
+    expect(result.etaSource).toBe("segment");
+    expect(result.nextStopId).toBe("b");
+    expect(result.etaStatus).toBe("overdue");
+    expect(result.etaNextStopMinutes).toBeNull();
+  });
+
+  it("segment ETA in future → returns segment ETA as-is", async () => {
+    const now = DateTime.fromObject(
+      { year: 2026, month: 3, day: 2, hour: 8, minute: 36 },
+      { zone: TZ },
+    );
+
+    const stops = [
+      {
+        scheduleEntryId: "a",
+        arrivalTime: "08:30", departureTime: "08:30",
+        stopSequence: 1,
+        status: "passed" as const,
+        passedAt: DateTime.fromObject(
+          { year: 2026, month: 3, day: 2, hour: 8, minute: 35 },
+          { zone: TZ },
+        ).toISO()!,
+        osrmDistanceM: 5000, // ~10 min travel → ETA ≈ 08:45 > now (08:36)
+      },
+      {
+        scheduleEntryId: "b",
+        arrivalTime: "09:00", departureTime: "09:00",
+        stopSequence: 2,
+        status: "pending" as const,
+        passedAt: null,
+      },
+    ];
+
+    const result = await computeEta({ stops, now, targetStopId: "b" });
+
+    expect(result.nextStopId).toBe("b");
+    expect(result.etaSource).toBe("segment");
+    expect(result.etaStatus).toBe("estimated");
+    expect(result.etaNextStopMinutes).toBeGreaterThan(0);
   });
 });
