@@ -1,5 +1,6 @@
 import "@/location/task";
 import "@/location/geofence-task";
+import "@/location/health-check-task";
 import * as Sentry from "@sentry/react-native";
 import { useEffect } from "react";
 import { Stack } from "expo-router";

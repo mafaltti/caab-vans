@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LocationPoint } from "@/types";
 
 const BUFFER_KEY = "@locationBuffer";
-const MAX_BUFFER_SIZE = 100;
+const MAX_BUFFER_SIZE = 500;
 const TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 // Simple async mutex to prevent concurrent read-modify-write corruption
