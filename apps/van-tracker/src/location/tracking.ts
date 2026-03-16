@@ -45,6 +45,12 @@ async function updateLocationAccuracy(highAccuracy: boolean): Promise<void> {
 }
 
 export async function startTracking(): Promise<void> {
+  // Clean up existing battery listener to prevent leaks on recovery restarts
+  if (batterySubscription) {
+    batterySubscription.remove();
+    batterySubscription = null;
+  }
+
   const { status: fgStatus } =
     await Location.requestForegroundPermissionsAsync();
   if (fgStatus !== "granted") {

@@ -219,7 +219,6 @@ async function flushBuffer(
         const result = await sendBatchPing(settings, deviceId, chunk);
         if (result.success) {
           totalSent += chunk.length;
-          await onSendSuccess();
         } else if (result.status === 429) {
           await onSendFailure();
           const delay = computeBackoffDelay(consecutiveFailures);
