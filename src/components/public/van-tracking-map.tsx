@@ -37,9 +37,8 @@ function formatRelativeTime(isoString: string): string {
   return `há ${hours}h`;
 }
 
-const TILE_URL =
-  process.env.NEXT_PUBLIC_TILE_URL ||
-  "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+const DEFAULT_TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+const TILE_URL = process.env.NEXT_PUBLIC_TILE_URL || DEFAULT_TILE_URL;
 
 const MAP_STYLE = {
   version: 8 as const,
@@ -48,7 +47,8 @@ const MAP_STYLE = {
       type: "raster" as const,
       tiles: [TILE_URL],
       tileSize: 256,
-      maxzoom: 19,
+      // OSM tiles max out at zoom 19; only cap when using the default provider
+      ...(TILE_URL === DEFAULT_TILE_URL && { maxzoom: 19 }),
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     },
@@ -185,11 +185,13 @@ export function VanTrackingMap({
       }
     });
 
-    // Reset error state when tiles load successfully
-    gl.on("idle", () => {
-      if (tileErrorCountRef.current > 0) {
-        tileErrorCountRef.current = 0;
-        setTileError(false);
+    // Reset error state when a raster tile actually loads
+    gl.on("sourcedata", (e: { sourceId?: string; isSourceLoaded?: boolean; dataType?: string }) => {
+      if (e.sourceId === "osm" && e.dataType === "source" && e.isSourceLoaded) {
+        if (tileErrorCountRef.current > 0) {
+          tileErrorCountRef.current = 0;
+          setTileError(false);
+        }
       }
     });
 
