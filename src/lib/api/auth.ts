@@ -68,8 +68,13 @@ export async function requireAuth(request?: NextRequest): Promise<AuthResult> {
 export async function requireBoundVan(request: NextRequest): Promise<string | null> {
   const vanId = request.headers.get("x-bound-van-id");
   const ingestionToken = request.headers.get("x-ingestion-token");
+  const isBearer = request.headers.get("authorization")?.startsWith("Bearer ");
 
   if (!vanId || !ingestionToken) {
+    // Bearer callers (native) MUST provide bound-van headers
+    if (isBearer) {
+      throw apiError("UNAUTHORIZED", "Bound-van headers required for native callers", 401);
+    }
     return null;
   }
 

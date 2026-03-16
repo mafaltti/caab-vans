@@ -58,8 +58,6 @@
     "scheme": "van-tracker",
     "extra": {
       "router": {},
-      "supabaseUrl": "${EXPO_PUBLIC_SUPABASE_URL}",
-      "supabaseAnonKey": "${EXPO_PUBLIC_SUPABASE_ANON_KEY}",
       "eas": {
         "projectId": "418988a1-3a9c-43f3-9a02-4ffaec448e98"
       }

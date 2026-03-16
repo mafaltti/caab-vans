@@ -4,7 +4,7 @@ import "@/location/health-check-task";
 import * as Sentry from "@sentry/react-native";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
-import { Stack, Redirect } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import { isSettingsComplete } from "@/storage/settings";
 import { getTrackingEnabled } from "@/storage/tracking-state";
 import { startTracking, registerGeofencesFromCache } from "@/location/tracking";
@@ -23,10 +23,9 @@ Sentry.init({
   enableNativeCrashHandling: true,
 });
 
-type BootState = "loading" | "device-setup" | "login" | "driver";
-
 function RootLayout() {
-  const [bootState, setBootState] = useState<BootState>("loading");
+  const router = useRouter();
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -60,12 +59,14 @@ function RootLayout() {
           await flushLog();
         }
 
-        // T019: Bootstrap gate
+        // T019: Bootstrap gate — navigate imperatively so the layout
+        // doesn't permanently render a <Redirect> that blocks later navigation
+        setReady(true);
         if (!settingsOk) {
-          setBootState("device-setup");
+          router.replace("/device-setup");
         } else {
           const hasSession = await hasDriverSession();
-          setBootState(hasSession ? "driver" : "login");
+          router.replace(hasSession ? "/(driver)" : "/login");
         }
       } catch (err) {
         if (bootTrigger) {
@@ -79,45 +80,23 @@ function RootLayout() {
           }
         }
         // Fall through to check settings for navigation
+        setReady(true);
         const settingsOk = await isSettingsComplete().catch(() => false);
         if (!settingsOk) {
-          setBootState("device-setup");
+          router.replace("/device-setup");
         } else {
           const hasSession = await hasDriverSession().catch(() => false);
-          setBootState(hasSession ? "driver" : "login");
+          router.replace(hasSession ? "/(driver)" : "/login");
         }
       }
     })();
-  }, []);
+  }, [router]);
 
-  if (bootState === "loading") {
+  if (!ready) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#f8fafc" }}>
         <ActivityIndicator size="large" color="#2563eb" />
       </View>
-    );
-  }
-
-  if (bootState === "device-setup") {
-    return (
-      <>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="device-setup" options={{ title: "Configuração" }} />
-        </Stack>
-        <Redirect href="/device-setup" />
-      </>
-    );
-  }
-
-  if (bootState === "login") {
-    return (
-      <>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="login" options={{ title: "Login" }} />
-          <Stack.Screen name="device-setup" options={{ title: "Configuração" }} />
-        </Stack>
-        <Redirect href="/login" />
-      </>
     );
   }
 

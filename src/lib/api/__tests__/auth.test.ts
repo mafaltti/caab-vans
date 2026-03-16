@@ -157,16 +157,35 @@ describe("requireBoundVan", () => {
     expect(result).toBe("van-1");
   });
 
-  it("returns null for web callers (no headers)", async () => {
+  it("returns null for web callers (no headers, no bearer)", async () => {
     const request = makeRequest({});
     const result = await requireBoundVan(request);
     expect(result).toBeNull();
   });
 
-  it("returns null when only one header is present", async () => {
+  it("returns null when only one header is present (web caller)", async () => {
     const request = makeRequest({ "x-bound-van-id": "van-1" });
     const result = await requireBoundVan(request);
     expect(result).toBeNull();
+  });
+
+  it("throws 401 when bearer caller omits bound-van headers", async () => {
+    const request = makeRequest({ authorization: "Bearer some-token" });
+
+    await expect(requireBoundVan(request)).rejects.toMatchObject({
+      status: 401,
+    });
+  });
+
+  it("throws 401 when bearer caller provides only van-id header", async () => {
+    const request = makeRequest({
+      authorization: "Bearer some-token",
+      "x-bound-van-id": "van-1",
+    });
+
+    await expect(requireBoundVan(request)).rejects.toMatchObject({
+      status: 401,
+    });
   });
 
   it("throws 401 for invalid ingestion token", async () => {

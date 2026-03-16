@@ -108,6 +108,39 @@ class DeviceProtectedStorage(reactContext: ReactApplicationContext) :
     }
 
     @ReactMethod
+    fun setShiftActive(active: Boolean, routeId: String?, promise: Promise) {
+        try {
+            getPrefs().edit()
+                .putBoolean("shift_active", active)
+                .putString("active_route_id", routeId)
+                .apply()
+            promise.resolve(null)
+        } catch (e: Exception) {
+            promise.reject("SET_SHIFT_ACTIVE_ERROR", e.message, e)
+        }
+    }
+
+    @ReactMethod
+    fun getShiftActive(promise: Promise) {
+        try {
+            val active = getPrefs().getBoolean("shift_active", false)
+            promise.resolve(active)
+        } catch (e: Exception) {
+            promise.reject("GET_SHIFT_ACTIVE_ERROR", e.message, e)
+        }
+    }
+
+    @ReactMethod
+    fun getActiveRouteId(promise: Promise) {
+        try {
+            val routeId = getPrefs().getString("active_route_id", null)
+            promise.resolve(routeId)
+        } catch (e: Exception) {
+            promise.reject("GET_ACTIVE_ROUTE_ID_ERROR", e.message, e)
+        }
+    }
+
+    @ReactMethod
     fun consumeBootTrigger(promise: Promise) {
         try {
             val prefs = getPrefs()
