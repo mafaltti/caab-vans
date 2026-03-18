@@ -3,12 +3,10 @@ import { DateTime } from "luxon";
 
 import { EARLY_ARRIVAL_WINDOW_MINUTES } from "@/lib/time";
 
-import { haversineDistanceMeters } from "./haversine";
 import { persistCanonicalProgress } from "./persist-canonical-progress";
 import { seedRouteRunStops } from "./seed-route-run-stops";
 
 const TZ = "America/Bahia";
-const PING_WINDOW_MINUTES = 5;
 
 export async function processDeviceGeofenceEvents(args: {
   supabase: SupabaseClient;
@@ -326,7 +324,7 @@ async function processOneEvent(
     .from("van_location_pings")
     .select("id")
     .eq("van_id", vanId)
-    .gte("received_at", run.created_at ?? eventTs)
+    .gte("received_at", eventTs)
     .limit(1);
 
   const hasGpsStream = anyRunPings && anyRunPings.length > 0;
