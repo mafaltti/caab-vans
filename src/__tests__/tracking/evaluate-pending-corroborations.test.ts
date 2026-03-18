@@ -47,6 +47,7 @@ function createMockSupabase(opts: {
   firstPendingStopId?: string;
   pingsAfterEvent?: Array<{ id: string }>;
   anyPings?: Array<{ id: string }>;
+  shifts?: Array<{ run_id: string; started_at: string }>;
 }) {
   const {
     awaitingEvents = [],
@@ -54,13 +55,11 @@ function createMockSupabase(opts: {
     firstPendingStopId = "entry-1",
     pingsAfterEvent = [],
     anyPings = [],
+    shifts = [{ run_id: "run-1", started_at: "2026-03-18T12:00:00.000Z" }],
   } = opts;
 
   const stopUpdates: StopUpdate[] = [];
   const eventUpdates: EventUpdate[] = [];
-
-  // Counter to differentiate first vs second van_location_pings query per event
-  let pingsQueryCount = 0;
 
   const mock = {
     from: vi.fn((table: string) => {
@@ -92,6 +91,22 @@ function createMockSupabase(opts: {
             return { eq: eqFn };
           }),
         };
+      }
+
+      // --- route_shifts (P1: shift start lookup) ---
+      if (table === "route_shifts") {
+        const proxy: unknown = new Proxy(
+          {},
+          {
+            get(_t, prop) {
+              if (prop === "then") return undefined;
+              if (prop === "data") return shifts;
+              if (prop === "error") return null;
+              return () => proxy;
+            },
+          },
+        );
+        return proxy;
       }
 
       // --- schedule_entries ---
@@ -154,11 +169,8 @@ function createMockSupabase(opts: {
 
       // --- van_location_pings ---
       if (table === "van_location_pings") {
-        pingsQueryCount++;
-        const currentCount = pingsQueryCount;
-
         // Build a proxy that detects whether .gt() is called (pingsAfterEvent)
-        // or not (anyPings). We use the counter: odd = pingsAfterEvent, even = anyPings.
+        // or .gte() / neither (anyPings scoped to shift).
         let usesGt = false;
         const resolveData = () =>
           usesGt ? pingsAfterEvent : anyPings;
@@ -176,7 +188,7 @@ function createMockSupabase(opts: {
                   return proxy;
                 };
               }
-              // select, eq, limit all chain
+              // select, eq, gte, limit all chain
               return () => proxy;
             },
           },
@@ -210,7 +222,8 @@ describe("evaluatePendingCorroborations", () => {
     vi.restoreAllMocks();
   });
 
-  it("ping within geofence_radius_m confirms stop at 0.95", async () => {
+  it("ping within geofence_radius_m confirms stop at 0.95 with ping timestamp", async () => {
+    const pingReceivedAt = "2026-03-18T16:00:10.000Z";
     const mock = createMockSupabase({
       awaitingEvents: [
         {
@@ -235,7 +248,7 @@ describe("evaluatePendingCorroborations", () => {
       vanId,
       pingLat: -12.97143,
       pingLng: -38.51237,
-      pingReceivedAt: "2026-03-18T16:00:10.000Z",
+      pingReceivedAt,
     });
 
     expect(result).toEqual(["ev-1"]);
@@ -244,6 +257,7 @@ describe("evaluatePendingCorroborations", () => {
       status: "passed",
       pass_source: "device_geofence",
       pass_confidence: 0.95,
+      passed_at: pingReceivedAt,
     });
     expect(mock._stopUpdates[0].filters).toMatchObject({
       schedule_entry_id: "entry-1",
@@ -394,7 +408,7 @@ describe("evaluatePendingCorroborations", () => {
     expect(mock._eventUpdates).toHaveLength(0);
   });
 
-  it("staleness fallback: no ping after event receipt + 30s elapsed confirms at 0.90", async () => {
+  it("staleness fallback: no ping after event receipt + 30s elapsed confirms at 0.90 with ping timestamp", async () => {
     // pingReceivedAt = 35 seconds after eventReceivedAt
     const pingReceivedAt = "2026-03-18T16:00:35.000Z";
 
@@ -414,7 +428,7 @@ describe("evaluatePendingCorroborations", () => {
       },
       firstPendingStopId: "entry-1",
       pingsAfterEvent: [], // no pings after event
-      anyPings: [{ id: "p-old" }], // some pings exist
+      anyPings: [{ id: "p-old" }], // some pings exist in current shift
     });
 
     // Ping far from stop — GPS distance doesn't matter, staleness takes over
@@ -433,6 +447,7 @@ describe("evaluatePendingCorroborations", () => {
       status: "passed",
       pass_source: "device_geofence",
       pass_confidence: 0.9,
+      passed_at: pingReceivedAt,
     });
     expect(mock._eventUpdates).toHaveLength(1);
     expect(mock._eventUpdates[0].payload).toMatchObject({
@@ -460,7 +475,7 @@ describe("evaluatePendingCorroborations", () => {
       },
       firstPendingStopId: "entry-1",
       pingsAfterEvent: [], // no pings after event
-      anyPings: [{ id: "p-old" }], // some pings exist
+      anyPings: [{ id: "p-old" }], // some pings exist in current shift
     });
 
     // Ping far from stop
@@ -512,7 +527,9 @@ describe("evaluatePendingCorroborations", () => {
     expect(mock._eventUpdates).toHaveLength(0);
   });
 
-  it("no GPS pings ever for this van confirms at 0.85", async () => {
+  it("no GPS pings in current shift confirms at 0.85 with ping timestamp", async () => {
+    const pingReceivedAt = "2026-03-18T16:00:10.000Z";
+
     const mock = createMockSupabase({
       awaitingEvents: [
         {
@@ -529,7 +546,7 @@ describe("evaluatePendingCorroborations", () => {
       },
       firstPendingStopId: "entry-1",
       pingsAfterEvent: [], // no pings after event
-      anyPings: [], // zero pings ever
+      anyPings: [], // zero pings in current shift
     });
 
     // Ping far from stop — doesn't matter
@@ -539,7 +556,7 @@ describe("evaluatePendingCorroborations", () => {
       vanId,
       pingLat: -12.97,
       pingLng: -38.51,
-      pingReceivedAt: "2026-03-18T16:00:10.000Z",
+      pingReceivedAt,
     });
 
     expect(result).toEqual(["ev-1"]);
@@ -548,6 +565,7 @@ describe("evaluatePendingCorroborations", () => {
       status: "passed",
       pass_source: "device_geofence",
       pass_confidence: 0.85,
+      passed_at: pingReceivedAt,
     });
     expect(mock._eventUpdates).toHaveLength(1);
     expect(mock._eventUpdates[0].payload).toMatchObject({
@@ -581,7 +599,7 @@ describe("evaluatePendingCorroborations", () => {
       },
       firstPendingStopId: "entry-1", // only entry-1 is head-of-line
       pingsAfterEvent: [], // no pings after event
-      anyPings: [{ id: "p-old" }], // some pings exist
+      anyPings: [{ id: "p-old" }], // some pings exist in current shift
     });
 
     // Ping far from stop — staleness fallback

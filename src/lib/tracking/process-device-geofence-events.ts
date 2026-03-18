@@ -193,7 +193,7 @@ async function processOneEvent(
   // 3. Shift gate
   const { data: activeShift, error: shiftError } = await supabase
     .from("route_shifts")
-    .select("id")
+    .select("id, started_at")
     .eq("run_id", run.id)
     .lte("started_at", eventTs)
     .or(`ended_at.is.null,ended_at.gt.${eventTs}`)
@@ -326,6 +326,7 @@ async function processOneEvent(
     .from("van_location_pings")
     .select("id")
     .eq("van_id", vanId)
+    .gte("received_at", activeShift.started_at)
     .limit(1);
 
   const hasGpsStream = anyPings && anyPings.length > 0;

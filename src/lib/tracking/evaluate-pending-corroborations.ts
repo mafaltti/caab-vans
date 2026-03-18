@@ -25,7 +25,28 @@ export async function evaluatePendingCorroborations(args: {
 
   if (fetchError || !awaitingEvents || awaitingEvents.length === 0) return [];
 
-  // 2. Evaluate each event — only confirm head-of-line pending stop per run
+  // 2. Look up shift start times for GPS stream scoping (P1 fix)
+  const uniqueRunIds = [...new Set(
+    awaitingEvents.map((e) => e.matched_run_id).filter(Boolean) as string[],
+  )];
+
+  const shiftStartMap = new Map<string, string>();
+  if (uniqueRunIds.length > 0) {
+    const { data: shifts } = await supabase
+      .from("route_shifts")
+      .select("run_id, started_at")
+      .in("run_id", uniqueRunIds)
+      .order("started_at", { ascending: false });
+
+    for (const s of shifts ?? []) {
+      // Keep only the most recent shift per run (first seen due to desc order)
+      if (!shiftStartMap.has(s.run_id)) {
+        shiftStartMap.set(s.run_id, s.started_at);
+      }
+    }
+  }
+
+  // 3. Evaluate each event — only confirm head-of-line pending stop per run
   for (const event of awaitingEvents) {
     const { event_id, matched_run_id, matched_schedule_entry_id, received_at } = event;
     if (!matched_run_id || !matched_schedule_entry_id) continue;
@@ -61,7 +82,7 @@ export async function evaluatePendingCorroborations(args: {
       // GPS corroborated — confirm at 0.95
       await confirmStop({
         supabase, matched_run_id, matched_schedule_entry_id,
-        vanId, event_id, confidence: 0.95, received_at,
+        vanId, event_id, confidence: 0.95, passed_at: pingReceivedAt,
       });
       confirmedEventIds.push(event_id);
       console.warn(JSON.stringify({
@@ -90,20 +111,24 @@ export async function evaluatePendingCorroborations(args: {
     // No pings after event receipt — check if enough time has elapsed for staleness
     const elapsedMs = new Date(pingReceivedAt).getTime() - new Date(received_at).getTime();
 
-    // Check if there are ANY pings at all for this van in this run
-    const { data: anyPings } = await supabase
+    // Check if there are any pings during the current shift (not full history)
+    const shiftStartedAt = shiftStartMap.get(matched_run_id);
+    let pingsQuery = supabase
       .from("van_location_pings")
       .select("id")
-      .eq("van_id", vanId)
-      .limit(1);
+      .eq("van_id", vanId);
+    if (shiftStartedAt) {
+      pingsQuery = pingsQuery.gte("received_at", shiftStartedAt);
+    }
+    const { data: anyPings } = await pingsQuery.limit(1);
 
     const hasAnyPings = anyPings && anyPings.length > 0;
 
     if (!hasAnyPings) {
-      // No GPS stream at all — immediate fallback at 0.85
+      // No GPS stream in current shift — immediate fallback at 0.85
       await confirmStop({
         supabase, matched_run_id, matched_schedule_entry_id,
-        vanId, event_id, confidence: 0.85, received_at,
+        vanId, event_id, confidence: 0.85, passed_at: pingReceivedAt,
       });
       confirmedEventIds.push(event_id);
       console.warn(JSON.stringify({
@@ -117,7 +142,7 @@ export async function evaluatePendingCorroborations(args: {
       // GPS stale — fallback at 0.90
       await confirmStop({
         supabase, matched_run_id, matched_schedule_entry_id,
-        vanId, event_id, confidence: 0.90, received_at,
+        vanId, event_id, confidence: 0.90, passed_at: pingReceivedAt,
       });
       confirmedEventIds.push(event_id);
       console.warn(JSON.stringify({
@@ -140,15 +165,15 @@ async function confirmStop(args: {
   vanId: string;
   event_id: string;
   confidence: number;
-  received_at: string;
+  passed_at: string;
 }) {
-  const { supabase, matched_run_id, matched_schedule_entry_id, vanId, event_id, confidence, received_at } = args;
+  const { supabase, matched_run_id, matched_schedule_entry_id, vanId, event_id, confidence, passed_at } = args;
 
   const { error: passError } = await supabase
     .from("route_run_stops")
     .update({
       status: "passed",
-      passed_at: received_at,
+      passed_at,
       pass_source: "device_geofence",
       pass_confidence: confidence,
     })
