@@ -381,7 +381,7 @@ async function updateEventStatus(
   supabase: SupabaseClient,
   vanId: string,
   eventId: string,
-  status: "no_match" | "deferred",
+  status: "no_match" | "deferred" | "awaiting_corroboration",
 ) {
   const { error } = await supabase
     .from("tracking_geofence_events")
