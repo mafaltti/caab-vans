@@ -25,6 +25,7 @@ TaskManager.defineTask(HEALTH_CHECK_TASK, async () => {
       const { startTracking } = await import("./tracking");
       await startTracking({ interactive: false, source: "health" });
       logEvent("health_recovery", "ok:health");
+      try { await flushLog(); } catch { /* non-fatal */ }
       return BackgroundFetch.BackgroundFetchResult.NewData;
     }
 
@@ -39,6 +40,7 @@ TaskManager.defineTask(HEALTH_CHECK_TASK, async () => {
         const { startTracking } = await import("./tracking");
         await startTracking({ interactive: false, source: "health" });
         logEvent("health_recovery", "ok:health");
+        try { await flushLog(); } catch { /* non-fatal */ }
         return BackgroundFetch.BackgroundFetchResult.NewData;
       }
     }
