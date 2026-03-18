@@ -318,16 +318,17 @@ async function processOneEvent(
   }
 
   // 7. No-GPS-stream immediate fallback (FR-013):
-  // If no GPS pings exist at all for this van in the current run, the tracker
-  // has no GPS stream — trust the device geofence immediately at 0.85 confidence.
-  const { data: anyRunPings } = await supabase
+  // If no GPS pings exist at all for this van, the tracker has no GPS stream —
+  // trust the device geofence immediately at 0.85 confidence.
+  // Note: geofence events are processed BEFORE the current ping is upserted,
+  // so this checks for pings from prior requests only.
+  const { data: anyPings } = await supabase
     .from("van_location_pings")
     .select("id")
     .eq("van_id", vanId)
-    .gte("received_at", eventTs)
     .limit(1);
 
-  const hasGpsStream = anyRunPings && anyRunPings.length > 0;
+  const hasGpsStream = anyPings && anyPings.length > 0;
 
   if (!hasGpsStream) {
     // No GPS stream at all — fall back immediately
