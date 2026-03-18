@@ -73,7 +73,7 @@ function RootLayout() {
       <Stack.Screen name="index" options={{ title: "CAAB Tracker" }} />
       <Stack.Screen name="settings" options={{ title: "Settings" }} />
       <Stack.Screen name="diagnostics" options={{ title: "Diagnostics" }} />
-      <Stack.Screen name="driver" options={{ title: "Driver" }} />
+      <Stack.Screen name="driver" options={{ title: "Driver", headerShown: false }} />
     </Stack>
   );
 }

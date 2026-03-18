@@ -48,7 +48,7 @@ export default function DriverScreen() {
     useCallback(() => {
       (async () => {
         const settings = await getSettings();
-        if (settings.apiBaseUrl) {
+        if (settings?.apiBaseUrl) {
           setBaseUrl(settings.apiBaseUrl);
         }
       })();
