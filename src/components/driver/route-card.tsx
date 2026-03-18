@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { MapPin, Clock, Play, Square, ChevronRight } from "lucide-react";
 import Link from "next/link";
-import { fetchWithAuth } from "@/lib/api/fetch-with-auth";
+import { fetchWithDriverAuth } from "@/lib/api/fetch-with-driver-auth";
 import type { DriverRoute, RunStatus } from "@/types";
 
 type StopSuggestion = {
@@ -118,7 +118,7 @@ export function RouteCard({ route, userId, onUpdate }: RouteCardProps) {
         fetchOpts.body = JSON.stringify({ lat: coords.lat, lng: coords.lng });
       }
 
-      const res = await fetchWithAuth(`/api/routes/${route.id}/start`, fetchOpts);
+      const res = await fetchWithDriverAuth(`/api/routes/${route.id}/start`, fetchOpts);
       if (!res.ok) {
         const data = await res.json();
         setError(data.error?.message ?? "Erro ao iniciar turno");
@@ -147,7 +147,7 @@ export function RouteCard({ route, userId, onUpdate }: RouteCardProps) {
     setConfirmLoading(true);
     setError("");
     try {
-      const res = await fetchWithAuth(
+      const res = await fetchWithDriverAuth(
         `/api/routes/${route.id}/confirm-start-stop`,
         {
           method: "POST",
@@ -178,7 +178,7 @@ export function RouteCard({ route, userId, onUpdate }: RouteCardProps) {
     setLoading(true);
     setError("");
     try {
-      const res = await fetchWithAuth(`/api/routes/${route.id}/end`, {
+      const res = await fetchWithDriverAuth(`/api/routes/${route.id}/end`, {
         method: "POST",
       });
       if (!res.ok) {

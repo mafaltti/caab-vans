@@ -287,6 +287,13 @@ export default function HomeScreen() {
       </TouchableOpacity>
 
       <TouchableOpacity
+        style={[styles.primaryButton, styles.driverButton]}
+        onPress={() => router.push("/driver")}
+      >
+        <Text style={styles.buttonText}>Open Driver</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
         style={styles.secondaryButton}
         onPress={() => router.push("/settings")}
       >
@@ -395,6 +402,9 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
+  },
+  driverButton: {
+    backgroundColor: "#059669",
   },
   secondaryButton: {
     paddingVertical: 12,

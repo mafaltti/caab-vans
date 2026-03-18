@@ -19,7 +19,7 @@ import { NextStopHero } from "@/components/driver/active-route/next-stop-hero";
 import { TrackerHealth } from "@/components/driver/active-route/tracker-health";
 import { ExceptionDrawer } from "@/components/driver/active-route/exception-drawer";
 import { ScheduleTimeline } from "@/components/public/schedule-timeline";
-import { fetchWithAuth } from "@/lib/api/fetch-with-auth";
+import { fetchWithDriverAuth } from "@/lib/api/fetch-with-driver-auth";
 
 type DriverRouteResponse = {
   route: {
@@ -92,7 +92,7 @@ const DETOUR_LABELS: Record<string, string> = {
 };
 
 async function fetchDriverRoute(routeId: string, signal?: AbortSignal): Promise<DriverRouteResponse> {
-  const res = await fetchWithAuth(`/api/driver/routes/${routeId}`, { signal });
+  const res = await fetchWithDriverAuth(`/api/driver/routes/${routeId}`, { signal });
   if (!res.ok) {
     if (res.status === 403 || res.status === 404) {
       throw new Error("NOT_FOUND");
@@ -123,7 +123,7 @@ export default function ActiveRoutePage() {
   // Skip-stop mutation
   const skipMutation = useMutation({
     mutationFn: async (data: { stopId: string; reasonCode: string; note?: string }) => {
-      const res = await fetchWithAuth(`/api/routes/${params.routeId}/skip-stop`, {
+      const res = await fetchWithDriverAuth(`/api/routes/${params.routeId}/skip-stop`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
@@ -142,7 +142,7 @@ export default function ActiveRoutePage() {
   // Detour mutation
   const detourMutation = useMutation({
     mutationFn: async (data: { action: "start" | "end"; reasonCode?: string; note?: string }) => {
-      const res = await fetchWithAuth(`/api/routes/${params.routeId}/detour`, {
+      const res = await fetchWithDriverAuth(`/api/routes/${params.routeId}/detour`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
@@ -174,7 +174,7 @@ export default function ActiveRoutePage() {
     setEndLoading(true);
     setEndError("");
     try {
-      const res = await fetchWithAuth(`/api/routes/${params.routeId}/end`, {
+      const res = await fetchWithDriverAuth(`/api/routes/${params.routeId}/end`, {
         method: "POST",
       });
       if (!res.ok) {

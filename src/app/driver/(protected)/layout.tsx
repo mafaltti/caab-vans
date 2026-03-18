@@ -41,14 +41,14 @@ export default async function DriverLayout({
 
   const role = user?.app_metadata?.role;
   if (!user || role !== "driver") {
-    redirect("/admin/login");
+    redirect("/driver/login");
   }
 
   return (
     <div className="flex min-h-screen flex-col bg-zinc-50">
       <header className="flex items-center justify-between border-b border-zinc-200 bg-white px-4 py-3">
         <h1 className="text-sm font-semibold text-zinc-900">CAAB Vans</h1>
-        <AdminLogoutButton />
+        <AdminLogoutButton redirectTo="/driver/login" />
       </header>
       <main className="flex-1 p-4">{children}</main>
     </div>

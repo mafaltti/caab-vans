@@ -169,8 +169,6 @@ export function ExceptionDrawer({
               {nextStopLat != null && nextStopLng != null && (
                 <a
                   href={buildNavigationUrl(nextStopLat, nextStopLng)}
-                  target="_blank"
-                  rel="noopener noreferrer"
                   className="flex w-full items-center gap-3 rounded-lg border border-zinc-200 p-3 text-left transition-colors hover:bg-zinc-50"
                 >
                   <Navigation className="size-5 text-zinc-600" />

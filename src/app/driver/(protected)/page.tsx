@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { fetchWithAuth } from "@/lib/api/fetch-with-auth";
+import { fetchWithDriverAuth } from "@/lib/api/fetch-with-driver-auth";
 import { RouteCard } from "@/components/driver/route-card";
 import type { DriverRoute } from "@/types";
 import { MapPin } from "lucide-react";
@@ -15,7 +15,7 @@ export default function DriverPage() {
   useEffect(() => {
     if (didFetch.current) return;
     didFetch.current = true;
-    fetchWithAuth("/api/driver/routes")
+    fetchWithDriverAuth("/api/driver/routes")
       .then((res) => res.json())
       .then((data) => {
         setRoutes(data.routes ?? []);
