@@ -23,7 +23,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
 
   const { data: route } = await supabase
     .from("routes")
-    .select("id")
+    .select("id, van_id")
     .eq("id", routeId)
     .single();
 
@@ -105,6 +105,16 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     if (eventErr) {
       return apiError("INTERNAL_ERROR", "Failed to record detour_ended event", 500);
     }
+  }
+
+  // Expire pending corroborations (FR-014): any events still awaiting GPS
+  // confirmation are discarded when the shift ends.
+  if (route.van_id) {
+    await supabase
+      .from("tracking_geofence_events")
+      .update({ status: "no_match" })
+      .eq("van_id", route.van_id)
+      .eq("status", "awaiting_corroboration");
   }
 
   return NextResponse.json({

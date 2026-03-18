@@ -45,7 +45,7 @@ function createMockSupabase(opts: {
     matched_run_id?: string | null;
   } | null;
   matchedStopStatus?: string; // for dedup recheck
-  activeShift?: { id: string } | null;
+  activeShift?: { id: string; started_at: string } | null;
   pendingStops?: Array<{
     schedule_entry_id: string;
     schedule_entries: {
@@ -65,7 +65,7 @@ function createMockSupabase(opts: {
     insertReturns = [{ id: "ge-1" }],
     existingEvent = null,
     matchedStopStatus = "passed",
-    activeShift = { id: "shift-1" },
+    activeShift = { id: "shift-1", started_at: "2026-03-18T12:00:00.000Z" },
     pendingStops = [],
     recentPings = [],
     deferredEvents = [],
@@ -297,7 +297,7 @@ describe("processDeviceGeofenceEvents", () => {
 
   it("marks a pending stop as passed with device_geofence source", async () => {
     const mock = createMockSupabase({
-      activeShift: { id: "shift-1" },
+      activeShift: { id: "shift-1", started_at: "2026-03-18T12:00:00.000Z" },
       pendingStops: [pendingStop("entry-1350", "13:50")],
       recentPings: [],
     });
@@ -314,7 +314,7 @@ describe("processDeviceGeofenceEvents", () => {
     expect(mock._stopUpdates[0].payload).toMatchObject({
       status: "passed",
       pass_source: "device_geofence",
-      pass_confidence: 0.9,
+      pass_confidence: 0.85,
     });
     expect(mock._stopUpdates[0].filters).toMatchObject({
       schedule_entry_id: "entry-1350",
@@ -361,7 +361,7 @@ describe("processDeviceGeofenceEvents", () => {
         matched_run_id: "run-1",
       },
       matchedStopStatus: "passed", // still passed
-      activeShift: { id: "shift-1" },
+      activeShift: { id: "shift-1", started_at: "2026-03-18T12:00:00.000Z" },
       pendingStops: [pendingStop("entry-1350", "13:50")],
     });
 
@@ -388,7 +388,7 @@ describe("processDeviceGeofenceEvents", () => {
         matched_run_id: "run-1",
       },
       matchedStopStatus: "pending", // healed back to pending
-      activeShift: { id: "shift-1" },
+      activeShift: { id: "shift-1", started_at: "2026-03-18T12:00:00.000Z" },
       pendingStops: [pendingStop("entry-1350", "13:50")],
       recentPings: [],
     });
@@ -409,12 +409,11 @@ describe("processDeviceGeofenceEvents", () => {
     });
   });
 
-  it("adds GPS corroboration confidence bonus when ping is within radius", async () => {
-    // Ping ~5m from stop, well within 50m geofence
+  it("transitions to awaiting_corroboration when GPS stream exists", async () => {
     const nearPing = { lat: -12.97143, lng: -38.51237 };
 
     const mock = createMockSupabase({
-      activeShift: { id: "shift-1" },
+      activeShift: { id: "shift-1", started_at: "2026-03-18T12:00:00.000Z" },
       pendingStops: [pendingStop("entry-1350", "13:50")],
       recentPings: [nearPing],
     });
@@ -426,13 +425,20 @@ describe("processDeviceGeofenceEvents", () => {
       geofenceEvents: [{ placeId, enteredAt, eventId: "ev-gps" }],
     });
 
-    expect(result).toContain("ev-gps");
-    expect(mock._stopUpdates[0].payload.pass_confidence).toBe(0.95);
+    expect(result).toHaveLength(0);
+    expect(mock._stopUpdates).toHaveLength(0);
+    expect(mock._runUpdates).toHaveLength(0);
+    expect(mock._eventUpdates).toHaveLength(1);
+    expect(mock._eventUpdates[0].payload).toMatchObject({
+      status: "awaiting_corroboration",
+      matched_run_id: "run-1",
+      matched_schedule_entry_id: "entry-1350",
+    });
   });
 
   it("does not backfill predecessor", async () => {
     const mock = createMockSupabase({
-      activeShift: { id: "shift-1" },
+      activeShift: { id: "shift-1", started_at: "2026-03-18T12:00:00.000Z" },
       pendingStops: [
         pendingStop("entry-1340", "13:40", null, 50, 1), // preceding stop, different place
         pendingStop("entry-1350", "13:50", placeId, 50, 2), // matched stop
@@ -462,7 +468,7 @@ describe("processDeviceGeofenceEvents", () => {
     const laterEnteredAt = laterEventTime.toMillis();
 
     const mock = createMockSupabase({
-      activeShift: { id: "shift-1" },
+      activeShift: { id: "shift-1", started_at: "2026-03-18T12:00:00.000Z" },
       pendingStops: [
         pendingStop("entry-1300", "13:00", placeId, 50, 1), // 55 min ago
         pendingStop("entry-1400", "14:00", placeId, 50, 2), // 5 min ahead
@@ -495,7 +501,7 @@ describe("processDeviceGeofenceEvents", () => {
     const earlyEnteredAt = earlyEventTime.toMillis();
 
     const mock = createMockSupabase({
-      activeShift: { id: "shift-1" },
+      activeShift: { id: "shift-1", started_at: "2026-03-18T12:00:00.000Z" },
       pendingStops: [pendingStop("entry-1350", "13:50")],
       recentPings: [],
     });
@@ -524,7 +530,7 @@ describe("processDeviceGeofenceEvents", () => {
         matched_schedule_entry_id: null,
         matched_run_id: null,
       },
-      activeShift: { id: "shift-1" },
+      activeShift: { id: "shift-1", started_at: "2026-03-18T12:00:00.000Z" },
       pendingStops: [pendingStop("entry-1350", "13:50")],
       recentPings: [],
     });
@@ -550,7 +556,7 @@ describe("processDeviceGeofenceEvents", () => {
     // Event at 13:50 is closest in time to seq 18 (arrival_time "13:50")
     // but seq 17 is the first pending stop, so matchedIndex > 0 => deferred
     const mock = createMockSupabase({
-      activeShift: { id: "shift-1" },
+      activeShift: { id: "shift-1", started_at: "2026-03-18T12:00:00.000Z" },
       pendingStops: [
         pendingStop("entry-1340", "13:40", placeId, 50, 17),
         pendingStop("entry-1350", "13:50", placeId, 50, 18),
@@ -584,7 +590,7 @@ describe("processDeviceGeofenceEvents", () => {
         matched_schedule_entry_id: null,
         matched_run_id: null,
       },
-      activeShift: { id: "shift-1" },
+      activeShift: { id: "shift-1", started_at: "2026-03-18T12:00:00.000Z" },
       pendingStops: [
         pendingStop("entry-1350", "13:50", placeId, 50, 18),
       ],
@@ -614,7 +620,7 @@ describe("processDeviceGeofenceEvents", () => {
 
   it("defers when ungeocoded stop precedes matched geocoded stop", async () => {
     const mock = createMockSupabase({
-      activeShift: { id: "shift-1" },
+      activeShift: { id: "shift-1", started_at: "2026-03-18T12:00:00.000Z" },
       pendingStops: [
         {
           schedule_entry_id: "entry-no-coords",
@@ -666,7 +672,7 @@ describe("processDeviceGeofenceEvents", () => {
       },
     };
     const mock = createMockSupabase({
-      activeShift: { id: "shift-1" },
+      activeShift: { id: "shift-1", started_at: "2026-03-18T12:00:00.000Z" },
       pendingStops: [dwellStop],
       recentPings: [],
     });
@@ -706,7 +712,7 @@ describe("processDeviceGeofenceEvents", () => {
       },
     };
     const mock = createMockSupabase({
-      activeShift: { id: "shift-1" },
+      activeShift: { id: "shift-1", started_at: "2026-03-18T12:00:00.000Z" },
       pendingStops: [dwellStop],
       recentPings: [],
     });
@@ -748,7 +754,7 @@ describe("processDeviceGeofenceEvents", () => {
       },
     };
     const mock = createMockSupabase({
-      activeShift: { id: "shift-1" },
+      activeShift: { id: "shift-1", started_at: "2026-03-18T12:00:00.000Z" },
       pendingStops: [dwellStop],
       recentPings: [],
     });
@@ -774,7 +780,7 @@ describe("processDeviceGeofenceEvents", () => {
     // Call 1: new event, both seq 17 and 18 pending => deferred
     const mock1 = createMockSupabase({
       insertReturns: [{ id: "ge-1" }],
-      activeShift: { id: "shift-1" },
+      activeShift: { id: "shift-1", started_at: "2026-03-18T12:00:00.000Z" },
       pendingStops: [
         pendingStop("entry-1340", "13:40", placeId, 50, 17),
         pendingStop("entry-1350", "13:50", placeId, 50, 18),
@@ -800,7 +806,7 @@ describe("processDeviceGeofenceEvents", () => {
         matched_schedule_entry_id: null,
         matched_run_id: null,
       },
-      activeShift: { id: "shift-1" },
+      activeShift: { id: "shift-1", started_at: "2026-03-18T12:00:00.000Z" },
       pendingStops: [
         pendingStop("entry-1340", "13:40", placeId, 50, 17),
         pendingStop("entry-1350", "13:50", placeId, 50, 18),
@@ -826,7 +832,7 @@ describe("processDeviceGeofenceEvents", () => {
         matched_schedule_entry_id: null,
         matched_run_id: null,
       },
-      activeShift: { id: "shift-1" },
+      activeShift: { id: "shift-1", started_at: "2026-03-18T12:00:00.000Z" },
       pendingStops: [
         pendingStop("entry-1350", "13:50", placeId, 50, 18),
       ],
@@ -846,5 +852,84 @@ describe("processDeviceGeofenceEvents", () => {
       status: "passed",
       pass_source: "device_geofence",
     });
+  });
+
+  it("event transitions to awaiting_corroboration when GPS stream exists (far ping)", async () => {
+    const mock = createMockSupabase({
+      activeShift: { id: "shift-1", started_at: "2026-03-18T12:00:00.000Z" },
+      pendingStops: [pendingStop("entry-1350", "13:50")],
+      recentPings: [{ lat: -12.97, lng: -38.51 }],
+    });
+
+    const result = await processDeviceGeofenceEvents({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase: mock as any,
+      vanId,
+      geofenceEvents: [{ placeId, enteredAt, eventId: "ev-await" }],
+    });
+
+    expect(result).toHaveLength(0);
+    expect(mock._stopUpdates).toHaveLength(0);
+    expect(mock._runUpdates).toHaveLength(0);
+    expect(mock._eventUpdates).toHaveLength(1);
+    expect(mock._eventUpdates[0].payload).toMatchObject({
+      status: "awaiting_corroboration",
+      matched_run_id: "run-1",
+      matched_schedule_entry_id: "entry-1350",
+    });
+  });
+
+  it("immediate no-GPS fallback confirms at 0.85 confidence", async () => {
+    const mock = createMockSupabase({
+      activeShift: { id: "shift-1", started_at: "2026-03-18T12:00:00.000Z" },
+      pendingStops: [pendingStop("entry-1350", "13:50")],
+      recentPings: [],
+    });
+
+    const result = await processDeviceGeofenceEvents({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase: mock as any,
+      vanId,
+      geofenceEvents: [{ placeId, enteredAt, eventId: "ev-no-gps" }],
+    });
+
+    expect(result).toContain("ev-no-gps");
+    expect(mock._stopUpdates).toHaveLength(1);
+    expect(mock._stopUpdates[0].payload).toMatchObject({
+      status: "passed",
+      pass_source: "device_geofence",
+      pass_confidence: 0.85,
+    });
+    expect(mock._eventUpdates).toHaveLength(1);
+    expect(mock._eventUpdates[0].payload).toMatchObject({
+      status: "matched",
+      matched_run_id: "run-1",
+      matched_schedule_entry_id: "entry-1350",
+    });
+  });
+
+  it("duplicate event with awaiting_corroboration status is skipped", async () => {
+    const mock = createMockSupabase({
+      insertReturns: [],
+      existingEvent: {
+        status: "awaiting_corroboration",
+        matched_schedule_entry_id: "entry-1350",
+        matched_run_id: "run-1",
+      },
+      activeShift: { id: "shift-1", started_at: "2026-03-18T12:00:00.000Z" },
+      pendingStops: [pendingStop("entry-1350", "13:50")],
+    });
+
+    const result = await processDeviceGeofenceEvents({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase: mock as any,
+      vanId,
+      geofenceEvents: [{ placeId, enteredAt, eventId: "ev-dup-await" }],
+    });
+
+    expect(result).toHaveLength(0);
+    expect(mock._stopUpdates).toHaveLength(0);
+    expect(mock._eventUpdates).toHaveLength(0);
+    expect(mock._runUpdates).toHaveLength(0);
   });
 });

@@ -5,6 +5,7 @@ import { apiError, validationError } from "@/lib/api/errors";
 import { createRateLimiter } from "@/lib/api/rate-limit";
 import { createServiceClient } from "@/lib/supabase/server";
 import { enforceCanonicalPrefix } from "@/lib/tracking/enforce-canonical-prefix";
+import { evaluatePendingCorroborations } from "@/lib/tracking/evaluate-pending-corroborations";
 import { processDeviceGeofenceEvents } from "@/lib/tracking/process-device-geofence-events";
 import { snapToRoad } from "@/lib/tracking/osrm";
 import { trackingSchema } from "@/lib/validators/tracking";
@@ -206,6 +207,20 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         pingId: upsertedPing.id, error: snapWriteError.message,
       });
     }
+  }
+
+  // Evaluate pending corroborations on EVERY ping (not just when geofence events
+  // are present) so that previously awaiting events are evaluated against fresh pings.
+  try {
+    await evaluatePendingCorroborations({
+      supabase,
+      vanId,
+      pingLat: lat,
+      pingLng: lng,
+      pingReceivedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Pending corroboration evaluation failed:", error);
   }
 
   const response: Record<string, unknown> = { received: true, ts: Date.now() };

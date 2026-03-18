@@ -3,12 +3,10 @@ import { DateTime } from "luxon";
 
 import { EARLY_ARRIVAL_WINDOW_MINUTES } from "@/lib/time";
 
-import { haversineDistanceMeters } from "./haversine";
 import { persistCanonicalProgress } from "./persist-canonical-progress";
 import { seedRouteRunStops } from "./seed-route-run-stops";
 
 const TZ = "America/Bahia";
-const PING_WINDOW_MINUTES = 5;
 
 export async function processDeviceGeofenceEvents(args: {
   supabase: SupabaseClient;
@@ -136,6 +134,10 @@ async function processOneEvent(
         .eq("event_id", eventId);
     }
 
+    // awaiting_corroboration events are waiting for GPS confirmation —
+    // do not re-process; evaluatePendingCorroborations() handles them.
+    if (existing.status === "awaiting_corroboration") return;
+
     if (existing.status === "matched" && existing.matched_schedule_entry_id && existing.matched_run_id) {
       // Check if matched stop is still passed — if so, already resolved
       const { data: matchedStop } = await supabase
@@ -191,7 +193,7 @@ async function processOneEvent(
   // 3. Shift gate
   const { data: activeShift, error: shiftError } = await supabase
     .from("route_shifts")
-    .select("id")
+    .select("id, started_at")
     .eq("run_id", run.id)
     .lte("started_at", eventTs)
     .or(`ended_at.is.null,ended_at.gt.${eventTs}`)
@@ -291,31 +293,7 @@ async function processOneEvent(
   eligible.sort((a, b) => a.diff - b.diff);
   const matched = eligible[0];
 
-  // 6. Tiered confidence with GPS corroboration
-  let confidence = 0.90;
-
-  const windowStart = new Date(enteredAt - PING_WINDOW_MINUTES * 60 * 1000).toISOString();
-  const { data: recentPings } = await supabase
-    .from("van_location_pings")
-    .select("lat, lng")
-    .eq("van_id", vanId)
-    .gte("device_ts", windowStart)
-    .lte("device_ts", eventTs);
-
-  if (recentPings) {
-    for (const ping of recentPings) {
-      const dist = haversineDistanceMeters(
-        ping.lat, ping.lng,
-        matched.entry.stop_lat, matched.entry.stop_lng,
-      );
-      if (dist <= matched.entry.geofence_radius_m) {
-        confidence = 0.95;
-        break;
-      }
-    }
-  }
-
-  // 7. Contiguous-prefix guard: only mark head-of-line pending stop
+  // 6. Contiguous-prefix guard: only mark head-of-line pending stop
   // Use allPendingStops (including ungeocoded) so an earlier ungeocoded stop
   // correctly blocks advancement of a later geocoded stop.
   const matchedIndex = allPendingStops.findIndex(
@@ -339,49 +317,76 @@ async function processOneEvent(
     return;
   }
 
-  // 8. Mark stop as passed
-  const { error: passError } = await supabase
-    .from("route_run_stops")
-    .update({
-      status: "passed",
-      passed_at: eventTs,
-      pass_source: "device_geofence",
-      pass_confidence: confidence,
-    })
-    .eq("run_id", run.id)
-    .eq("schedule_entry_id", matched.scheduleEntryId);
+  // 7. No-GPS-stream immediate fallback (FR-013):
+  // If no GPS pings exist at all for this van, the tracker has no GPS stream —
+  // trust the device geofence immediately at 0.85 confidence.
+  // Note: geofence events are processed BEFORE the current ping is upserted,
+  // so this checks for pings from prior requests only.
+  const { data: anyPings } = await supabase
+    .from("van_location_pings")
+    .select("id")
+    .eq("van_id", vanId)
+    .gte("received_at", activeShift.started_at)
+    .limit(1);
 
-  if (passError) {
-    console.error("processDeviceGeofenceEvents: mark passed failed", {
-      runId: run.id, scheduleEntryId: matched.scheduleEntryId, error: passError.message,
-    });
-    await updateEventStatus(supabase, vanId, eventId, "no_match");
+  const hasGpsStream = anyPings && anyPings.length > 0;
+
+  if (!hasGpsStream) {
+    // No GPS stream at all — fall back immediately
+    const { error: passError } = await supabase
+      .from("route_run_stops")
+      .update({
+        status: "passed",
+        passed_at: eventTs,
+        pass_source: "device_geofence",
+        pass_confidence: 0.85,
+      })
+      .eq("run_id", run.id)
+      .eq("schedule_entry_id", matched.scheduleEntryId);
+
+    if (passError) {
+      console.error("processDeviceGeofenceEvents: mark passed (no-GPS fallback) failed", {
+        runId: run.id, scheduleEntryId: matched.scheduleEntryId, error: passError.message,
+      });
+      await updateEventStatus(supabase, vanId, eventId, "no_match");
+      return;
+    }
+
+    await persistCanonicalProgress(supabase, run.id);
+
+    await supabase
+      .from("tracking_geofence_events")
+      .update({
+        status: "matched",
+        matched_run_id: run.id,
+        matched_schedule_entry_id: matched.scheduleEntryId,
+      })
+      .eq("van_id", vanId)
+      .eq("event_id", eventId);
+
+    tentativeMatchIds.push(eventId);
     return;
   }
 
-  // Persist progress pointers via shared canonical-prefix helper
-  await persistCanonicalProgress(supabase, run.id);
-
-  // 9. Update ledger
+  // 8. GPS stream exists — enter awaiting_corroboration state.
+  // The stop is NOT marked as passed yet; a subsequent GPS ping within
+  // geofence_radius_m will confirm it via evaluatePendingCorroborations().
   await supabase
     .from("tracking_geofence_events")
     .update({
-      status: "matched",
+      status: "awaiting_corroboration",
       matched_run_id: run.id,
       matched_schedule_entry_id: matched.scheduleEntryId,
     })
     .eq("van_id", vanId)
     .eq("event_id", eventId);
-
-  // 10. Record tentative match
-  tentativeMatchIds.push(eventId);
 }
 
 async function updateEventStatus(
   supabase: SupabaseClient,
   vanId: string,
   eventId: string,
-  status: "no_match" | "deferred",
+  status: "no_match" | "deferred" | "awaiting_corroboration",
 ) {
   const { error } = await supabase
     .from("tracking_geofence_events")
