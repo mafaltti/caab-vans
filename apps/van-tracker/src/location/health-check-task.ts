@@ -47,6 +47,7 @@ TaskManager.defineTask(HEALTH_CHECK_TASK, async () => {
   } catch (err) {
     const msg = err instanceof Error ? err.message : "unknown";
     logEvent("health_recovery", msg.startsWith("skip:") ? msg : "fail:" + msg);
+    try { await flushLog(); } catch { /* non-fatal */ }
     return BackgroundFetch.BackgroundFetchResult.Failed;
   }
 });
