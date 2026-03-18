@@ -10,6 +10,7 @@ import {
 import { useState, useEffect } from "react";
 import { useRouter } from "expo-router";
 import { getSettings, saveSettings } from "@/storage/settings";
+import { clearTransientRecoveryState } from "@/location/task";
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -54,6 +55,7 @@ export default function SettingsScreen() {
         vanId,
         ingestionToken,
       });
+      await clearTransientRecoveryState();
       setSuccessMessage("Settings saved");
       // Clear success message after 3 seconds
       setTimeout(() => setSuccessMessage(""), 3000);

@@ -20,10 +20,11 @@ TaskManager.defineTask(HEALTH_CHECK_TASK, async () => {
     const isRunning =
       await Location.hasStartedLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
     if (!isRunning) {
-      logEvent("health_recovery", "location_task_restarted");
+      logEvent("health_recovery", "start:health");
       await flushLog();
       const { startTracking } = await import("./tracking");
-      await startTracking();
+      await startTracking({ interactive: false, source: "health" });
+      logEvent("health_recovery", "ok:health");
       return BackgroundFetch.BackgroundFetchResult.NewData;
     }
 
@@ -32,11 +33,12 @@ TaskManager.defineTask(HEALTH_CHECK_TASK, async () => {
     if (lastInvocation) {
       const elapsed = Date.now() - Number(lastInvocation);
       if (elapsed > STALE_THRESHOLD_MS) {
-        logEvent("health_recovery", "stale_task_restarted");
+        logEvent("health_recovery", "start:health");
         await flushLog();
         await Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
         const { startTracking } = await import("./tracking");
-        await startTracking();
+        await startTracking({ interactive: false, source: "health" });
+        logEvent("health_recovery", "ok:health");
         return BackgroundFetch.BackgroundFetchResult.NewData;
       }
     }

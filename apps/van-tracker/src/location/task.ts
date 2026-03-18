@@ -56,6 +56,9 @@ let lastKnownConnected: boolean | null = null;
 const FAILURE_NOTIFICATION_THRESHOLD = 10;
 let failureNotificationSent = false;
 
+// Runtime readiness flag (R2)
+let runtimeReady = false;
+
 const ACCURACY_THRESHOLD = 50; // meters
 const MIN_DISTANCE = 5; // meters
 const MIN_INTERVAL = 3000; // milliseconds
@@ -129,7 +132,7 @@ function setupNetInfoListener(): void {
     if (lastKnownConnected === false && connected === true) {
       consecutiveFailures = 0;
       backoffUntil = 0;
-      logEvent("net_recovery");
+      logEvent("net_recovery", "start:net_recovery");
       // Async recovery in fire-and-forget IIFE (listener expects sync callback)
       (async () => {
         try {
@@ -141,14 +144,14 @@ function setupNetInfoListener(): void {
               await flushBuffer(settings, deviceId);
             }
           }
-          // US6: Check if location task was killed by OS and restart
+          // Check if location task was killed by OS and restart
           const isRunning =
             await Location.hasStartedLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
           if (!isRunning) {
-            logEvent("net_recovery", "restarting_location_task");
             const { startTracking } = await import("./tracking");
-            await startTracking();
+            await startTracking({ interactive: false, source: "net_recovery" });
           }
+          logEvent("net_recovery", "ok:net_recovery");
         } catch {
           // Non-fatal — next task callback will retry
         }
@@ -164,6 +167,73 @@ export function teardownNetInfoListener(): void {
     netInfoUnsubscribe = null;
   }
   lastKnownConnected = null;
+}
+
+export async function ensureTrackingRuntimeReady(): Promise<void> {
+  if (runtimeReady) return;
+  const [
+    storedLat,
+    storedLng,
+    storedTime,
+    storedTs,
+    storedFailures,
+    storedBackoff,
+    storedAuthPaused,
+  ] = await Promise.all([
+    AsyncStorage.getItem("@lastLat"),
+    AsyncStorage.getItem("@lastLng"),
+    getLastSentAt(),
+    AsyncStorage.getItem("@lastSentTs"),
+    AsyncStorage.getItem("@consecutiveFailures"),
+    AsyncStorage.getItem("@backoffUntil"),
+    AsyncStorage.getItem("@authPaused"),
+  ]);
+  if (storedLat !== null && storedLng !== null) {
+    lastSentLat = Number(storedLat);
+    lastSentLng = Number(storedLng);
+  }
+  if (storedTime !== null) {
+    lastSentTime = storedTime;
+  }
+  if (storedTs !== null) {
+    lastSentTs = Number(storedTs);
+  }
+  if (storedFailures !== null) {
+    consecutiveFailures = Number(storedFailures);
+  }
+  if (storedBackoff !== null) {
+    backoffUntil = Number(storedBackoff);
+  }
+  if (storedAuthPaused === "true") {
+    authPaused = true;
+    consecutive401s = 3;
+  }
+  setupNetInfoListener();
+  runtimeReady = true;
+}
+
+export async function clearTransientRecoveryState(): Promise<void> {
+  consecutiveFailures = 0;
+  backoffUntil = 0;
+  consecutive401s = 0;
+  authPaused = false;
+  failureNotificationSent = false;
+  await Promise.all([
+    AsyncStorage.removeItem("@consecutiveFailures"),
+    AsyncStorage.removeItem("@backoffUntil"),
+    AsyncStorage.removeItem("@authPaused"),
+    AsyncStorage.removeItem("@lastError"),
+  ]);
+}
+
+export async function resetRuntimeForStop(): Promise<void> {
+  await clearTransientRecoveryState();
+  teardownNetInfoListener();
+  lastSentLat = null;
+  lastSentLng = null;
+  lastSentTime = 0;
+  lastSentTs = 0;
+  runtimeReady = false;
 }
 
 // US4: Alert driver after prolonged delivery failure
@@ -304,46 +374,9 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
   };
 
   // Cold-start hydration — restore state from AsyncStorage on first callback
-  if (lastSentLat === null) {
-    const [
-      storedLat,
-      storedLng,
-      storedTime,
-      storedTs,
-      storedFailures,
-      storedBackoff,
-      storedAuthPaused,
-    ] = await Promise.all([
-      AsyncStorage.getItem("@lastLat"),
-      AsyncStorage.getItem("@lastLng"),
-      getLastSentAt(),
-      AsyncStorage.getItem("@lastSentTs"),
-      AsyncStorage.getItem("@consecutiveFailures"),
-      AsyncStorage.getItem("@backoffUntil"),
-      AsyncStorage.getItem("@authPaused"),
-    ]);
-    if (storedLat !== null && storedLng !== null) {
-      lastSentLat = Number(storedLat);
-      lastSentLng = Number(storedLng);
-    }
-    if (storedTime !== null) {
-      lastSentTime = storedTime;
-    }
-    if (storedTs !== null) {
-      lastSentTs = Number(storedTs);
-    }
-    if (storedFailures !== null) {
-      consecutiveFailures = Number(storedFailures);
-    }
-    if (storedBackoff !== null) {
-      backoffUntil = Number(storedBackoff);
-    }
-    if (storedAuthPaused === "true") {
-      authPaused = true;
-      consecutive401s = 3;
-    }
+  if (!runtimeReady) {
+    await ensureTrackingRuntimeReady();
     logEvent("cold_start");
-    setupNetInfoListener();
   }
 
   // Accuracy filter — drop inaccurate points

@@ -105,7 +105,7 @@ export default function HomeScreen() {
     setLoading(true);
     setActionError(null);
     try {
-      await startTracking();
+      await startTracking({ interactive: true, source: "manual" });
       setTracking(true);
     } catch (err) {
       setActionError(
@@ -122,7 +122,7 @@ export default function HomeScreen() {
     setShowTaskKillModal(false);
     try {
       await stopTracking();
-      await startTracking();
+      await startTracking({ interactive: true, source: "manual" });
       setTracking(true);
     } catch (err) {
       setActionError(

@@ -11,7 +11,7 @@ import {
 import { logEvent, flushLog } from "@/storage/diag-log";
 import { getSettings } from "@/storage/settings";
 import { fetchTrackerConfig } from "@/api/config";
-import { BACKGROUND_LOCATION_TASK, teardownNetInfoListener } from "./task";
+import { BACKGROUND_LOCATION_TASK, ensureTrackingRuntimeReady, resetRuntimeForStop } from "./task";
 import { GEOFENCE_TASK } from "./geofence-task";
 import { registerHealthCheck, unregisterHealthCheck } from "./health-check-task";
 
@@ -44,36 +44,68 @@ async function updateLocationAccuracy(highAccuracy: boolean): Promise<void> {
   });
 }
 
-export async function startTracking(): Promise<void> {
+export async function startTracking(options?: {
+  interactive?: boolean;
+  source?: "manual" | "boot" | "health" | "net_recovery";
+}): Promise<void> {
+  const interactive = options?.interactive ?? true;
+  const source = options?.source ?? "manual";
+
   // Clean up existing battery listener to prevent leaks on recovery restarts
   if (batterySubscription) {
     batterySubscription.remove();
     batterySubscription = null;
   }
 
-  const { status: fgStatus } =
-    await Location.requestForegroundPermissionsAsync();
-  if (fgStatus !== "granted") {
-    throw new Error(
-      "Foreground location permission denied. Please enable location access in Settings.",
-    );
-  }
+  await ensureTrackingRuntimeReady();
 
-  const { status: bgStatus } =
-    await Location.requestBackgroundPermissionsAsync();
-  if (bgStatus !== "granted") {
-    throw new Error(
-      'Background location permission denied. Please select "Allow all the time" in Settings.',
-    );
-  }
-
-  if (Platform.OS === "android" && Platform.Version >= 33) {
-    const { status: notifStatus } =
-      await Notifications.requestPermissionsAsync();
-    if (notifStatus !== "granted") {
-      console.warn(
-        "[CAAB Tracker] Notification permission not granted; foreground service notification may not show.",
+  if (interactive) {
+    const { status: fgStatus } =
+      await Location.requestForegroundPermissionsAsync();
+    if (fgStatus !== "granted") {
+      throw new Error(
+        "Foreground location permission denied. Please enable location access in Settings.",
       );
+    }
+
+    const { status: bgStatus } =
+      await Location.requestBackgroundPermissionsAsync();
+    if (bgStatus !== "granted") {
+      throw new Error(
+        'Background location permission denied. Please select "Allow all the time" in Settings.',
+      );
+    }
+
+    if (Platform.OS === "android" && Platform.Version >= 33) {
+      const { status: notifStatus } =
+        await Notifications.requestPermissionsAsync();
+      if (notifStatus !== "granted") {
+        console.warn(
+          "[CAAB Tracker] Notification permission not granted; foreground service notification may not show.",
+        );
+      }
+    }
+  } else {
+    const { status: fgStatus } =
+      await Location.getForegroundPermissionsAsync();
+    if (fgStatus !== "granted") {
+      throw new Error("skip:fg_permission_missing");
+    }
+
+    const { status: bgStatus } =
+      await Location.getBackgroundPermissionsAsync();
+    if (bgStatus !== "granted") {
+      throw new Error("skip:bg_permission_missing");
+    }
+
+    if (Platform.OS === "android" && Platform.Version >= 33) {
+      const { status: notifStatus } =
+        await Notifications.getPermissionsAsync();
+      if (notifStatus !== "granted") {
+        console.warn(
+          "[CAAB Tracker] Notification permission not granted (non-interactive check).",
+        );
+      }
     }
   }
 
@@ -93,13 +125,20 @@ export async function startTracking(): Promise<void> {
 
   await setTrackingEnabled(true);
   try {
-    logEvent("tracking_start");
+    logEvent("tracking_start", "start:" + source);
     await flushLog();
   } catch {
     // Diagnostics should never block tracking lifecycle
   }
 
-  // Register geofence regions after location updates start
+  // Register cached geofences first for immediate stop detection (R4)
+  try {
+    await registerGeofencesFromCache();
+  } catch {
+    // Geofence cache registration failure is non-fatal
+  }
+
+  // Then fetch and register from remote config
   try {
     await registerGeofences();
   } catch {
@@ -161,7 +200,7 @@ export async function stopTracking(): Promise<void> {
     // Geofence cleanup failure is non-fatal
   }
 
-  teardownNetInfoListener();
+  await resetRuntimeForStop();
   try {
     await unregisterHealthCheck();
   } catch {
