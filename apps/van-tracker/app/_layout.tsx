@@ -12,6 +12,7 @@ import {
   syncTrackingStateToDeviceProtected,
 } from "@/storage/device-protected-state";
 import { logEvent, flushLog } from "@/storage/diag-log";
+import { useKeepAwakeWhileForeground } from "@/hooks/useKeepAwakeWhileForeground";
 
 Sentry.init({
   dsn: "https://b223f5cc68a43affcb6a932af31b4350@o4510995190972416.ingest.us.sentry.io/4510995205128192",
@@ -21,6 +22,8 @@ Sentry.init({
 });
 
 function RootLayout() {
+  useKeepAwakeWhileForeground();
+
   useEffect(() => {
     (async () => {
       let bootTrigger: string | null = null;
@@ -70,6 +73,7 @@ function RootLayout() {
       <Stack.Screen name="index" options={{ title: "CAAB Tracker" }} />
       <Stack.Screen name="settings" options={{ title: "Settings" }} />
       <Stack.Screen name="diagnostics" options={{ title: "Diagnostics" }} />
+      <Stack.Screen name="driver" options={{ title: "Driver" }} />
     </Stack>
   );
 }

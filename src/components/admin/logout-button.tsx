@@ -4,7 +4,11 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
 
-export function AdminLogoutButton() {
+export function AdminLogoutButton({
+  redirectTo = "/admin/login",
+}: {
+  redirectTo?: string;
+} = {}) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
 
@@ -18,7 +22,7 @@ export function AdminLogoutButton() {
         setLoading(false);
         return;
       }
-      window.location.href = "/admin/login";
+      window.location.href = redirectTo;
     } catch {
       setError(true);
       setLoading(false);

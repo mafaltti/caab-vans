@@ -29,10 +29,16 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const pathname = request.nextUrl.pathname;
-  const isLoginPage = pathname.startsWith("/admin/login");
+  const isLoginPage =
+    pathname.startsWith("/admin/login") ||
+    pathname.startsWith("/driver/login");
 
   if (!user && !isLoginPage) {
-    const loginUrl = new URL("/admin/login", request.url);
+    const isDriverPath = pathname.startsWith("/driver");
+    const loginUrl = new URL(
+      isDriverPath ? "/driver/login" : "/admin/login",
+      request.url,
+    );
     const redirect = NextResponse.redirect(loginUrl);
     redirect.headers.set("Cache-Control", "no-store");
     return redirect;
