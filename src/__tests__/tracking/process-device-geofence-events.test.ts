@@ -314,7 +314,7 @@ describe("processDeviceGeofenceEvents", () => {
     expect(mock._stopUpdates[0].payload).toMatchObject({
       status: "passed",
       pass_source: "device_geofence",
-      pass_confidence: 0.9,
+      pass_confidence: 0.85,
     });
     expect(mock._stopUpdates[0].filters).toMatchObject({
       schedule_entry_id: "entry-1350",
@@ -409,8 +409,7 @@ describe("processDeviceGeofenceEvents", () => {
     });
   });
 
-  it("adds GPS corroboration confidence bonus when ping is within radius", async () => {
-    // Ping ~5m from stop, well within 50m geofence
+  it("transitions to awaiting_corroboration when GPS stream exists", async () => {
     const nearPing = { lat: -12.97143, lng: -38.51237 };
 
     const mock = createMockSupabase({
@@ -426,8 +425,15 @@ describe("processDeviceGeofenceEvents", () => {
       geofenceEvents: [{ placeId, enteredAt, eventId: "ev-gps" }],
     });
 
-    expect(result).toContain("ev-gps");
-    expect(mock._stopUpdates[0].payload.pass_confidence).toBe(0.95);
+    expect(result).toHaveLength(0);
+    expect(mock._stopUpdates).toHaveLength(0);
+    expect(mock._runUpdates).toHaveLength(0);
+    expect(mock._eventUpdates).toHaveLength(1);
+    expect(mock._eventUpdates[0].payload).toMatchObject({
+      status: "awaiting_corroboration",
+      matched_run_id: "run-1",
+      matched_schedule_entry_id: "entry-1350",
+    });
   });
 
   it("does not backfill predecessor", async () => {
@@ -846,5 +852,84 @@ describe("processDeviceGeofenceEvents", () => {
       status: "passed",
       pass_source: "device_geofence",
     });
+  });
+
+  it("event transitions to awaiting_corroboration when GPS stream exists (far ping)", async () => {
+    const mock = createMockSupabase({
+      activeShift: { id: "shift-1" },
+      pendingStops: [pendingStop("entry-1350", "13:50")],
+      recentPings: [{ lat: -12.97, lng: -38.51 }],
+    });
+
+    const result = await processDeviceGeofenceEvents({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase: mock as any,
+      vanId,
+      geofenceEvents: [{ placeId, enteredAt, eventId: "ev-await" }],
+    });
+
+    expect(result).toHaveLength(0);
+    expect(mock._stopUpdates).toHaveLength(0);
+    expect(mock._runUpdates).toHaveLength(0);
+    expect(mock._eventUpdates).toHaveLength(1);
+    expect(mock._eventUpdates[0].payload).toMatchObject({
+      status: "awaiting_corroboration",
+      matched_run_id: "run-1",
+      matched_schedule_entry_id: "entry-1350",
+    });
+  });
+
+  it("immediate no-GPS fallback confirms at 0.85 confidence", async () => {
+    const mock = createMockSupabase({
+      activeShift: { id: "shift-1" },
+      pendingStops: [pendingStop("entry-1350", "13:50")],
+      recentPings: [],
+    });
+
+    const result = await processDeviceGeofenceEvents({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase: mock as any,
+      vanId,
+      geofenceEvents: [{ placeId, enteredAt, eventId: "ev-no-gps" }],
+    });
+
+    expect(result).toContain("ev-no-gps");
+    expect(mock._stopUpdates).toHaveLength(1);
+    expect(mock._stopUpdates[0].payload).toMatchObject({
+      status: "passed",
+      pass_source: "device_geofence",
+      pass_confidence: 0.85,
+    });
+    expect(mock._eventUpdates).toHaveLength(1);
+    expect(mock._eventUpdates[0].payload).toMatchObject({
+      status: "matched",
+      matched_run_id: "run-1",
+      matched_schedule_entry_id: "entry-1350",
+    });
+  });
+
+  it("duplicate event with awaiting_corroboration status is skipped", async () => {
+    const mock = createMockSupabase({
+      insertReturns: [],
+      existingEvent: {
+        status: "awaiting_corroboration",
+        matched_schedule_entry_id: "entry-1350",
+        matched_run_id: "run-1",
+      },
+      activeShift: { id: "shift-1" },
+      pendingStops: [pendingStop("entry-1350", "13:50")],
+    });
+
+    const result = await processDeviceGeofenceEvents({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase: mock as any,
+      vanId,
+      geofenceEvents: [{ placeId, enteredAt, eventId: "ev-dup-await" }],
+    });
+
+    expect(result).toHaveLength(0);
+    expect(mock._stopUpdates).toHaveLength(0);
+    expect(mock._eventUpdates).toHaveLength(0);
+    expect(mock._runUpdates).toHaveLength(0);
   });
 });

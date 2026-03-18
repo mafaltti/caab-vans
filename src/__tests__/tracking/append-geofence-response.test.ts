@@ -362,4 +362,23 @@ describe("appendGeofenceResponse", () => {
     );
     expect(response.processedEventIds).toHaveLength(2);
   });
+
+  it("awaiting_corroboration events NOT included in processedEventIds", async () => {
+    // An event in "awaiting_corroboration" status is NOT returned by the
+    // status filter (matched/deferred only), so it should not be acknowledged.
+    const mock = createMockSupabase({
+      confirmedEvents: [], // query returns nothing for awaiting_corroboration
+    });
+
+    const response: Record<string, unknown> = {};
+    await appendGeofenceResponse(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mock as any,
+      "van-1",
+      ["ev-awaiting"],
+      response,
+    );
+
+    expect(response.processedEventIds).toEqual([]);
+  });
 });
