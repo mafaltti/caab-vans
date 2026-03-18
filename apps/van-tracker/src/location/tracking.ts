@@ -57,8 +57,6 @@ export async function startTracking(options?: {
     batterySubscription = null;
   }
 
-  await ensureTrackingRuntimeReady();
-
   if (interactive) {
     const { status: fgStatus } =
       await Location.requestForegroundPermissionsAsync();
@@ -108,6 +106,8 @@ export async function startTracking(options?: {
       }
     }
   }
+
+  await ensureTrackingRuntimeReady();
 
   await Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK, {
     accuracy: Location.Accuracy.High,

@@ -44,7 +44,9 @@ TaskManager.defineTask(HEALTH_CHECK_TASK, async () => {
     }
 
     return BackgroundFetch.BackgroundFetchResult.NoData;
-  } catch {
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "unknown";
+    logEvent("health_recovery", msg.startsWith("skip:") ? msg : "fail:" + msg);
     return BackgroundFetch.BackgroundFetchResult.Failed;
   }
 });

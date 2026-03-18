@@ -152,8 +152,9 @@ function setupNetInfoListener(): void {
             await startTracking({ interactive: false, source: "net_recovery" });
           }
           logEvent("net_recovery", "ok:net_recovery");
-        } catch {
-          // Non-fatal — next task callback will retry
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : "unknown";
+          logEvent("net_recovery", msg.startsWith("skip:") ? msg : "fail:" + msg);
         }
       })();
     }
@@ -234,6 +235,12 @@ export async function resetRuntimeForStop(): Promise<void> {
   lastSentTime = 0;
   lastSentTs = 0;
   runtimeReady = false;
+  await Promise.all([
+    AsyncStorage.removeItem("@lastLat"),
+    AsyncStorage.removeItem("@lastLng"),
+    AsyncStorage.removeItem("@lastSentTs"),
+    AsyncStorage.removeItem("@lastSentAt"),
+  ]);
 }
 
 // US4: Alert driver after prolonged delivery failure
