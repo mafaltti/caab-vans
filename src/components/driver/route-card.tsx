@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { MapPin, Clock, Play, Square, ChevronRight } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { fetchWithDriverAuth } from "@/lib/api/fetch-with-driver-auth";
 import type { DriverRoute, RunStatus } from "@/types";
 
@@ -70,6 +71,7 @@ function getBrowserLocation(): Promise<{ lat: number; lng: number } | null> {
 }
 
 export function RouteCard({ route, userId, onUpdate }: RouteCardProps) {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showEndDialog, setShowEndDialog] = useState(false);
@@ -130,10 +132,12 @@ export function RouteCard({ route, userId, onUpdate }: RouteCardProps) {
         setColdStart(data.coldStart);
         setSelectedStopId(data.coldStart.suggestedStop?.id ?? null);
         setShowColdStartDialog(true);
-        // Apply start data immediately (shift is already created)
-        applyStartData(data);
+        // Don't applyStartData here — the shift exists server-side but updating
+        // the cache would trigger the parent's auto-redirect, unmounting this
+        // dialog before the driver confirms their current stop.
       } else {
         applyStartData(data);
+        router.push(`/driver/routes/${route.id}`);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao iniciar turno");
@@ -162,16 +166,12 @@ export function RouteCard({ route, userId, onUpdate }: RouteCardProps) {
       }
       setShowColdStartDialog(false);
       setColdStart(null);
+      router.push(`/driver/routes/${route.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao confirmar parada");
     } finally {
       setConfirmLoading(false);
     }
-  }
-
-  function handleDismissColdStart() {
-    setShowColdStartDialog(false);
-    setColdStart(null);
   }
 
   async function handleEnd() {
@@ -324,6 +324,21 @@ export function RouteCard({ route, userId, onUpdate }: RouteCardProps) {
               desfeita.
             </DialogDescription>
           </DialogHeader>
+          {activeShift?.startedAt && (
+            <div className="border-t pt-3 mt-3 text-sm text-zinc-600">
+              <p>
+                Duração:{" "}
+                {(() => {
+                  const elapsed = Math.floor(
+                    (Date.now() - new Date(activeShift.startedAt).getTime()) / 1000,
+                  );
+                  const hours = Math.floor(elapsed / 3600);
+                  const minutes = Math.floor((elapsed % 3600) / 60);
+                  return hours > 0 ? `${hours}h ${minutes}min` : `${minutes} min`;
+                })()}
+              </p>
+            </div>
+          )}
           {error && <p className="text-sm text-red-600">{error}</p>}
           <DialogFooter>
             <Button
@@ -347,9 +362,7 @@ export function RouteCard({ route, userId, onUpdate }: RouteCardProps) {
       {/* Cold-Start Confirmation Dialog */}
       <Dialog
         open={showColdStartDialog}
-        onOpenChange={(open) => {
-          if (!open) handleDismissColdStart();
-        }}
+        onOpenChange={() => {}}
       >
         <DialogContent>
           <DialogHeader>
@@ -413,13 +426,6 @@ export function RouteCard({ route, userId, onUpdate }: RouteCardProps) {
           {error && <p className="text-sm text-red-600">{error}</p>}
 
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={handleDismissColdStart}
-              disabled={confirmLoading}
-            >
-              Pular
-            </Button>
             <Button
               onClick={handleConfirmColdStart}
               disabled={confirmLoading || !selectedStopId}

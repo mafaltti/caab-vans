@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
@@ -47,7 +48,9 @@ export default async function DriverLayout({
   return (
     <div className="flex min-h-screen flex-col bg-zinc-50">
       <header className="flex items-center justify-between border-b border-zinc-200 bg-white px-4 py-3">
-        <h1 className="text-sm font-semibold text-zinc-900">CAAB Vans</h1>
+        <Link href="/driver">
+          <h1 className="text-sm font-semibold text-zinc-900">CAAB Vans</h1>
+        </Link>
         <AdminLogoutButton redirectTo="/driver/login" />
       </header>
       <main className="flex-1 p-4">{children}</main>
