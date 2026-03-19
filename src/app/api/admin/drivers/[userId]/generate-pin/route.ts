@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import bcrypt from "bcryptjs";
-import { createHash, randomInt } from "crypto";
+import { createHmac, randomInt } from "crypto";
 import { requireRole } from "@/lib/api/auth";
 import { apiError } from "@/lib/api/errors";
 import { createServiceClient } from "@/lib/supabase/server";
@@ -35,7 +35,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     const pin = randomInt(0, 1_000_000).toString().padStart(6, "0");
     const pin_hash = await bcrypt.hash(pin, 10);
-    const pin_digest = createHash("sha256").update(pin).digest("hex");
+    const pin_digest = createHmac("sha256", process.env.PIN_PEPPER!).update(pin).digest("hex");
 
     const { error: dbError } = await supabase.from("driver_pins").upsert(
       {

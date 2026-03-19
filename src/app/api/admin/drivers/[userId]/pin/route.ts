@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod/v4";
 import bcrypt from "bcryptjs";
-import { createHash } from "crypto";
+import { createHmac } from "crypto";
 import { requireRole } from "@/lib/api/auth";
 import { apiError, validationError } from "@/lib/api/errors";
 import { createServiceClient } from "@/lib/supabase/server";
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 
   const pin_hash = await bcrypt.hash(pin, 10);
-  const pin_digest = createHash("sha256").update(pin).digest("hex");
+  const pin_digest = createHmac("sha256", process.env.PIN_PEPPER!).update(pin).digest("hex");
 
   const { error: dbError } = await supabase.from("driver_pins").upsert(
     {

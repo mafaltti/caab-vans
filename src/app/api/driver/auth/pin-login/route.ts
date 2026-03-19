@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod/v4";
 import bcrypt from "bcryptjs";
-import { createHash } from "crypto";
+import { createHmac } from "crypto";
 import { apiError, validationError } from "@/lib/api/errors";
 import { createRateLimiter } from "@/lib/api/rate-limit";
 import { createServiceClient, createSessionClient } from "@/lib/supabase/server";
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
 
   const { pin } = parsed.data;
 
-  const digest = createHash("sha256").update(pin).digest("hex");
+  const digest = createHmac("sha256", process.env.PIN_PEPPER!).update(pin).digest("hex");
 
   const supabase = createServiceClient();
 

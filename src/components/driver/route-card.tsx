@@ -132,8 +132,9 @@ export function RouteCard({ route, userId, onUpdate }: RouteCardProps) {
         setColdStart(data.coldStart);
         setSelectedStopId(data.coldStart.suggestedStop?.id ?? null);
         setShowColdStartDialog(true);
-        // Apply start data immediately (shift is already created)
-        applyStartData(data);
+        // Don't applyStartData here — the shift exists server-side but updating
+        // the cache would trigger the parent's auto-redirect, unmounting this
+        // dialog before the driver confirms their current stop.
       } else {
         applyStartData(data);
         router.push(`/driver/routes/${route.id}`);
