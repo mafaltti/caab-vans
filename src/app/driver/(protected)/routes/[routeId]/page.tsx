@@ -22,6 +22,7 @@ import { ShiftTimer } from "@/components/driver/active-route/shift-timer";
 import { ConnectionBanner } from "@/components/driver/active-route/connection-banner";
 import { ScheduleTimeline } from "@/components/public/schedule-timeline";
 import { fetchWithDriverAuth } from "@/lib/api/fetch-with-driver-auth";
+import type { DriverRoute } from "@/types";
 
 type DriverRouteResponse = {
   route: {
@@ -213,9 +214,24 @@ export default function ActiveRoutePage() {
         return;
       }
       setShowEndDialog(false);
-      // Invalidate the route list cache so the driver page doesn't see
-      // a stale activeShift and redirect back here.
-      await queryClient.invalidateQueries({ queryKey: ["driver-routes"] });
+      // Clear the activeShift from cached route list data so the driver
+      // page doesn't see a stale shift and redirect back here.
+      // setQueryData replaces the data synchronously, unlike invalidateQueries
+      // which only marks stale but still returns old data on next mount.
+      queryClient.setQueryData<{ routes: DriverRoute[]; userId: string }>(
+        ["driver-routes"],
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            routes: old.routes.map((r) =>
+              r.id === params.routeId
+                ? { ...r, activeShift: null, runStatus: "idle" as const }
+                : r,
+            ),
+          };
+        },
+      );
       router.replace("/driver");
     } catch (err) {
       setEndError(err instanceof Error ? err.message : "Erro ao encerrar turno");
