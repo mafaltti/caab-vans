@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
@@ -32,6 +33,13 @@ export default function AdminUserEditPage() {
   const [toggleDialog, setToggleDialog] = useState(false);
   const [toggling, setToggling] = useState(false);
   const [toggleError, setToggleError] = useState("");
+  const [pinDialogOpen, setPinDialogOpen] = useState(false);
+  const [pinInput, setPinInput] = useState("");
+  const [pinSaving, setPinSaving] = useState(false);
+  const [pinError, setPinError] = useState("");
+  const [generatedPin, setGeneratedPin] = useState("");
+  const [showGeneratedPin, setShowGeneratedPin] = useState(false);
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     fetch("/api/admin/users")
@@ -69,6 +77,48 @@ export default function AdminUserEditPage() {
     }
 
     router.push("/admin/users");
+  }
+
+  async function handleGeneratePin() {
+    setGenerating(true);
+    try {
+      const res = await fetch(`/api/admin/drivers/${userId}/generate-pin`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error?.message ?? "Erro ao gerar PIN");
+        return;
+      }
+      setGeneratedPin(data.pin);
+      setShowGeneratedPin(true);
+    } catch {
+      alert("Erro de conexão");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  async function handleSetPin() {
+    setPinSaving(true);
+    setPinError("");
+    try {
+      const res = await fetch(`/api/admin/drivers/${userId}/pin`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin: pinInput }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setPinError(data.error?.message ?? "Erro ao definir PIN");
+        return;
+      }
+      setPinDialogOpen(false);
+    } catch {
+      setPinError("Erro de conexão");
+    } finally {
+      setPinSaving(false);
+    }
   }
 
   async function handleToggleActive() {
@@ -168,6 +218,101 @@ export default function AdminUserEditPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {user.role === "driver" && (
+        <>
+          <div className="border-t pt-4">
+            <div className="space-y-3">
+              <Label>PIN de acesso</Label>
+              <p className="text-sm text-zinc-500">
+                O motorista pode usar um PIN de 6 dígitos para login rápido.
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleGeneratePin}
+                  disabled={generating}
+                >
+                  {generating ? "Gerando..." : "Gerar PIN"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setPinDialogOpen(true);
+                    setPinInput("");
+                    setPinError("");
+                  }}
+                >
+                  Definir PIN
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Set PIN Dialog */}
+          <Dialog open={pinDialogOpen} onOpenChange={setPinDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Definir PIN</DialogTitle>
+                <DialogDescription>
+                  Digite um PIN de 6 dígitos para o motorista.
+                </DialogDescription>
+              </DialogHeader>
+              <Input
+                value={pinInput}
+                onChange={(e) =>
+                  setPinInput(e.target.value.replace(/\D/g, "").slice(0, 6))
+                }
+                placeholder="000000"
+                maxLength={6}
+                className="text-center text-lg tracking-widest"
+              />
+              {pinError && (
+                <p className="text-sm text-red-600">{pinError}</p>
+              )}
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setPinDialogOpen(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleSetPin}
+                  disabled={pinSaving || pinInput.length !== 6}
+                >
+                  {pinSaving ? "Salvando..." : "Salvar"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Generated PIN Dialog */}
+          <Dialog
+            open={showGeneratedPin}
+            onOpenChange={setShowGeneratedPin}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>PIN gerado</DialogTitle>
+                <DialogDescription>
+                  Este PIN será exibido apenas uma vez. Anote-o agora.
+                </DialogDescription>
+              </DialogHeader>
+              <p className="text-center text-3xl font-mono font-bold tracking-widest">
+                {generatedPin}
+              </p>
+              <DialogFooter>
+                <Button onClick={() => setShowGeneratedPin(false)}>
+                  Entendido
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </>
+      )}
     </div>
   );
 }

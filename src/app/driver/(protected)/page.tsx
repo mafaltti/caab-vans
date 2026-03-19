@@ -1,36 +1,48 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { fetchWithDriverAuth } from "@/lib/api/fetch-with-driver-auth";
+import { useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { useDriverRoutes } from "@/lib/queries/use-driver-routes";
 import { RouteCard } from "@/components/driver/route-card";
 import type { DriverRoute } from "@/types";
 import { MapPin } from "lucide-react";
 
 export default function DriverPage() {
-  const [routes, setRoutes] = useState<DriverRoute[]>([]);
-  const [userId, setUserId] = useState("");
-  const [loading, setLoading] = useState(true);
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const { data, isLoading } = useDriverRoutes();
+  const didRedirect = useRef(false);
 
-  const didFetch = useRef(false);
+  const routes = data?.routes ?? [];
+  const userId = data?.userId ?? "";
+
+  // T006: Auto-redirect to active shift
   useEffect(() => {
-    if (didFetch.current) return;
-    didFetch.current = true;
-    fetchWithDriverAuth("/api/driver/routes")
-      .then((res) => res.json())
-      .then((data) => {
-        setRoutes(data.routes ?? []);
-        setUserId(data.userId ?? "");
-      })
-      .finally(() => setLoading(false));
-  }, []);
+    if (!data || didRedirect.current) return;
+    const activeRoute = data.routes.find(
+      (r) => r.activeShift?.driverId === data.userId,
+    );
+    if (activeRoute) {
+      didRedirect.current = true;
+      router.replace(`/driver/routes/${activeRoute.id}`);
+    }
+  }, [data, router]);
 
   function handleRouteUpdate(updated: DriverRoute) {
-    setRoutes((prev) =>
-      prev.map((r) => (r.id === updated.id ? updated : r)),
+    queryClient.setQueryData<{ routes: DriverRoute[]; userId: string }>(
+      ["driver-routes"],
+      (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          routes: old.routes.map((r) => (r.id === updated.id ? updated : r)),
+        };
+      },
     );
   }
 
-  if (loading) {
+  if (isLoading) {
     return <div className="text-sm text-zinc-500">Carregando...</div>;
   }
 

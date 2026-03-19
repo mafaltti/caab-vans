@@ -10,6 +10,7 @@ type NextStopHeroProps = {
   etaMinutes: number | null;
   delayMinutes: number | null;
   etaStatus: "estimated" | "overdue" | "none";
+  highlighted?: boolean;
 };
 
 function DelayBadge({ delayMinutes }: { delayMinutes: number }) {
@@ -36,6 +37,7 @@ export function NextStopHero({
   etaMinutes,
   delayMinutes,
   etaStatus,
+  highlighted,
 }: NextStopHeroProps) {
   if (!stopName) {
     return (
@@ -51,7 +53,7 @@ export function NextStopHero({
   }
 
   return (
-    <Card>
+    <Card className={highlighted ? "animate-pulse" : ""}>
       <CardContent className="space-y-4">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
           <Navigation className="size-4" />

@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { NextStopHero } from "@/components/driver/active-route/next-stop-hero";
 import { TrackerHealth } from "@/components/driver/active-route/tracker-health";
 import { ExceptionDrawer } from "@/components/driver/active-route/exception-drawer";
+import { ShiftTimer } from "@/components/driver/active-route/shift-timer";
+import { ConnectionBanner } from "@/components/driver/active-route/connection-banner";
 import { ScheduleTimeline } from "@/components/public/schedule-timeline";
 import { fetchWithDriverAuth } from "@/lib/api/fetch-with-driver-auth";
 
@@ -102,6 +104,14 @@ async function fetchDriverRoute(routeId: string, signal?: AbortSignal): Promise<
   return res.json();
 }
 
+function formatDuration(startedAt: string): string {
+  const elapsed = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000);
+  const hours = Math.floor(elapsed / 3600);
+  const minutes = Math.floor((elapsed % 3600) / 60);
+  if (hours > 0) return `${hours}h ${minutes}min`;
+  return `${minutes} min`;
+}
+
 export default function ActiveRoutePage() {
   const params = useParams<{ routeId: string }>();
   const router = useRouter();
@@ -111,7 +121,11 @@ export default function ActiveRoutePage() {
   const [endLoading, setEndLoading] = useState(false);
   const [endError, setEndError] = useState("");
 
-  const { data, isLoading, error } = useQuery({
+  // T013: Stop advancement detection
+  const previousNextStopId = useRef<string | null>(null);
+  const [showStopAdvanced, setShowStopAdvanced] = useState(false);
+
+  const { data, isLoading, error, dataUpdatedAt } = useQuery({
     queryKey: ["driver-route", params.routeId],
     queryFn: ({ signal }) => fetchDriverRoute(params.routeId, signal),
     refetchInterval: 5_000,
@@ -119,6 +133,22 @@ export default function ActiveRoutePage() {
   });
 
   const route = data?.route;
+
+  // T013: Detect stop advancement
+  useEffect(() => {
+    const currentNextStopId = route?.progress?.nextStopId ?? null;
+    if (
+      previousNextStopId.current !== null &&
+      currentNextStopId !== previousNextStopId.current
+    ) {
+      navigator.vibrate?.(200);
+      setShowStopAdvanced(true);
+      const timeout = setTimeout(() => setShowStopAdvanced(false), 3000);
+      previousNextStopId.current = currentNextStopId;
+      return () => clearTimeout(timeout);
+    }
+    previousNextStopId.current = currentNextStopId;
+  }, [route?.progress?.nextStopId]);
 
   // Skip-stop mutation
   const skipMutation = useMutation({
@@ -195,6 +225,22 @@ export default function ActiveRoutePage() {
   const nextStopId = route?.progress?.nextStopId ?? null;
   const nextStopEntry = nextStopId ? route?.schedule.find((s) => s.id === nextStopId) : null;
 
+  // T007: Progress indicator computation
+  const passedCount = (route?.progress?.passedStopIds?.length ?? 0) + (route?.progress?.skippedStopIds?.length ?? 0);
+  const totalStops = route?.schedule.length ?? 0;
+
+  // T014: Shift-end summary computation
+  const shiftStartedAt = route?.progress?.shiftStartedAt;
+  const endSummaryPassed = shiftStartedAt
+    ? route?.schedule.filter(
+        (s) =>
+          s.status === "passed" &&
+          s.passedAt &&
+          new Date(s.passedAt) >= new Date(shiftStartedAt),
+      ).length ?? 0
+    : 0;
+  const endSummarySkipped = route?.schedule.filter((s) => s.status === "skipped").length ?? 0;
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -230,7 +276,13 @@ export default function ActiveRoutePage() {
           <Button variant="ghost" size="icon" onClick={() => router.back()} className="-ml-2">
             <ArrowLeft className="size-5" />
           </Button>
-          <h1 className="text-lg font-semibold text-zinc-900">{route.name}</h1>
+          <div>
+            <h1 className="text-lg font-semibold text-zinc-900">{route.name}</h1>
+            {/* T009: Shift timer */}
+            {route.progress?.shiftStartedAt && (
+              <ShiftTimer shiftStartedAt={route.progress.shiftStartedAt} />
+            )}
+          </div>
         </div>
         <ExceptionDrawer
           nextStopId={nextStopId}
@@ -243,6 +295,26 @@ export default function ActiveRoutePage() {
           loading={skipMutation.isPending || detourMutation.isPending}
         />
       </div>
+
+      {/* T011: Connection banner */}
+      {route.progress?.runStatus === "in_progress" && (
+        <ConnectionBanner dataUpdatedAt={dataUpdatedAt} />
+      )}
+
+      {/* T007: Progress indicator */}
+      {route.progress?.runStatus === "in_progress" && (
+        <div className="space-y-1">
+          <p className="text-sm text-zinc-600">
+            {passedCount} de {totalStops} paradas
+          </p>
+          <div className="h-1.5 w-full rounded-full bg-zinc-200">
+            <div
+              className="h-1.5 rounded-full bg-green-500"
+              style={{ width: `${totalStops > 0 ? (passedCount / totalStops) * 100 : 0}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Detour banner */}
       {route.progress?.isDetourActive && (
@@ -268,6 +340,7 @@ export default function ActiveRoutePage() {
         etaMinutes={route.progress?.etaNextStopMinutes ?? null}
         delayMinutes={route.progress?.delayMinutes ?? null}
         etaStatus={route.progress?.etaStatus ?? "none"}
+        highlighted={showStopAdvanced}
       />
 
       {/* Tracker health */}
@@ -306,6 +379,14 @@ export default function ActiveRoutePage() {
               Tem certeza que deseja encerrar seu turno? Esta ação não pode ser desfeita.
             </DialogDescription>
           </DialogHeader>
+          {/* T014: Shift-end summary */}
+          {shiftStartedAt && (
+            <div className="border-t pt-3 mt-3 space-y-1 text-sm text-zinc-600">
+              <p>Duração: {formatDuration(shiftStartedAt)}</p>
+              <p>Paradas realizadas: {endSummaryPassed}</p>
+              <p>Paradas puladas: {endSummarySkipped}</p>
+            </div>
+          )}
           {endError && <p className="text-sm text-red-600">{endError}</p>}
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEndDialog(false)} disabled={endLoading}>
