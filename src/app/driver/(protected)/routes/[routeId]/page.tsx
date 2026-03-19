@@ -1,8 +1,8 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { ArrowLeft, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -113,9 +113,11 @@ function formatDuration(startedAt: string): string {
   return `${minutes} min`;
 }
 
-export default function ActiveRoutePage() {
+function ActiveRouteContent() {
   const params = useParams<{ routeId: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const vanId = searchParams.get("vanId");
   const queryClient = useQueryClient();
 
   const [showEndDialog, setShowEndDialog] = useState(false);
@@ -190,12 +192,13 @@ export default function ActiveRoutePage() {
   });
 
   // Redirect to route list if no active shift
+  const driverUrl = vanId ? `/driver?vanId=${vanId}` : "/driver";
   const shouldRedirect = !isLoading && route != null && !route.isRunning;
   useEffect(() => {
     if (shouldRedirect) {
-      router.replace("/driver");
+      router.replace(driverUrl);
     }
-  }, [shouldRedirect, router]);
+  }, [shouldRedirect, router, driverUrl]);
 
   if (shouldRedirect) {
     return null;
@@ -219,7 +222,7 @@ export default function ActiveRoutePage() {
       // setQueryData replaces the data synchronously, unlike invalidateQueries
       // which only marks stale but still returns old data on next mount.
       queryClient.setQueryData<{ routes: DriverRoute[]; userId: string }>(
-        ["driver-routes"],
+        ["driver-routes", vanId ?? null],
         (old) => {
           if (!old) return old;
           return {
@@ -232,7 +235,7 @@ export default function ActiveRoutePage() {
           };
         },
       );
-      router.replace("/driver");
+      router.replace(driverUrl);
     } catch (err) {
       setEndError(err instanceof Error ? err.message : "Erro ao encerrar turno");
     } finally {
@@ -418,5 +421,22 @@ export default function ActiveRoutePage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function ActiveRoutePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="space-y-4">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-40 w-full rounded-xl" />
+          <Skeleton className="h-10 w-full rounded-lg" />
+          <Skeleton className="h-64 w-full rounded-xl" />
+        </div>
+      }
+    >
+      <ActiveRouteContent />
+    </Suspense>
   );
 }

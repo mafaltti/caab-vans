@@ -101,6 +101,19 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     runId = newRun.id;
   }
 
+  // Global guard: one active shift per driver across all runs
+  const { data: globalActiveShift } = await supabase
+    .from("route_shifts")
+    .select("id")
+    .eq("driver_id", auth.user.id)
+    .is("ended_at", null)
+    .maybeSingle();
+
+  if (globalActiveShift) {
+    return apiError("CONFLICT", "You already have an active shift on another route", 409);
+  }
+
+  // Per-run guard: only one active shift per run (any driver)
   const { data: activeShift } = await supabase
     .from("route_shifts")
     .select("id")

@@ -32,6 +32,7 @@ type ColdStartData = {
 type RouteCardProps = {
   route: DriverRoute;
   userId: string;
+  vanId?: string | null;
   onUpdate: (route: DriverRoute) => void;
 };
 
@@ -70,7 +71,7 @@ function getBrowserLocation(): Promise<{ lat: number; lng: number } | null> {
   });
 }
 
-export function RouteCard({ route, userId, onUpdate }: RouteCardProps) {
+export function RouteCard({ route, userId, vanId, onUpdate }: RouteCardProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -137,7 +138,7 @@ export function RouteCard({ route, userId, onUpdate }: RouteCardProps) {
         // dialog before the driver confirms their current stop.
       } else {
         applyStartData(data);
-        router.push(`/driver/routes/${route.id}`);
+        router.push(vanId ? `/driver/routes/${route.id}?vanId=${vanId}` : `/driver/routes/${route.id}`);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao iniciar turno");
@@ -166,7 +167,7 @@ export function RouteCard({ route, userId, onUpdate }: RouteCardProps) {
       }
       setShowColdStartDialog(false);
       setColdStart(null);
-      router.push(`/driver/routes/${route.id}`);
+      router.push(vanId ? `/driver/routes/${route.id}?vanId=${vanId}` : `/driver/routes/${route.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao confirmar parada");
     } finally {
@@ -268,7 +269,7 @@ export function RouteCard({ route, userId, onUpdate }: RouteCardProps) {
           {canEnd && (
             <>
               <Button asChild className="w-full">
-                <Link href={`/driver/routes/${route.id}`}>
+                <Link href={vanId ? `/driver/routes/${route.id}?vanId=${vanId}` : `/driver/routes/${route.id}`}>
                   <ChevronRight className="mr-2 size-4" />
                   Ver rota ativa
                 </Link>

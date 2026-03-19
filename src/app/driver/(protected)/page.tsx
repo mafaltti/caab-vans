@@ -27,9 +27,13 @@ function DriverPageContent() {
     );
     if (activeRoute) {
       didRedirect.current = true;
-      router.replace(`/driver/routes/${activeRoute.id}`);
+      router.replace(
+        vanId
+          ? `/driver/routes/${activeRoute.id}?vanId=${vanId}`
+          : `/driver/routes/${activeRoute.id}`,
+      );
     }
-  }, [data, router]);
+  }, [data, router, vanId]);
 
   function handleRouteUpdate(updated: DriverRoute) {
     queryClient.setQueryData<{ routes: DriverRoute[]; userId: string }>(
@@ -65,6 +69,7 @@ function DriverPageContent() {
           key={route.id}
           route={route}
           userId={userId}
+          vanId={vanId}
           onUpdate={handleRouteUpdate}
         />
       ))}
