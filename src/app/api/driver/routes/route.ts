@@ -1,11 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api/auth";
 import { apiError } from "@/lib/api/errors";
 import { createServiceClient } from "@/lib/supabase/server";
 import { nowBahia, todayBahiaDate, formatTime, formatTimeString } from "@/lib/time";
 import { deriveRunStatus } from "@/lib/tracking/run-status";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   let auth;
   try {
     auth = await requireAuth();
@@ -35,8 +35,9 @@ export async function GET() {
   }
 
   const routeIds = routeDrivers.map((rd) => rd.route_id);
+  const vanId = request.nextUrl.searchParams.get("vanId");
 
-  const { data: routes } = await supabase
+  let routesQuery = supabase
     .from("routes")
     .select(
       `
@@ -53,6 +54,12 @@ export async function GET() {
     `,
     )
     .in("id", routeIds);
+
+  if (vanId) {
+    routesQuery = routesQuery.eq("van_id", vanId);
+  }
+
+  const { data: routes } = await routesQuery;
 
   const vanMap = new Map(
     (routes ?? []).map((r) => {

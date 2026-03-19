@@ -1,17 +1,19 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useDriverRoutes } from "@/lib/queries/use-driver-routes";
 import { RouteCard } from "@/components/driver/route-card";
 import type { DriverRoute } from "@/types";
 import { MapPin } from "lucide-react";
 
-export default function DriverPage() {
+function DriverPageContent() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { data, isLoading } = useDriverRoutes();
+  const searchParams = useSearchParams();
+  const vanId = searchParams.get("vanId");
+  const { data, isLoading } = useDriverRoutes(vanId);
   const didRedirect = useRef(false);
 
   const routes = data?.routes ?? [];
@@ -31,7 +33,7 @@ export default function DriverPage() {
 
   function handleRouteUpdate(updated: DriverRoute) {
     queryClient.setQueryData<{ routes: DriverRoute[]; userId: string }>(
-      ["driver-routes"],
+      ["driver-routes", vanId ?? null],
       (old) => {
         if (!old) return old;
         return {
@@ -67,5 +69,13 @@ export default function DriverPage() {
         />
       ))}
     </div>
+  );
+}
+
+export default function DriverPage() {
+  return (
+    <Suspense fallback={<div className="text-sm text-zinc-500">Carregando...</div>}>
+      <DriverPageContent />
+    </Suspense>
   );
 }

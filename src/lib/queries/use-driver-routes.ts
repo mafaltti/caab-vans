@@ -10,19 +10,23 @@ type DriverRoutesResponse = {
 };
 
 async function fetchDriverRoutes(
+  vanId?: string | null,
   signal?: AbortSignal,
 ): Promise<DriverRoutesResponse> {
-  const res = await fetchWithDriverAuth("/api/driver/routes", { signal });
+  const url = vanId
+    ? `/api/driver/routes?vanId=${vanId}`
+    : "/api/driver/routes";
+  const res = await fetchWithDriverAuth(url, { signal });
   if (!res.ok) {
     throw new Error("Failed to fetch driver routes");
   }
   return res.json();
 }
 
-export function useDriverRoutes() {
+export function useDriverRoutes(vanId?: string | null) {
   return useQuery({
-    queryKey: ["driver-routes"],
-    queryFn: ({ signal }) => fetchDriverRoutes(signal),
+    queryKey: ["driver-routes", vanId ?? null],
+    queryFn: ({ signal }) => fetchDriverRoutes(vanId, signal),
     refetchInterval: 30_000,
   });
 }

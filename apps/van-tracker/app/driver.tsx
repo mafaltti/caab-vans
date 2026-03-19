@@ -42,6 +42,7 @@ export default function DriverScreen() {
   const webViewRef = useRef<WebView>(null);
   const [canGoBack, setCanGoBack] = useState(false);
   const [baseUrl, setBaseUrl] = useState<string | null>(null);
+  const [vanId, setVanId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState(false);
 
   useFocusEffect(
@@ -50,6 +51,9 @@ export default function DriverScreen() {
         const settings = await getSettings();
         if (settings?.apiBaseUrl) {
           setBaseUrl(settings.apiBaseUrl);
+        }
+        if (settings?.vanId) {
+          setVanId(settings.vanId);
         }
       })();
     }, []),
@@ -138,7 +142,7 @@ export default function DriverScreen() {
     <View style={styles.container}>
       <WebView
         ref={webViewRef}
-        source={{ uri: `${baseUrl}/driver` }}
+        source={{ uri: vanId ? `${baseUrl}/driver?vanId=${vanId}` : `${baseUrl}/driver` }}
         style={styles.webview}
         javaScriptEnabled
         domStorageEnabled
